@@ -6,7 +6,8 @@ import type { User } from '$lib/types';
 
 export const actions = {
 	default: async ({
-		request
+		request,
+		cookies
 	}): Promise<{
 		success: boolean;
 		user?: User;
@@ -48,32 +49,33 @@ export const actions = {
 
 		const { salt, hash } = await hashPassword(password as string);
 
-		try {
-			const res = await sql`
+		const res = await sql`
 			INSERT INTO users (email, name, username, password, salt)
 			VALUES (${email}, ${name}, ${username}, ${hash}, ${salt})
 			returning id, email, name, username, avatar, created_at
 			`;
 
-			const user: User = {
-				id: res[0].id,
-				email: res[0].email,
-				name: res[0].name,
-				username: res[0].username,
-				avatar: res[0].avatar,
-				created_at: res[0].created_at
-			};
+		const user: User = {
+			id: res[0].id,
+			email: res[0].email,
+			name: res[0].name,
+			username: res[0].username,
+			avatar: res[0].avatar,
+			created_at: res[0].created_at
+		};
 
-			return {
-				success: true,
-				user,
-				errors: []
-			};
-		} catch (err) {
-			return {
-				success: false,
-				errors: ['something went wrong']
-			};
-		}
+		const sessions = await sql`
+				INSERT INTO SESSIONS (user_id) VALUES (${user.id})
+				RETURNING token
+			`;
+		cookies.set('social.giorgiovola.casa-token', sessions[0].token, {
+			maxAge: 60 * 60 * 24 * 30
+		});
+
+		return {
+			success: true,
+			user,
+			errors: []
+		};
 	}
 } satisfies Actions;

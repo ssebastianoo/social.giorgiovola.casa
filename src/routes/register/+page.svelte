@@ -17,9 +17,9 @@
 {/if}
 
 <form method="POST">
-	<input value="ciao@email.com" type="email" name="email" placeholder="Email" required />
-	<input value="Uomo ciao" type="text" name="fullName" placeholder="Full name" required />
-	<input value="ciao" type="text" name="username" placeholder="username" required />
-	<input value="giorgio" type="password" name="password" placeholder="Password" required />
+	<input type="email" name="email" placeholder="Email" required />
+	<input type="text" name="fullName" placeholder="Full name" required />
+	<input type="text" name="username" placeholder="username" required />
+	<input type="password" name="password" placeholder="Password" required />
 	<input type="submit" value="Register" />
 </form>
