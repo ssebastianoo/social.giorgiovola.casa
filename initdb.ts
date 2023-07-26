@@ -18,6 +18,15 @@ async function initDB() {
         token TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE
     )`;
+	await sql`
+        CREATE TABLE IF NOT EXISTS POSTS (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            edited_at TIMESTAMP
+        )
+    `;
 }
 
 initDB();

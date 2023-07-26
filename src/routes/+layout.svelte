@@ -3,7 +3,7 @@
 	import { user } from '$lib/store';
 	import type { User } from '$lib/types';
 	import { onMount } from 'svelte';
-	import Auth from '$lib/Auth.svelte';
+	import Header from '$lib/Header.svelte';
 	// import '../styles.scss';
 
 	onMount(async () => {
@@ -16,7 +16,7 @@
 	});
 </script>
 
-<Auth />
+<Header />
 <div class="container">
 	<slot />
 </div>

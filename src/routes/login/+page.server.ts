@@ -54,7 +54,9 @@ export const actions = {
 			INSERT INTO sessions (user_id) VALUES (${user.id})
 			RETURNING token
 		`;
-		cookies.set('social.giorgiovola.casa-token', sessions[0].token);
+		cookies.set('social.giorgiovola.casa-token', sessions[0].token, {
+			maxAge: 60 * 60 * 24 * 30
+		});
 
 		return {
 			logged: true,
