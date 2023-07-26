@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
 	import Posts from '$lib/Posts.svelte';
+	import { user } from '$lib/store';
 
 	export let data: PageServerData;
 	$: posts = data.posts;
@@ -26,10 +27,14 @@
 	}
 </script>
 
-<form class="create-post" on:submit|preventDefault={createPost}>
-	<textarea name="content" required placeholder="twitter sucks" />
-	<input type="submit" value="create post" />
-</form>
+{#if $user}
+	<form class="create-post" on:submit|preventDefault={createPost}>
+		<textarea name="content" required placeholder="twitter sucks" />
+		<input type="submit" value="create post" />
+	</form>
+{:else}
+	<p>Login to post</p>
+{/if}
 
 <Posts {posts} />
 
