@@ -15,11 +15,13 @@
 </header>
 
 <style lang="scss">
+	@import 'src/variables.scss';
+
 	header {
 		display: flex;
 		justify-content: space-between;
 		padding: 20px;
-		background-color: rgb(32, 31, 31);
+		background-color: $color1;
 
 		.auth {
 			display: flex;

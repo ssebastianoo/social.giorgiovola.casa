@@ -33,13 +33,15 @@
 </div>
 
 <style lang="scss">
+	@import 'src/variables.scss';
+
 	.posts {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
 
 		.post {
-			border: 1px solid #ccc;
+			border: 1px solid $color1;
 			padding: 10px;
 		}
 	}

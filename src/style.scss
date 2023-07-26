@@ -1,8 +1,10 @@
+@import 'variables';
+
 body {
 	margin: 0;
 	padding: 0;
-	background-color: rgb(12, 11, 11);
-	color: white;
+	background-color: $color2;
+	color: $color3;
 }
 
 h1,
