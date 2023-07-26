@@ -1,7 +1,14 @@
 <script lang="ts">
 	import type { ActionData } from './$types';
+	import { onMount } from 'svelte';
 
 	export let form: ActionData;
+
+	onMount(() => {
+		if (form?.user) {
+			location.href = '/';
+		}
+	});
 </script>
 
 {#if form?.user}
