@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { user } from '$lib/store';
     import type { Post as PostType } from '../types';
-	import Post from './Post.svelte';
+	import Post from '$lib/components/Post.svelte';
 
 	export let posts: PostType[];
 

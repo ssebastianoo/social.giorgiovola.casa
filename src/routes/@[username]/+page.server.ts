@@ -28,6 +28,7 @@ export const load = (async ({ params }) => {
     LEFT JOIN likes ON posts.id = likes.post_id
     WHERE posts.user_id = ${users[0].id}
     GROUP BY posts.id
+    ORDER BY posts.created_at DESC
 	`;
 
 	const posts = result.map((post) => {

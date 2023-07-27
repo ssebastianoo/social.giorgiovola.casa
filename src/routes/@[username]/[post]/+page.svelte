@@ -5,6 +5,4 @@
     export let data: PageData;
 </script>
 
-<main>
-    <Post post={data.post} />
-</main>
+<Post post={data.post} />
