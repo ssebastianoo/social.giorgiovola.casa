@@ -2,7 +2,6 @@ import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
 import type { PublicUser, Post as PostType } from '$lib/types';
-import Post from '$lib/components/Post.svelte';
 
 export const load = (async ({ params }) => {
 	const username = params.username;
