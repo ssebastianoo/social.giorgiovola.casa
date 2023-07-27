@@ -39,7 +39,7 @@
             {/if}
         </div>
         <div class="content">
-            <p>{post.content}</p>
+            <p>{post.content} {post.likes}</p>
         </div>
     </div>
 </div>

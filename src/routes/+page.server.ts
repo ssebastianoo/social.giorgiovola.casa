@@ -12,9 +12,12 @@ export const load = (async () => {
 			users.username,
 			users.name,
 			users.avatar,
-			users.created_at AS user_created_at
+			users.created_at AS user_created_at,
+            COUNT(likes.post_id) AS likes
 		FROM posts
 		INNER JOIN users ON posts.user_id = users.id
+        LEFT JOIN likes ON posts.id = likes.post_id
+        GROUP BY posts.id, users.name, users.username, users.avatar, users.created_at
 		ORDER BY posts.created_at DESC
 	`;
 
@@ -24,6 +27,7 @@ export const load = (async () => {
 			content: post.content,
 			created_at: post.created_at,
 			edited_at: post.edited_at,
+            likes: post.likes,
 			user: {
 				username: post.username as string,
 				name: post.name as string,
