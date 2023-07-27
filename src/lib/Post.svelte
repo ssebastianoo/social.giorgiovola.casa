@@ -9,7 +9,6 @@
 	}
 </script>
 
-{@debug post}
 <a href={`/@${post.user.username}/${post.id}`}>
 <div class="post">
     <a class="img-url" href={'/@' + post.user.username}>
