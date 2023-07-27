@@ -25,6 +25,7 @@ export const load = (async ({ params }) => {
 		SELECT content, created_at, edited_at, id
 		FROM posts
 		WHERE user_id = ${users[0].id}
+        ORDER BY posts.created_at DESC
 	`;
 
 	posts = posts.map((post) => {
