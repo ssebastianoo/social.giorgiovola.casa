@@ -1,7 +1,8 @@
 import type { PageServerLoad } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
-import type { PublicUser, Post } from '$lib/types';
+import type { PublicUser, Post as PostType } from '$lib/types';
+import Post from '$lib/components/Post.svelte';
 
 export const load = (async ({ params }) => {
 	const username = params.username;
@@ -21,17 +22,19 @@ export const load = (async ({ params }) => {
 		created_at: users[0].created_at
 	};
 
-	let posts: Post[] = await sql`
-		SELECT content, created_at, edited_at, id
-		FROM posts
-		WHERE user_id = ${users[0].id}
-        ORDER BY posts.created_at DESC
+	const result = await sql`
+    SELECT posts.content, posts.created_at, posts.edited_at, posts.id, COUNT(likes.post_id) AS likes
+    FROM posts
+    LEFT JOIN likes ON posts.id = likes.post_id
+    WHERE posts.user_id = ${users[0].id}
+    GROUP BY posts.id
+    ORDER BY posts.created_at DESC
 	`;
 
-	posts = posts.map((post) => {
+	const posts = result.map((post) => {
 		post.user = user;
 		return post;
-	});
+	}) as PostType[];
 
 	return {
 		user,

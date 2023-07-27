@@ -1,6 +1,6 @@
 import type { Actions } from './$types';
-import { verifyPassword } from '$lib/password';
-import { sql } from '$lib/db';
+import { verifyPassword } from '$lib/server/password';
+import { sql } from '$lib/server/db';
 import type postgres from 'postgres';
 import type { User } from '$lib/types';
 // import { randomUUID } from 'crypto';

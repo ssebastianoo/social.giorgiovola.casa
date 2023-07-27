@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
-	import Posts from '$lib/Posts.svelte';
+	import Posts from '$lib/components/Posts.svelte';
 	import { user } from '$lib/store';
 
 	export let data: PageServerData;

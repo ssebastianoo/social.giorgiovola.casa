@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { user } from '$lib/store';
-	import type { Post as PostType } from './types';
-	import Post from './Post.svelte';
+    import type { Post as PostType } from '../types';
+	import Post from '$lib/components/Post.svelte';
 
 	export let posts: PostType[];
 
@@ -21,7 +21,7 @@
 
 <div class="posts">
 	{#each posts as post}
-		<Post {post} />
+        <Post {post} />
 	{/each}
 </div>
 
@@ -31,5 +31,7 @@
 	.posts {
 		display: flex;
 		flex-direction: column;
+		gap: 20px;
+
 	}
 </style>

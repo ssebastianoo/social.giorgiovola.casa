@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 
 export const load = (async ({ cookies }) => {
 	const sessionToken = cookies.get('social.giorgiovola.casa-token');

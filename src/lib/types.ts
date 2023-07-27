@@ -20,4 +20,5 @@ export type Post = {
 	content: string;
 	created_at: Date;
 	edited_at: Date | null;
+    likes: number;
 };
