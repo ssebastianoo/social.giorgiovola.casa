@@ -33,7 +33,9 @@
 		<input type="submit" value="Post" />
 	</form>
 {:else}
-	<p>Login to post</p>
+	<form class="create-post">
+		<input type="text" placeholder="Log in to post" disabled />
+	</form>
 {/if}
 
 <Posts {posts} />
