@@ -22,7 +22,7 @@ export const load = (async ({ params }) => {
 	};
 
 	let posts: Post[] = await sql`
-		SELECT content, created_at, edited_at
+		SELECT content, created_at, edited_at, id
 		FROM posts
 		WHERE user_id = ${users[0].id}
 	`;
