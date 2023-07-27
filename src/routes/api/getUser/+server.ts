@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import type { User } from '$lib/types';
 
 export const GET: RequestHandler = async ({ cookies }) => {

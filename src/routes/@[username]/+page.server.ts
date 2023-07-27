@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
 import type { PublicUser, Post } from '$lib/types';
 

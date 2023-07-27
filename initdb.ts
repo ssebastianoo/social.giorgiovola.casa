@@ -1,4 +1,4 @@
-import { sql } from './src/lib/db';
+import { sql } from './src/lib/server/db';
 
 async function initDB() {
 	await sql`

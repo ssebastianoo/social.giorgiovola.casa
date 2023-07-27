@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { user } from "./store";
-	import type { Post } from "./types";
+	import { user } from "../store";
+	import type { Post } from "../types";
 
     export let post: Post;
 

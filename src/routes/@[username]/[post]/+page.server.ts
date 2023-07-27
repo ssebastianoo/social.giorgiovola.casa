@@ -1,4 +1,4 @@
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import type { Post } from '$lib/types';
 import type { PageServerLoad } from './$types';
 
