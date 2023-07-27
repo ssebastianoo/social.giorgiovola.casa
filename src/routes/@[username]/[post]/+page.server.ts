@@ -2,7 +2,8 @@ import { sql } from '$lib/server/db';
 import type { Post } from '$lib/types';
 import type { PageServerLoad } from './$types';
 
-export const load = (async ({ params }) => {
+export const load = (async ({params}) => {
+
     const post = await sql`
         SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes
         FROM posts
