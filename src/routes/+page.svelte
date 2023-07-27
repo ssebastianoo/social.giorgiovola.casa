@@ -29,8 +29,8 @@
 
 {#if $user}
 	<form class="create-post" on:submit|preventDefault={createPost}>
-		<textarea name="content" required placeholder="twitter sucks" />
-		<input type="submit" value="create post" />
+		<input type="text" name="content" required placeholder="twitter sucks" />
+		<input type="submit" value="Post" />
 	</form>
 {:else}
 	<p>Login to post</p>
@@ -39,4 +39,26 @@
 <Posts {posts} />
 
 <style lang="scss">
+	.create-post {
+		display: flex;
+		gap: 10px;
+		margin-bottom: 20px;
+
+		input {
+			all: unset;
+			height: 25px;
+			width: 100%;
+			background-color: rgba(0, 0, 0, 0.35);
+			padding: 10px;
+			border-radius: 5px;
+		}
+
+		input[type='submit'] {
+			all: unset;
+			background-color: rgba(0, 0, 0, 0.35);
+			padding: 10px;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+	}
 </style>
