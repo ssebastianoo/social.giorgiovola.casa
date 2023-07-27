@@ -1,10 +1,8 @@
 <script lang="ts">
 	import '../style.scss';
 	import { user } from '$lib/store';
-	import type { User } from '$lib/types';
 	import { onMount } from 'svelte';
-	import Header from '$lib/Header.svelte';
-	// import '../styles.scss';
+	import Header from '$lib/components/Header.svelte';
 
 	onMount(async () => {
 		const res = await fetch('/api/getUser');

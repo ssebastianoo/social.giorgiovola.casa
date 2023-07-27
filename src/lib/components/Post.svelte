@@ -1,11 +1,19 @@
 <script lang="ts">
-	import { user } from './store';
-	import type { Post } from './types';
+	import { user } from '$lib/store';
+	import type { Post } from '$lib/types';
 
 	export let post: Post;
 
-	function deletePost(id: number) {
-		throw new Error('Function not implemented.');
+	async function deletePost(id: number) {
+		await fetch('/api/posts', {
+			method: 'DELETE',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				id
+			})
+		});
 	}
 </script>
 
