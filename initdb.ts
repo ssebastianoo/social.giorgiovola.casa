@@ -1,4 +1,8 @@
-import { sql } from './src/lib/server/db';
+import postgres from 'postgres';
+
+const url = process.env.DATABASE_URL || '';
+
+const sql = postgres(url);
 
 async function initDB() {
 	await sql`
@@ -28,7 +32,7 @@ async function initDB() {
         )
     `;
 
-    await sql`
+	await sql`
         CREATE TABLE IF NOT EXISTS LIKES (
             user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE,
             post_id INTEGER REFERENCES POSTS(id) ON DELETE CASCADE,
