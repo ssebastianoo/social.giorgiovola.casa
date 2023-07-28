@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
 	import Posts from '$lib/components/Posts.svelte';
-	import { user } from '$lib/store';
+	import { user, posts } from '$lib/store';
 
 	export let data: PageServerData;
 	let error: string | null = null;
 
-	$: posts = data.posts;
+	$posts = data.posts;
 
 	async function createPost(e: Event) {
 		const target = e.target as HTMLFormElement;
@@ -22,7 +22,7 @@
 			});
 			if (res.ok) {
 				const post = await res.json();
-				posts = [post, ...posts];
+				$posts = [post, ...$posts];
 				target.content.value = '';
 			} else {
 				if (res.status === 429) {
@@ -55,7 +55,7 @@
 	</form>
 {/if}
 
-<Posts {posts} />
+<Posts />
 
 <style lang="scss">
 	@import '/src/variables';

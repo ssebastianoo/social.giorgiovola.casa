@@ -1,13 +1,10 @@
 <script lang="ts">
-	import { user } from '$lib/store';
-	import type { Post as PostType } from '$lib/types';
+	import { posts } from '$lib/store';
 	import Post from '$lib/components/Post.svelte';
-
-	export let posts: PostType[];
 </script>
 
 <div class="posts">
-	{#each posts as post}
+	{#each $posts as post}
 		<a href={`/@${post.user.username}/${post.id}`} class="post-wrapper">
 			<Post {post} />
 		</a>
