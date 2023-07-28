@@ -63,7 +63,7 @@
 			<p>{post.content}</p>
 		</div>
 		<div class="actions">
-			<button on:click={toggleLike} class="like" data-liked={post.liked}>
+			<button on:click={toggleLike} class="like" data-liked={post.liked} data-logged={$user ? 'true' : 'false'}>
 				<svg height="20px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
 					><g id="SVGRepo_bgCarrier" stroke-width="0" /><g
 						id="SVGRepo_tracerCarrier"
@@ -102,7 +102,7 @@
 		transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
 	}
 
-	.like:not([data-liked='true']):hover {
+	.like:not([data-liked='true']):not([data-logged='false']):hover {
 		svg path {
 			fill: white;
 		}

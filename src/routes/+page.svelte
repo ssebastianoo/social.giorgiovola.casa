@@ -46,7 +46,7 @@
 
 {#if $user}
 	<form class="create-post" on:submit|preventDefault={createPost}>
-		<input type="text" name="content" required placeholder="twitter sucks" />
+		<input type="text" name="content" required placeholder="twitter sucks" autocomplete="off" />
 		<input type="submit" value="Post" />
 	</form>
 {:else}
