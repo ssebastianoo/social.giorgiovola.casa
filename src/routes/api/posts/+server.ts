@@ -15,13 +15,6 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 	}
 	const user_id = res[0].user_id;
 
-	const limitCheck = await sql`
-		SELECT COUNT(*) FROM posts WHERE user_id = ${user_id} AND created_at > NOW() - INTERVAL '20 seconds'
-	`;
-	if (limitCheck[0].count >= 1) {
-		return new Response('You can only post once per minute', { status: 429 });
-	}
-
 	const json = await request.json();
 
 	if (!json.content) {
