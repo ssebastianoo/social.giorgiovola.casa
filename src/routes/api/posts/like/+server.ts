@@ -30,10 +30,7 @@ export const POST: RequestHandler = async ({locals, request}) => {
             // post has been liked
             return true
         }
-    });
+    });    
 
-    console.log(liked)
-    
-
-    return new Response();
+    return new Response(JSON.stringify({liked}));
 };
