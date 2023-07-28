@@ -18,7 +18,6 @@ export const POST: RequestHandler = async ({locals, request}) => {
         ON CONFLICT (user_id, post_id) DO NOTHING
         RETURNING *
         `;
-
         if(res.length === 0) {
             // no action, delete like
             await sql`
