@@ -1,11 +1,9 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import Posts from '$lib/components/Posts.svelte';
-	import { posts } from '$lib/store';
 
 	export let data: PageData;
 
-	$posts = data.posts;
 </script>
 
 <div class="user">
@@ -16,7 +14,7 @@
 	</div>
 </div>
 
-<Posts />
+<Posts posts={data.posts}/>
 
 <style lang="scss">
 	.user {

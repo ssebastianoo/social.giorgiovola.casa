@@ -2,8 +2,9 @@ import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import type { Post } from '$lib/types';
 
-export const load = (async ({ locals }) => {
+export const load = (async ({ locals, depends }) => {
 	let res;
+    depends('app:posts')
 	if (!locals.user) {
 		// anon query
 		res = await sql`

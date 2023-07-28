@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { user, posts } from '$lib/store';
+	import { user } from '$lib/store';
 	import type { Post } from '$lib/types';
-
+    import { page } from '$app/stores';
+	import { goto, invalidate } from '$app/navigation';
 	export let post: Post;
 
 	async function deletePost(e: Event) {
@@ -16,7 +17,10 @@
 			})
 		});
 		if (res.ok) {
-			$posts = $posts.filter((p) => p.id !== post.id);
+            if($page.route.id === "/@[username]/[post]"){
+                return await goto('/')
+            }
+            invalidate('app:posts')
 		}
 	}
 

@@ -3,8 +3,9 @@ import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
 import type { PublicUser, Post as PostType } from '$lib/types';
 
-export const load = (async ({ params, locals }) => {
+export const load = (async ({ params, locals, depends }) => {
 	const username = params.username;
+    depends('app:posts')
 	const users = await sql`
 		SELECT id, name, username, avatar, created_at
 		FROM users
