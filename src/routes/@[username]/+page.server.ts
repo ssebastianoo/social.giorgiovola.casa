@@ -20,18 +20,19 @@ export const load = (async ({ params, locals }) => {
 		avatar: users[0].avatar,
 		created_at: users[0].created_at
 	};
-    let result;
-    if(!locals.user) {
-        result = await sql`
+	let result;
+	if (!locals.user) {
+		result = await sql`
         SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
         LEFT JOIN likes ON posts.id = likes.post_id
         WHERE users.username = ${users[0].username}
         GROUP BY posts.id, users.id
+		ORDER BY posts.created_at DESC
         `;
-    }else {
-        result = await sql`
+	} else {
+		result = await sql`
         SELECT posts.content, posts.id, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes,
         BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
         FROM posts
@@ -39,8 +40,9 @@ export const load = (async ({ params, locals }) => {
         LEFT JOIN likes ON posts.id = likes.post_id
         WHERE users.username = ${users[0].username}
         GROUP BY posts.id, users.id
-        `;     
-    }
+		ORDER BY posts.created_at DESC
+        `;
+	}
 	const posts = result.map((post) => {
 		post.user = user;
 		return post;

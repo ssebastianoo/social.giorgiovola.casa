@@ -11,10 +11,15 @@
 		if (data.logged) {
 			$user = data.user;
 		}
+
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.register('/sw.js');
+		}
 	});
 </script>
 
 <Header />
+
 <main>
 	<div class="container">
 		<slot />

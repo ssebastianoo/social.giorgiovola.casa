@@ -2,11 +2,11 @@ import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import type { Post } from '$lib/types';
 
-export const load = (async ({locals}) => {
-    let res;
-    if (!locals.user) {
-    // anon query
-        res = await sql`
+export const load = (async ({ locals }) => {
+	let res;
+	if (!locals.user) {
+		// anon query
+		res = await sql`
             SELECT
                 posts.id,
                 posts.content,
@@ -23,8 +23,8 @@ export const load = (async ({locals}) => {
             GROUP BY posts.id, users.name, users.username, users.avatar, users.created_at
             ORDER BY posts.created_at DESC
         `;
-    }else {
-        res = await sql`
+	} else {
+		res = await sql`
         SELECT
             posts.id,
             posts.content,
@@ -42,15 +42,15 @@ export const load = (async ({locals}) => {
         GROUP BY posts.id, posts.id, posts.content, posts.created_at, posts.edited_at, users.username, users.name, users.avatar, users.created_at
         ORDER BY posts.created_at DESC
     `;
-    }
+	}
 	const posts: Post[] = res.map((post) => {
 		return {
 			id: post.id,
 			content: post.content,
 			created_at: post.created_at,
 			edited_at: post.edited_at,
-            likes: post.likes,
-            liked: post.liked,
+			likes: post.likes,
+			liked: post.liked,
 			user: {
 				username: post.username as string,
 				name: post.name as string,
