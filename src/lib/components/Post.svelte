@@ -1,22 +1,25 @@
 <script lang="ts">
+	import { invalidate } from '$app/navigation';
 	import { user } from '$lib/store';
 	import type { Post } from '$lib/types';
 
 	export let post: Post;
 
-	async function deletePost(id: number) {
+	async function deletePost(e: Event) {
+        e.preventDefault()
 		await fetch('/api/posts', {
 			method: 'DELETE',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				id
+				id: post.id
 			})
 		});
 	}
 
-    async function toggleLike() {
+    async function toggleLike(e: Event) {
+        e.preventDefault();
         const res = await fetch('/api/posts/like', {
             method: 'POST',
             headers: {
@@ -64,9 +67,7 @@
             </div>
             {#if $user && $user.username === post.user.username}
             <button
-                on:click={() => {
-                    deletePost(post.id);
-                }}
+                on:click={deletePost}
                 ><svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 448 512"
                     ><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
                         d="M135.2 17.7L128 32H32C14.3 32 0 46.3 0 64S14.3 96 32 96H416c17.7 0 32-14.3 32-32s-14.3-32-32-32H320l-7.2-14.3C307.4 6.8 296.3 0 284.2 0H163.8c-12.1 0-23.2 6.8-28.6 17.7zM416 128H32L53.2 467c1.6 25.3 22.6 45 47.9 45H346.9c25.3 0 46.3-19.7 47.9-45L416 128z"
@@ -114,6 +115,12 @@
                 align-items: center;
                 width: 100%;
                 gap: 10px;
+                
+                .like:hover {
+                    svg {
+                        fill: rgb(245, 129, 129);
+                    }
+                }
             }
 			.user {
 				display: flex;
