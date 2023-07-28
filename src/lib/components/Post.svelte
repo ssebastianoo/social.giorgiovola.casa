@@ -59,6 +59,9 @@
             <button on:click={toggleLike} class="like">
                 <svg width="30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z" fill={post.liked ? 'red' : ''}></path> </g></svg>
             </button>
+            <div class="likes">
+                <p>{post.likes ? post.likes : '0'}</p>
+            </div>
             {#if $user && $user.username === post.user.username}
             <button
                 on:click={() => {
@@ -108,6 +111,7 @@
             .actions {
                 margin-top: 10px;
                 display: flex;
+                align-items: center;
                 width: 100%;
                 gap: 10px;
             }

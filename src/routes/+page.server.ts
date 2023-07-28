@@ -34,7 +34,7 @@ export const load = (async ({locals}) => {
             users.name,
             users.avatar,
             users.created_at AS user_created_at,
-            sum(likes.user_id) as likes,
+            COUNT(likes.user_id) as likes,
             BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
