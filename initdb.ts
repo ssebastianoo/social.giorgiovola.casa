@@ -1,4 +1,4 @@
-import { sql } from './src/lib/db';
+import { sql } from './src/lib/server/db';
 
 async function initDB() {
 	await sql`
@@ -27,6 +27,15 @@ async function initDB() {
             edited_at TIMESTAMP
         )
     `;
+
+    await sql`
+        CREATE TABLE IF NOT EXISTS LIKES (
+            user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE,
+            post_id INTEGER REFERENCES POSTS(id) ON DELETE CASCADE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, post_id)
+        )
+        `;
 }
 
 initDB();

@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { sql } from '$lib/db';
-import { hashPassword } from '$lib/password';
+import { sql } from '$lib/server/db';
+import { hashPassword } from '$lib/server/password';
 import type { User } from '$lib/types';
 
 export const actions = {

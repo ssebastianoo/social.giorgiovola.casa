@@ -1,9 +1,9 @@
 import type { PageServerLoad } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
-import type { PublicUser, Post } from '$lib/types';
+import type { PublicUser, Post as PostType } from '$lib/types';
 
-export const load = (async ({ params }) => {
+export const load = (async ({ params, locals }) => {
 	const username = params.username;
 	const users = await sql`
 		SELECT id, name, username, avatar, created_at
@@ -20,19 +20,29 @@ export const load = (async ({ params }) => {
 		avatar: users[0].avatar,
 		created_at: users[0].created_at
 	};
-
-	let posts: Post[] = await sql`
-		SELECT content, created_at, edited_at, id
-		FROM posts
-		WHERE user_id = ${users[0].id}
-        ORDER BY posts.created_at DESC
-	`;
-
-	posts = posts.map((post) => {
+    let result;
+    if(!locals.user) {
+        result = await sql`
+        SELECT posts.content, posts.created_at, posts.edited_at, posts.id, COUNT(likes.post_id) AS likes
+        FROM posts
+        LEFT JOIN likes ON posts.id = likes.post_id
+        WHERE posts.user_id = ${users[0].id}
+        GROUP BY posts.id
+        `;
+    }else {
+        result = await sql`
+        SELECT posts.content, posts.created_at, posts.edited_at, posts.id, COUNT(likes.post_id) AS likes,
+        BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
+        FROM posts
+        LEFT JOIN likes ON posts.id = likes.post_id
+        WHERE posts.user_id = ${users[0].id}
+        GROUP BY posts.id, posts.created_at, posts.user_id, liked
+        `;     
+    }
+	const posts = result.map((post) => {
 		post.user = user;
 		return post;
-	});
-
+	}) as PostType[];
 	return {
 		user,
 		posts

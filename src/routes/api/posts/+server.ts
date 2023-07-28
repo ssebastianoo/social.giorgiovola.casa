@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 
 export const POST: RequestHandler = async ({ cookies, request }) => {
 	const token = cookies.get('social.giorgiovola.casa-token');
