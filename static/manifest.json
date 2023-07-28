@@ -62,7 +62,7 @@
 			"name": "Profile",
 			"short_name": "Profile",
 			"description": "Open your profile",
-			"url": "/",
+			"url": "/profile",
 			"icons": [
 				{
 					"src": "/icons/Profile.png",
