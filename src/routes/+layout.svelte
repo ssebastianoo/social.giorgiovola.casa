@@ -1,17 +1,13 @@
 <script lang="ts">
 	import '../style.scss';
-	import { user } from '$lib/store';
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
+	import type { LayoutData } from './$types';
+    import { user } from '$lib/store';
 
+    export let data: LayoutData;
+    $user = data.user;
 	onMount(async () => {
-		const res = await fetch('/api/getUser');
-		const data = await res.json();
-
-		if (data.logged) {
-			$user = data.user;
-		}
-
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('/sw.js');
 		}
