@@ -1,5 +1,6 @@
 import { sql } from '$lib/server/db';
 import type { Post } from '$lib/types';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load = (async ({params, locals}) => {
@@ -23,6 +24,9 @@ export const load = (async ({params, locals}) => {
         WHERE posts.id = ${params.post} AND users.username = ${params.username}
         GROUP BY posts.id, users.id
         `; 
+    }
+    if(post.length === 0){
+        throw error(404, 'Post not found');
     }
 
     return {
