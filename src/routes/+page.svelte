@@ -4,6 +4,8 @@
 	import { user } from '$lib/store';
 
 	export let data: PageServerData;
+	let error: string | null = null;
+
 	$: posts = data.posts;
 
 	async function createPost(e: Event) {
@@ -22,10 +24,25 @@
 				const post = await res.json();
 				posts = [post, ...posts];
 				target.content.value = '';
+			} else {
+				if (res.status === 429) {
+					error = 'Slow down, you can only post once every 20 seconds';
+				} else {
+					error = 'Something went wrong.';
+				}
+				setTimeout(() => {
+					error = null;
+				}, 3000);
 			}
 		}
 	}
 </script>
+
+{#if error}
+	<div class="error">
+		<p>{error}</p>
+	</div>
+{/if}
 
 {#if $user}
 	<form class="create-post" on:submit|preventDefault={createPost}>
@@ -41,6 +58,15 @@
 <Posts {posts} />
 
 <style lang="scss">
+	@import '/src/variables';
+
+	.error {
+		background-color: $color4;
+		padding: 10px;
+		border-radius: 5px;
+		margin-bottom: 20px;
+	}
+
 	.create-post {
 		display: flex;
 		gap: 10px;

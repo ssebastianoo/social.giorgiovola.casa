@@ -4,34 +4,33 @@
 	import Post from '$lib/components/Post.svelte';
 
 	export let posts: PostType[];
-
-	async function deletePost(id: number) {
-		await fetch('/api/posts', {
-			method: 'DELETE',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				id
-			})
-		});
-		posts = posts.filter((post) => post.id !== id);
-	}
 </script>
 
 <div class="posts">
 	{#each posts as post}
-        <Post {post} />
+		<a href={`/@${post.user.username}/${post.id}`} class="post-wrapper">
+			<Post {post} />
+		</a>
 	{/each}
 </div>
 
 <style lang="scss">
 	@import 'src/variables.scss';
 
+	.post-wrapper {
+		color: unset;
+		text-decoration: none;
+		border-radius: 5px;
+		padding: 10px;
+		display: block;
+
+		&:hover {
+			background-color: black;
+		}
+	}
+
 	.posts {
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
-
 	}
 </style>

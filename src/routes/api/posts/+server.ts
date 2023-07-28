@@ -14,6 +14,14 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		return new Response('Unauthorized', { status: 401 });
 	}
 	const user_id = res[0].user_id;
+
+	const limitCheck = await sql`
+		SELECT COUNT(*) FROM posts WHERE user_id = ${user_id} AND created_at > NOW() - INTERVAL '20 seconds'
+	`;
+	if (limitCheck[0].count >= 1) {
+		return new Response('You can only post once per minute', { status: 429 });
+	}
+
 	const json = await request.json();
 
 	if (!json.content) {
@@ -24,7 +32,7 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 
 	const posts = await sql`
 		INSERT INTO POSTS (user_id, content) VALUES (${user_id}, ${content})
-		RETURNING content, created_at, edited_at
+		RETURNING content, created_at, edited_at, id
 	`;
 	const users = await sql`
 		SELECT id, name, username, email, avatar FROM users WHERE id = ${user_id}
