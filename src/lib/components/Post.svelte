@@ -35,7 +35,11 @@
 		if (res.status === 200) {
 			const data = await res.json();
 			post.liked = data.liked;
-			console.log(post);
+			if (post.liked) {
+				post.likes++;
+			} else {
+				post.likes--;
+			}
 		}
 	}
 </script>
