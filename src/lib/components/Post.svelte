@@ -7,7 +7,6 @@
 	export let post: Post;
 
 	async function deletePost(e: Event) {
-		e.preventDefault();
 		const res = await fetch('/api/posts', {
 			method: 'DELETE',
 			headers: {
@@ -26,7 +25,6 @@
 	}
 
 	async function toggleLike(e: Event) {
-		e.preventDefault();
 		const res = await fetch('/api/posts/like', {
 			method: 'POST',
 			headers: {
@@ -80,7 +78,7 @@
 			>
 			<p>{post.replies_count ? post.replies_count : '0'}</p>
 			<button
-				on:click={toggleLike}
+				on:click|preventDefault|stopPropagation={toggleLike}
 				class="like"
 				data-liked={post.liked}
 				data-logged={$user ? 'true' : 'false'}
@@ -103,7 +101,7 @@
 				<p>{post.likes ? post.likes : '0'}</p>
 			</div>
 			{#if $user && $user.username === post.user.username}
-				<button class="trash" on:click={deletePost}>
+				<button class="trash" on:click|preventDefault|stopPropagation={deletePost}>
 					<svg xmlns="http://www.w3.org/2000/svg" height="15px" viewBox="0 0 448 512"
 						><path
 							fill-opacity=".4"
