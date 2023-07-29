@@ -17,8 +17,6 @@
 		if ('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0) {
 			$isMobile = true;
 		}
-
-		console.log($page.route.id);
 	});
 </script>
 
