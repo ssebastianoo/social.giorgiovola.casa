@@ -4,7 +4,9 @@ import type { Post } from '$lib/types';
 
 export const load = (async ({ locals, depends }) => {
 	let res;
-    depends('app:posts')
+
+	depends('app:posts');
+
 	if (!locals.user) {
 		// anon query
 		res = await sql`
@@ -44,6 +46,7 @@ export const load = (async ({ locals, depends }) => {
         ORDER BY posts.created_at DESC
     `;
 	}
+
 	const posts: Post[] = res.map((post) => {
 		return {
 			id: post.id,
@@ -60,6 +63,7 @@ export const load = (async ({ locals, depends }) => {
 			}
 		};
 	});
+
 	return {
 		posts
 	};

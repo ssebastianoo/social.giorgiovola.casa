@@ -3,7 +3,6 @@
 	import Posts from '$lib/components/Posts.svelte';
 
 	export let data: PageData;
-
 </script>
 
 <div class="user">
@@ -14,7 +13,7 @@
 	</div>
 </div>
 
-<Posts posts={data.posts}/>
+<Posts posts={data.posts} />
 
 <style lang="scss">
 	.user {
