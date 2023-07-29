@@ -53,21 +53,38 @@
 {#await getReplies()}
 	Loading
 {:then}
-	<form class="create-post" on:submit|preventDefault={createPost}>
-		<input type="text" name="content" required placeholder="post reply" autocomplete="off" />
-		<input type="submit" value="Post" />
-	</form>
-	<Posts posts={replies} />
-{:catch error}
-	{error}
+	<div class="replies-wrapper">
+		{#if error}
+			<div class="error">
+				<p>{error}</p>
+			</div>
+		{/if}
+
+		<form class="create-post" on:submit|preventDefault={createPost}>
+			<input type="text" name="content" required placeholder="post reply" autocomplete="off" />
+			<input type="submit" value="Post" />
+		</form>
+		<Posts posts={replies} />
+	</div>
 {/await}
 
 <style lang="scss">
+	@import '/src/variables';
+
+	.replies-wrapper {
+		margin-top: 20px;
+	}
+	.error {
+		background-color: $color4;
+		padding: 10px;
+		border-radius: 5px;
+		margin-bottom: 20px;
+	}
+
 	.create-post {
 		display: flex;
 		gap: 10px;
 		margin-bottom: 20px;
-		margin-top: 20px;
 
 		input {
 			all: unset;
