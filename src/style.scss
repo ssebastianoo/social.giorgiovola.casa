@@ -16,3 +16,24 @@ h3,
 p {
 	margin: 0;
 }
+
+.create-post {
+	display: flex;
+	margin-bottom: 20px;
+}
+
+.input {
+	all: unset;
+	width: 100%;
+	padding: 10px;
+	border-bottom: 1px solid $color3;
+}
+
+.send {
+	all: unset;
+	cursor: pointer;
+	display: flex;
+	align-items: flex-end;
+	padding: 10px 10px 10px;
+	border-bottom: 1px solid $color3;
+}

@@ -23,10 +23,38 @@
 	</div>
 {/if}
 
-<form method="POST">
-	<input type="email" name="email" placeholder="Email" required />
-	<input type="text" name="fullName" placeholder="Full name" required />
-	<input type="text" name="username" placeholder="username" required />
-	<input type="password" name="password" placeholder="Password" required />
+<form method="POST" class="register">
+	<input class="input" type="email" name="email" placeholder="Email" required />
+	<input class="input" type="text" name="fullName" placeholder="Full name" required />
+	<input class="input" type="text" name="username" placeholder="Username" required />
+	<input class="input" type="password" name="password" placeholder="Password" required />
 	<input type="submit" value="Register" />
 </form>
+
+<style lang="scss">
+	@import 'src/variables';
+
+	.register {
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+
+		input {
+			width: calc(100% - 20px);
+		}
+
+		input[type='submit'] {
+			all: unset;
+			border: 1px solid $color3;
+			padding: 10px;
+			border-radius: 5px;
+			cursor: pointer;
+			text-align: center;
+			margin-top: 10px;
+
+			&:hover {
+				background-color: $color5;
+			}
+		}
+	}
+</style>
