@@ -70,6 +70,9 @@
 			<p>{post.content}</p>
 		</div>
 		<div class="actions">
+			<div class="replies">
+				<p>{post.replies_count}</p>
+			</div>
 			<button
 				on:click={toggleLike}
 				class="like"

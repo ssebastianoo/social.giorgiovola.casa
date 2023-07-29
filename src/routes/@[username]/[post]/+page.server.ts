@@ -16,20 +16,24 @@ export const load = (async ({ params, locals }) => {
 				posts.edited_at, users.name,
 				users.username,
 				users.avatar,
-				COUNT(likes.post_id) AS likes
+				COUNT(likes.post_id) AS likes,
+                COUNT(replies.id) as replies_count
 			FROM posts
 			INNER JOIN users ON posts.user_id = users.id
 			LEFT JOIN likes ON posts.id = likes.post_id
+            LEFT JOIN posts AS replies ON posts.id = replies.reply_to
 			WHERE posts.id = ${params.post} AND users.username = ${params.username}
 			GROUP BY posts.id, users.id
     `;
 	} else {
 		post = await sql`
         SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at as user_created_at, COUNT(likes.post_id) AS likes,
-        BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
+        BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked,
+        COUNT(replies.id) as replies_count
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
         LEFT JOIN likes ON posts.id = likes.post_id
+        LEFT JOIN posts AS replies ON posts.id = replies.reply_to
         WHERE posts.id = ${params.post} AND users.username = ${params.username}
         GROUP BY posts.id, users.id
         `;
@@ -40,10 +44,12 @@ export const load = (async ({ params, locals }) => {
 	let repliesPromise: postgres.PendingQuery<Row[]>;
 	if (!locals.user) {
 		repliesPromise = sql`
-        SELECT posts.content, posts.id, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at as user_created_at, COUNT(likes.post_id) AS likes
+        SELECT posts.content, posts.id, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at as user_created_at, COUNT(likes.post_id) AS likes,
+        COUNT(replies.id) as replies_count
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
         LEFT JOIN likes ON posts.id = likes.post_id
+        LEFT JOIN posts AS replies ON posts.id = replies.reply_to
         WHERE posts.reply_to = ${params.post}
         GROUP BY posts.id, users.id
         ORDER BY posts.created_at DESC
@@ -51,10 +57,12 @@ export const load = (async ({ params, locals }) => {
 	} else {
 		repliesPromise = sql`
         SELECT posts.content, posts.id, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at as user_created_at, COUNT(likes.post_id) AS likes,
-        BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
+        BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked,
+        COUNT(replies.id) as repliesCount
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
         LEFT JOIN likes ON posts.id = likes.post_id
+        LEFT JOIN posts AS replies ON posts.id = replies.reply_to
         WHERE posts.reply_to = ${params.post}
         GROUP BY posts.id, users.id
         ORDER BY posts.created_at DESC
@@ -69,6 +77,7 @@ export const load = (async ({ params, locals }) => {
 			edited_at: post[0].edited_at,
 			likes: post[0].likes,
 			liked: post[0].liked,
+			replies_count: post[0].replies_count,
 			user: {
 				name: post[0].name,
 				username: post[0].username,

@@ -33,9 +33,11 @@ export const load = (async ({ params, locals, depends }) => {
 				posts.created_at,
 				posts.id,
 				posts.edited_at,
-				COUNT(likes.post_id) AS likes
+				COUNT(likes.post_id) AS likes,
+                COUNT(replies.id) as repliesCount
 			FROM posts
 			LEFT JOIN likes ON posts.id = likes.post_id
+            LEFT JOIN posts AS replies ON posts.id = replies.reply_to
 			WHERE posts.user_id = ${users[0].id}
 			GROUP BY posts.id
 			ORDER BY posts.created_at DESC
@@ -48,9 +50,11 @@ export const load = (async ({ params, locals, depends }) => {
 				posts.created_at,
 				posts.edited_at,
 				COUNT(likes.post_id) AS likes,
-				BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
+				BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked,
+                COUNT(replies.id) as repliesCount
 			FROM posts
 			LEFT JOIN likes ON posts.id = likes.post_id
+            LEFT JOIN posts AS replies ON posts.id = replies.reply_to
 			WHERE posts.user_id = ${users[0].id}
 			GROUP BY posts.id
 			ORDER BY posts.created_at DESC
