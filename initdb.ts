@@ -28,7 +28,8 @@ async function initDB() {
             user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE,
             content TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-            edited_at TIMESTAMP
+            edited_at TIMESTAMP,
+            reply_to INTEGER REFERENCES POSTS(id) ON DELETE CASCADE
         )
     `;
 
