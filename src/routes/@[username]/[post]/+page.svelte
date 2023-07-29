@@ -1,36 +1,37 @@
 <script lang="ts">
 	import Post from '$lib/components/Post.svelte';
-    import type { Post as PostType } from '$lib/types';
+	import type { Post as PostType } from '$lib/types';
 	import type { PageData } from './$types';
 	import Posts from '$lib/components/Posts.svelte';
 	export let data: PageData;
-    let replies: PostType[] = [];
-    let error: string | null = null;
+	let replies: PostType[] = [];
+	let error: string | null = null;
+	let getReplies: () => Promise<void>;
 
+	$: {
+		getReplies = async () => {
+			replies = await data.streamed.replies;
+		};
+	}
 
-    async function getReplies(){
-        replies = await data.streamed.replies;
-    }
-
-
-    async function createPost(e: Event) {
+	async function createPost(e: Event) {
 		const target = e.target as HTMLFormElement;
 		const content = target.content.value;
- 
+
 		if (content) {
 			const res = await fetch('/api/posts', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ 
-                    content,
-                    reply_to: data.post.id
-                 })
+				body: JSON.stringify({
+					content,
+					reply_to: data.post.id
+				})
 			});
 			if (res.ok) {
 				const post = await res.json();
-			    replies = [post, ...replies];
+				replies = [post, ...replies];
 				target.content.value = '';
 			} else {
 				if (res.status === 429) {
@@ -48,23 +49,22 @@
 
 <Post post={data.post} />
 {#await getReplies()}
-    Loading
+	Loading
 {:then}
-<form class="create-post" on:submit|preventDefault={createPost}>
-    <input type="text" name="content" required placeholder="post reply" autocomplete="off" />
-    <input type="submit" value="Post" />
-</form>
-    <Posts posts={replies} />
+	<form class="create-post" on:submit|preventDefault={createPost}>
+		<input type="text" name="content" required placeholder="post reply" autocomplete="off" />
+		<input type="submit" value="Post" />
+	</form>
+	<Posts posts={replies} />
 {:catch error}
-    {error}
+	{error}
 {/await}
 
 <style lang="scss">
 	.create-post {
-
 		display: flex;
 		gap: 10px;
-        margin-bottom: 20px;
+		margin-bottom: 20px;
 		margin-top: 20px;
 
 		input {
@@ -83,5 +83,5 @@
 			border-radius: 5px;
 			cursor: pointer;
 		}
-}
+	}
 </style>
