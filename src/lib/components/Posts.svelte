@@ -2,15 +2,31 @@
 	import Post from '$lib/components/Post.svelte';
 	import type { Post as PostType } from '$lib/types';
 	import { isMobile } from '$lib/store';
+	import { goto } from '$app/navigation';
 
 	export let posts: PostType[];
 </script>
 
 <div class="posts" data-mobile={$isMobile}>
 	{#each posts as post}
-		<a href={`/@${post.user.username}/${post.id}`} class="post-wrapper">
+		<div
+			tabindex="0"
+			role="button"
+			aria-pressed="false"
+			on:keypress={() => {
+				goto(`/@${post.user.username}/${post.id}`);
+			}}
+			on:click|preventDefault={() => {
+				// allow dragging to select text
+				const selection = getSelection();
+				console.log(selection);
+				if (selection && selection.type === 'Range') return;
+				goto(`/@${post.user.username}/${post.id}`);
+			}}
+			class="post-wrapper"
+		>
 			<Post {post} />
-		</a>
+		</div>
 	{/each}
 </div>
 
@@ -25,6 +41,7 @@
 			color: unset;
 			text-decoration: none;
 			border-radius: 5px;
+			cursor: pointer;
 			padding: 10px;
 			display: block;
 			-webkit-tap-highlight-color: transparent;

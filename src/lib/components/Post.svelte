@@ -119,6 +119,10 @@
 <style lang="scss">
 	@import 'src/variables.scss';
 
+	p {
+		cursor: text;
+	}
+
 	.post[data-mobile='false'] {
 		.like svg path {
 			transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
