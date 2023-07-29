@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { user } from '$lib/store';
+	import { user, isMobile } from '$lib/store';
 	import type { Post } from '$lib/types';
 	import { page } from '$app/stores';
 	import { goto, invalidate } from '$app/navigation';
@@ -50,7 +50,7 @@
 	}
 </script>
 
-<div class="post">
+<div class="post" data-mobile={$isMobile}>
 	<a class="img-url" href={'/@' + post.user.username}>
 		<img
 			src={'https://source.boringavatars.com/beam/45/' + post.user.username}
@@ -112,19 +112,21 @@
 <style lang="scss">
 	@import 'src/variables.scss';
 
-	.like svg path {
-		transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
-	}
-
-	.like:not([data-liked='true']):not([data-logged='false']):hover {
-		svg path {
-			fill: white;
+	.post[data-mobile='false'] {
+		.like svg path {
+			transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
 		}
-	}
 
-	.trash:hover {
-		svg path {
-			fill-opacity: 0.8;
+		.like:not([data-liked='true']):not([data-logged='false']):hover {
+			svg path {
+				fill: white;
+			}
+		}
+
+		.trash:hover {
+			svg path {
+				fill-opacity: 0.8;
+			}
 		}
 	}
 
@@ -155,6 +157,7 @@
 			flex-direction: column;
 			width: 100%;
 			gap: 3px;
+			
 			.actions {
 				margin-top: 10px;
 				display: flex;
