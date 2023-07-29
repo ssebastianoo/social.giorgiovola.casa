@@ -24,7 +24,7 @@
 				target.content.value = '';
 			} else {
 				if (res.status === 429) {
-					error = 'Slow down, you can only post once every 20 seconds';
+					error = 'Slow down, you can only post once every 5 seconds';
 				} else {
 					error = 'Something went wrong.';
 				}
