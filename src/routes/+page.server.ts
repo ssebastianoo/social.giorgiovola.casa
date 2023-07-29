@@ -40,6 +40,7 @@ export const load = (async ({ locals, depends }) => {
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
         LEFT JOIN likes ON posts.id = likes.post_id
+        WHERE posts.reply_to IS NULL
         GROUP BY posts.id, posts.id, posts.content, posts.created_at, posts.edited_at, users.username, users.name, users.avatar, users.created_at
         ORDER BY posts.created_at DESC
     `;

@@ -22,4 +22,5 @@ export type Post = {
 	edited_at: Date | null;
     likes: number;
     liked?: boolean;
+    reply_to?: number;
 };
