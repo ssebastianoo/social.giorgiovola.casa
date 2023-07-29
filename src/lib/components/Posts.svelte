@@ -19,7 +19,6 @@
 			on:click|preventDefault={() => {
 				// allow dragging to select text
 				const selection = getSelection();
-				console.log(selection);
 				if (selection && selection.type === 'Range') return;
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
