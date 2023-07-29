@@ -16,7 +16,7 @@ async function initDB() {
         password TEXT NOT NULL,
         salt TEXT NOT NULL,
         avatar TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`;
 	await sql`CREATE TABLE IF NOT EXISTS SESSIONS (
         token TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -27,8 +27,8 @@ async function initDB() {
             id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE,
             content TEXT NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-            edited_at TIMESTAMP,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            edited_at TIMESTAMPTZ,
             reply_to INTEGER REFERENCES POSTS(id) ON DELETE CASCADE
         )
     `;
@@ -37,7 +37,7 @@ async function initDB() {
         CREATE TABLE IF NOT EXISTS LIKES (
             user_id INTEGER REFERENCES USERS(id) ON DELETE CASCADE,
             post_id INTEGER REFERENCES POSTS(id) ON DELETE CASCADE,
-            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             PRIMARY KEY (user_id, post_id)
         )
         `;

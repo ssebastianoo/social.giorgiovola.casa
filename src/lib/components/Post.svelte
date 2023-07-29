@@ -5,8 +5,6 @@
 	import { goto, invalidate } from '$app/navigation';
 	export let post: Post;
 
-	$: date = new Date(post.created_at).toLocaleString();
-
 	async function deletePost(e: Event) {
 		e.preventDefault();
 		const res = await fetch('/api/posts', {
@@ -65,7 +63,7 @@
 				>
 			</p>
 			<p class="date">
-				{date}
+				{new Date(post.created_at).toLocaleString()}
 			</p>
 		</div>
 		<div class="content">
