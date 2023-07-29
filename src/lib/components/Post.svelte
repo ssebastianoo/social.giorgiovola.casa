@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { user } from '$lib/store';
+	import { user, isMobile } from '$lib/store';
 	import type { Post } from '$lib/types';
-    import { page } from '$app/stores';
+	import { page } from '$app/stores';
 	import { goto, invalidate } from '$app/navigation';
 	export let post: Post;
+
+	const date = new Date(post.created_at).toLocaleString();
 
 	async function deletePost(e: Event) {
 		e.preventDefault();
@@ -17,10 +19,10 @@
 			})
 		});
 		if (res.ok) {
-            if($page.route.id === "/@[username]/[post]"){
-                return await goto('/')
-            }
-            invalidate('app:posts')
+			if ($page.route.id === '/@[username]/[post]') {
+				return await goto('/');
+			}
+			invalidate('app:posts');
 		}
 	}
 
@@ -48,7 +50,7 @@
 	}
 </script>
 
-<div class="post">
+<div class="post" data-mobile={$isMobile}>
 	<a class="img-url" href={'/@' + post.user.username}>
 		<img
 			src={'https://source.boringavatars.com/beam/45/' + post.user.username}
@@ -56,18 +58,26 @@
 		/>
 	</a>
 	<div class="text">
-		<div class="user">
+		<div class="post-info">
 			<p class="name">
 				<a href={'/@' + post.user.username}
 					>{post.user.name} <span class="username">@{post.user.username}</span></a
 				>
+			</p>
+			<p class="date">
+				{date}
 			</p>
 		</div>
 		<div class="content">
 			<p>{post.content}</p>
 		</div>
 		<div class="actions">
-			<button on:click={toggleLike} class="like" data-liked={post.liked} data-logged={$user ? 'true' : 'false'}>
+			<button
+				on:click={toggleLike}
+				class="like"
+				data-liked={post.liked}
+				data-logged={$user ? 'true' : 'false'}
+			>
 				<svg height="20px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
 					><g id="SVGRepo_bgCarrier" stroke-width="0" /><g
 						id="SVGRepo_tracerCarrier"
@@ -77,7 +87,7 @@
 						<path
 							d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z"
 							fill={post.liked ? '#bb5353' : 'transparent'}
-							stroke={post.liked ? '#bb5353' : 'white'}
+							stroke={post.liked ? '#bb5353' : '#d9d9d9'}
 						/>
 					</g></svg
 				>
@@ -102,19 +112,21 @@
 <style lang="scss">
 	@import 'src/variables.scss';
 
-	.like svg path {
-		transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
-	}
-
-	.like:not([data-liked='true']):not([data-logged='false']):hover {
-		svg path {
-			fill: white;
+	.post[data-mobile='false'] {
+		.like svg path {
+			transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
 		}
-	}
 
-	.trash:hover {
-		svg path {
-			fill-opacity: 0.8;
+		.like:not([data-liked='true']):not([data-logged='false']):hover {
+			svg path {
+				fill: $color3;
+			}
+		}
+
+		.trash:hover {
+			svg path {
+				fill-opacity: 0.8;
+			}
 		}
 	}
 
@@ -145,6 +157,7 @@
 			flex-direction: column;
 			width: 100%;
 			gap: 3px;
+
 			.actions {
 				margin-top: 10px;
 				display: flex;
@@ -158,8 +171,10 @@
 					}
 				}
 			}
-			.user {
+			.post-info {
 				display: flex;
+				align-items: center;
+				justify-content: space-between;
 				gap: 5px;
 
 				a {
@@ -178,6 +193,11 @@
 						font-weight: 500;
 						opacity: 0.8;
 					}
+				}
+
+				.date {
+					font-size: 0.8rem;
+					opacity: 0.7;
 				}
 			}
 		}

@@ -5,12 +5,14 @@ import type { PublicUser, Post as PostType } from '$lib/types';
 
 export const load = (async ({ params, locals, depends }) => {
 	const username = params.username;
-    depends('app:posts')
+	depends('app:posts');
+
 	const users = await sql`
 		SELECT id, name, username, avatar, created_at
 		FROM users
 		WHERE username = ${username}
 	`;
+
 	if (users.length === 0) {
 		throw error(404, 'User not found');
 	}
@@ -21,7 +23,9 @@ export const load = (async ({ params, locals, depends }) => {
 		avatar: users[0].avatar,
 		created_at: users[0].created_at
 	};
+
 	let result;
+
 	if (!locals.user) {
 		result = await sql`
         SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes
@@ -44,10 +48,12 @@ export const load = (async ({ params, locals, depends }) => {
 		ORDER BY posts.created_at DESC
         `;
 	}
+
 	const posts = result.map((post) => {
 		post.user = user;
 		return post;
 	}) as PostType[];
+
 	return {
 		user,
 		posts

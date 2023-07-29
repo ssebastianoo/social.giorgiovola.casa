@@ -20,7 +20,6 @@ export type Post = {
 	content: string;
 	created_at: Date;
 	edited_at: Date | null;
-    likes: number;
-    liked?: boolean;
-    reply_to?: number;
+	likes: number;
+	liked?: boolean;
 };
