@@ -8,6 +8,8 @@
 	let error: string | null = null;
 	let getReplies: () => Promise<void>;
 
+	// we need a reactive block because server promises are not reactive and
+	// navigation from one post to another will not update the replies
 	$: {
 		getReplies = async () => {
 			replies = await data.streamed.replies;

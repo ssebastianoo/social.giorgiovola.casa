@@ -28,7 +28,6 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		return new Response('Missing content', { status: 400 });
 	}
 
-    console.log(json)
 	const { content, reply_to } = json;
 	const posts = await sql`
 		INSERT INTO POSTS (user_id, content, reply_to) VALUES (${user_id}, ${content}, ${reply_to || null})
