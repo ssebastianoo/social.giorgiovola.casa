@@ -159,6 +159,12 @@
 			width: 100%;
 			gap: 3px;
 
+			.content {
+				p {
+					overflow-wrap: anywhere;
+				}
+			}
+
 			.actions {
 				margin-top: 10px;
 				display: flex;

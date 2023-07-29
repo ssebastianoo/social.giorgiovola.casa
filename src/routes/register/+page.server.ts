@@ -51,7 +51,7 @@ export const actions = {
 
 		const res = await sql`
 			INSERT INTO users (email, name, username, password, salt)
-			VALUES (${email}, ${name}, ${username}, ${hash}, ${salt})
+			VALUES (${email}, ${name}, ${username.toLowerCase().replaceAll(' ', '')}, ${hash}, ${salt})
 			returning id, email, name, username, avatar, created_at
 			`;
 
