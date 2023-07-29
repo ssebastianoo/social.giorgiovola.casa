@@ -5,6 +5,8 @@
 	import { goto, invalidate } from '$app/navigation';
 	export let post: Post;
 
+	const date = new Date(post.created_at).toLocaleString();
+
 	async function deletePost(e: Event) {
 		e.preventDefault();
 		const res = await fetch('/api/posts', {
@@ -56,11 +58,14 @@
 		/>
 	</a>
 	<div class="text">
-		<div class="user">
+		<div class="post-info">
 			<p class="name">
 				<a href={'/@' + post.user.username}
 					>{post.user.name} <span class="username">@{post.user.username}</span></a
 				>
+			</p>
+			<p class="date">
+				{date}
 			</p>
 		</div>
 		<div class="content">
@@ -163,8 +168,10 @@
 					}
 				}
 			}
-			.user {
+			.post-info {
 				display: flex;
+				align-items: center;
+				justify-content: space-between;
 				gap: 5px;
 
 				a {
@@ -183,6 +190,11 @@
 						font-weight: 500;
 						opacity: 0.8;
 					}
+				}
+
+				.date {
+					font-size: 0.8rem;
+					opacity: 0.7;
 				}
 			}
 		}
