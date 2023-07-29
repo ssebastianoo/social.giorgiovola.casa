@@ -8,7 +8,13 @@ export const load = (async ({ params, locals }) => {
 
 	if (!locals.user) {
 		post = await sql`
-			SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes
+			SELECT 
+				posts.content,
+				posts.created_at,
+				posts.edited_at, users.name,
+				users.username,
+				users.avatar,
+				COUNT(likes.post_id) AS likes
 			FROM posts
 			INNER JOIN users ON posts.user_id = users.id
 			LEFT JOIN likes ON posts.id = likes.post_id
@@ -17,7 +23,13 @@ export const load = (async ({ params, locals }) => {
     `;
 	} else {
 		post = await sql`
-			SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes,
+			SELECT
+				posts.content,
+				posts.created_at,
+				posts.edited_at,
+				users.name, users.username, users.avatar,
+				users.created_at as user_created_at,
+				COUNT(likes.post_id) AS likes,
 			BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
 			FROM posts
 			INNER JOIN users ON posts.user_id = users.id
@@ -26,7 +38,7 @@ export const load = (async ({ params, locals }) => {
 			GROUP BY posts.id, users.id
         `;
 	}
-	
+
 	if (post.length === 0) {
 		throw error(404, 'Post not found');
 	}
@@ -43,7 +55,7 @@ export const load = (async ({ params, locals }) => {
 				name: post[0].name,
 				username: post[0].username,
 				avatar: post[0].avatar,
-				created_at: post[0].created_at
+				created_at: post[0].user_created_at
 			}
 		} satisfies Post
 	};

@@ -28,24 +28,32 @@ export const load = (async ({ params, locals, depends }) => {
 
 	if (!locals.user) {
 		result = await sql`
-        SELECT posts.content, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes
-        FROM posts
-        INNER JOIN users ON posts.user_id = users.id
-        LEFT JOIN likes ON posts.id = likes.post_id
-        WHERE users.username = ${users[0].username}
-        GROUP BY posts.id, users.id
-		ORDER BY posts.created_at DESC
+			SELECT
+				posts.content,
+				posts.created_at,
+				posts.id,
+				posts.edited_at,
+				COUNT(likes.post_id) AS likes
+			FROM posts
+			LEFT JOIN likes ON posts.id = likes.post_id
+			WHERE posts.user_id = ${users[0].id}
+			GROUP BY posts.id
+			ORDER BY posts.created_at DESC
         `;
 	} else {
 		result = await sql`
-        SELECT posts.content, posts.id, posts.created_at, posts.edited_at, users.name, users.username, users.avatar, users.created_at, COUNT(likes.post_id) AS likes,
-        BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
-        FROM posts
-        INNER JOIN users ON posts.user_id = users.id
-        LEFT JOIN likes ON posts.id = likes.post_id
-        WHERE users.username = ${users[0].username}
-        GROUP BY posts.id, users.id
-		ORDER BY posts.created_at DESC
+			SELECT 
+				posts.content, 
+				posts.id, 
+				posts.created_at,
+				posts.edited_at,
+				COUNT(likes.post_id) AS likes,
+				BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked
+			FROM posts
+			LEFT JOIN likes ON posts.id = likes.post_id
+			WHERE posts.user_id = ${users[0].id}
+			GROUP BY posts.id
+			ORDER BY posts.created_at DESC
         `;
 	}
 

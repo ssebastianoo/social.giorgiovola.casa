@@ -5,7 +5,7 @@
 	import { goto, invalidate } from '$app/navigation';
 	export let post: Post;
 
-	const date = new Date(post.created_at).toLocaleString();
+	$: date = new Date(post.created_at).toLocaleString();
 
 	async function deletePost(e: Event) {
 		e.preventDefault();
