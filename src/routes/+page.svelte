@@ -6,7 +6,6 @@
 	export let data: PageServerData;
 	let error: string | null = null;
 
-
 	async function createPost(e: Event) {
 		const target = e.target as HTMLFormElement;
 		const content = target.content.value;
@@ -21,7 +20,7 @@
 			});
 			if (res.ok) {
 				const post = await res.json();
-			    data.posts = [post, ...data.posts];
+				data.posts = [post, ...data.posts];
 				target.content.value = '';
 			} else {
 				if (res.status === 429) {

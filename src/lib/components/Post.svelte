@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { user } from '$lib/store';
 	import type { Post } from '$lib/types';
-    import { page } from '$app/stores';
+	import { page } from '$app/stores';
 	import { goto, invalidate } from '$app/navigation';
 	export let post: Post;
 
@@ -17,10 +17,10 @@
 			})
 		});
 		if (res.ok) {
-            if($page.route.id === "/@[username]/[post]"){
-                return await goto('/')
-            }
-            invalidate('app:posts')
+			if ($page.route.id === '/@[username]/[post]') {
+				return await goto('/');
+			}
+			invalidate('app:posts');
 		}
 	}
 
@@ -67,7 +67,12 @@
 			<p>{post.content}</p>
 		</div>
 		<div class="actions">
-			<button on:click={toggleLike} class="like" data-liked={post.liked} data-logged={$user ? 'true' : 'false'}>
+			<button
+				on:click={toggleLike}
+				class="like"
+				data-liked={post.liked}
+				data-logged={$user ? 'true' : 'false'}
+			>
 				<svg height="20px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
 					><g id="SVGRepo_bgCarrier" stroke-width="0" /><g
 						id="SVGRepo_tracerCarrier"

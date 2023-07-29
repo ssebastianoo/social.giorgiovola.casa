@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Post from '$lib/components/Post.svelte';
-    import type { Post as PostType} from '$lib/types';
-    export let posts: PostType[];
+	import type { Post as PostType } from '$lib/types';
+	export let posts: PostType[];
 </script>
 
 <div class="posts">

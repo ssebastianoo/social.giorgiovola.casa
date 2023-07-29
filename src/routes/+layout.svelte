@@ -3,10 +3,11 @@
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import type { LayoutData } from './$types';
-    import { user } from '$lib/store';
+	import { user } from '$lib/store';
 
-    export let data: LayoutData;
-    $user = data.user;
+	export let data: LayoutData;
+	$user = data.user;
+	
 	onMount(async () => {
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('/sw.js');
