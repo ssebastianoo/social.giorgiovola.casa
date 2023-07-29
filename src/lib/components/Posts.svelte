@@ -27,6 +27,7 @@
 			border-radius: 5px;
 			padding: 10px;
 			display: block;
+			-webkit-tap-highlight-color: transparent;
 		}
 	}
 
