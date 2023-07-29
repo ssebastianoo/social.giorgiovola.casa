@@ -71,7 +71,7 @@
 		</div>
 		<div class="actions">
 			<div class="replies">
-				<p>{post.replies_count}</p>
+				<p>{post.replies_count ? post.replies_count : '0'}</p>
 			</div>
 			<button
 				on:click={toggleLike}

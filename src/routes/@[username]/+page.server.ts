@@ -34,7 +34,7 @@ export const load = (async ({ params, locals, depends }) => {
 				posts.id,
 				posts.edited_at,
 				COUNT(likes.post_id) AS likes,
-                COUNT(replies.id) as repliesCount
+                COUNT(replies.id) as replies_count
 			FROM posts
 			LEFT JOIN likes ON posts.id = likes.post_id
             LEFT JOIN posts AS replies ON posts.id = replies.reply_to
@@ -51,7 +51,7 @@ export const load = (async ({ params, locals, depends }) => {
 				posts.edited_at,
 				COUNT(likes.post_id) AS likes,
 				BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked,
-                COUNT(replies.id) as repliesCount
+                COUNT(replies.id) as replies_count
 			FROM posts
 			LEFT JOIN likes ON posts.id = likes.post_id
             LEFT JOIN posts AS replies ON posts.id = replies.reply_to
