@@ -80,7 +80,7 @@ export const load = (async ({ params, locals }) => {
 				avatar: post[0].avatar,
 				created_at: post[0].user_created_at
 			}
-		},
+		} as Post,
 		streamed: {
 			replies: new Promise<Post[]>((resolve, reject) => {
 				repliesPromise
