@@ -28,11 +28,10 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		return new Response('Missing content', { status: 400 });
 	}
 
-	const content = json.content;
-
+	const { content, reply_to } = json;
 	const posts = await sql`
-		INSERT INTO POSTS (user_id, content) VALUES (${user_id}, ${content})
-		RETURNING content, created_at, edited_at, id
+		INSERT INTO POSTS (user_id, content, reply_to) VALUES (${user_id}, ${content}, ${reply_to || null})
+		RETURNING content, created_at, edited_at, id, reply_to
 	`;
 	const users = await sql`
 		SELECT id, name, username, email, avatar FROM users WHERE id = ${user_id}
