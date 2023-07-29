@@ -33,6 +33,7 @@
 	"type": "module",
 	"dependencies": {
 		"@fontsource-variable/manrope": "^5.0.5",
+		"canvas": "^2.11.2",
 		"dotenv": "^16.3.1",
 		"postgres": "^3.3.5"
 	}

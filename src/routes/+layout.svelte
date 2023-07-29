@@ -36,7 +36,7 @@
 			content={`${$page.data.post.user.name} : "${$page.data.post.content}"`}
 		/>
 		<meta property="og:description" content={$page.data.post.content} />
-		<meta property="og:image" content="/OpenGraph.png" />
+		<meta property="og:image" content={$page.url.toString() + '/image.png'} />
 		<meta property="og:profile:username" content={$page.data.post.user.username} />
 		<meta property="og:article:published_time" content={$page.data.post.created_at.toISOString()} />
 
@@ -47,9 +47,10 @@
 			content={`${$page.data.post.user.name} on social.giorgiovola.casa`}
 		/>
 		<meta property="twitter:description" content={$page.data.post.content} />
-		<meta property="twitter:image" content="/OpenGraph.png" />
+		<meta property="twitter:image" content={$page.url.toString() + '/image.png'} />
 	{:else}
 		<!-- Primary Meta Tags -->
+		<title>Social Giorgiovola Caso</title>
 		<meta name="title" content="Social Giorgiovola Casa" />
 		<meta
 			name="description"
