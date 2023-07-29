@@ -42,7 +42,7 @@ export const load = (async ({ locals, depends }) => {
             users.created_at AS user_created_at,
             COUNT(likes.user_id) as likes,
             BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked,
-            COUNT(replies.id) as repliesCount
+            COUNT(replies.id) as replies_count
         FROM posts
         INNER JOIN users ON posts.user_id = users.id
         LEFT JOIN likes ON posts.id = likes.post_id
