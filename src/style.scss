@@ -52,3 +52,30 @@ a {
 	background: $color1;
 	color: $color3;
 }
+
+.btn {
+	all: unset;
+	cursor: pointer;
+	padding: 5px;
+	border: 1px solid $color1;
+	border-radius: 5px;
+	background-color: $color2;
+	color: $color3;
+
+	&:hover {
+		background-color: $color1;
+		color: $color2;
+	}
+}
+
+dialog {
+	z-index: 999;
+	background-color: $color5;
+	border: none;
+	backdrop-filter: blur(1px);
+	color: $color3;
+
+	&::backdrop {
+		filter: blur(10px);
+	}
+}
