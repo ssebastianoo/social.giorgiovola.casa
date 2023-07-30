@@ -1,7 +1,8 @@
 import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
-import type { PublicUser, Post as PostType } from '$lib/types';
+import type { PublicUser } from '$lib/types';
+import { getPosts } from '$lib/server/posts';
 
 export const load = (async ({ params, locals, depends }) => {
 	const username = params.username;
@@ -24,46 +25,7 @@ export const load = (async ({ params, locals, depends }) => {
 		created_at: users[0].created_at
 	};
 
-	let result;
-
-	if (!locals.user) {
-		result = await sql`
-			SELECT
-				posts.content,
-				posts.created_at,
-				posts.id,
-				posts.edited_at,
-				COUNT(likes.post_id) AS likes,
-                (SELECT COUNT(*) FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count
-			FROM posts
-			LEFT JOIN likes ON posts.id = likes.post_id
-			WHERE posts.user_id = ${users[0].id}
-			GROUP BY posts.id
-			ORDER BY posts.created_at DESC
-        `;
-	} else {
-		result = await sql`
-			SELECT 
-				posts.content, 
-				posts.id, 
-				posts.created_at,
-				posts.edited_at,
-				COUNT(likes.post_id) AS likes,
-				BOOL(MAX(case when likes.user_id = ${locals.user.id} then 1 else 0 end)) as liked,
-                (SELECT COUNT(*) FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count
-			FROM posts
-			LEFT JOIN likes ON posts.id = likes.post_id
-			WHERE posts.user_id = ${users[0].id}
-			GROUP BY posts.id
-			ORDER BY posts.created_at DESC
-        `;
-	}
-
-	const posts = result.map((post) => {
-		post.user = user;
-		return post;
-	}) as PostType[];
-
+	const posts = await getPosts({ loggedUser: locals.user, fromUser: user });
 	return {
 		user,
 		posts
