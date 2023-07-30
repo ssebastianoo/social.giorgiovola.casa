@@ -69,7 +69,6 @@
 			</p>
 		</div>
 		<div class="content">
-			<!-- <p>{post.content}</p> -->
 			<p>
 				{#each contentParts as part}
 					{#if part.match(urlRegex)}
@@ -199,10 +198,12 @@
 					}
 				}
 			}
+
 			.post-info {
 				display: flex;
 				align-items: center;
 				justify-content: space-between;
+				flex-wrap: wrap;
 				gap: 5px;
 
 				a {
