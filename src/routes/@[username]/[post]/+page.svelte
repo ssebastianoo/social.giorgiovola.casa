@@ -83,7 +83,7 @@
 				></button
 			>
 		</form>
-		<Posts loadReplies={true} scrollToNew={true} posts={replies} />
+		<Posts scrollToNew={true} loadReplies={true} posts={replies} />
 	</div>
 {/await}
 
