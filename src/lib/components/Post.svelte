@@ -50,6 +50,14 @@
 	}
 </script>
 
+<dialog open={true}>
+	<p>Are you sure you want to delete this post?</p>
+	<div class="buttons">
+		<button class="btn">Yes</button>
+		<button class="btn">No</button>
+	</div>
+</dialog>
+
 <div class="post" data-mobile={$isMobile}>
 	<a class="img-url" href={'/@' + post.user.username}>
 		<img
