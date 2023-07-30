@@ -6,11 +6,18 @@ export type GetPostsOptions = {
 	reply_to?: number | null;
 	postId?: number | null;
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
+	excludeReplies?: boolean;
 };
 
 // i hate typescript
 
-export async function getPosts({ loggedUser, reply_to, postId, fromUser }: GetPostsOptions) {
+export async function getPosts({
+	loggedUser,
+	reply_to,
+	postId,
+	fromUser,
+	excludeReplies
+}: GetPostsOptions) {
 	const posts = await sql<Post[]>`
     SELECT
     posts.content,
@@ -46,6 +53,7 @@ export async function getPosts({ loggedUser, reply_to, postId, fromUser }: GetPo
 					: sql``
 				: sql``
 		} 
+    ${excludeReplies ? sql`AND posts.reply_to IS NULL` : sql``}
     GROUP BY posts.id, users.id
     ORDER BY posts.created_at DESC
     `;
