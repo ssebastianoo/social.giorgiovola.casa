@@ -5,6 +5,7 @@
 	import { page } from '$app/stores';
 	import { goto, invalidate } from '$app/navigation';
 
+	export let loadReplies = false;
 	export let post: Post;
 	export let loadReplies = false;
 	export let showReplyTo = false;
