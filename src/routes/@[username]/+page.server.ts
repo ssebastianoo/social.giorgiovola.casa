@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
-import type { PublicUser, Post as PostType } from '$lib/types';
+import type { PublicUser } from '$lib/types';
 import { getPosts } from '$lib/server/posts';
 
 export const load = (async ({ params, locals, depends }) => {
