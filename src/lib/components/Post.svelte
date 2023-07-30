@@ -6,6 +6,9 @@
 
 	export let post: Post;
 
+	const urlRegex = /(https?:\/\/[^\s]+)/g;
+	$: contentParts = post.content.split(urlRegex);
+
 	async function deletePost(e: Event) {
 		const res = await fetch('/api/posts', {
 			method: 'DELETE',
@@ -66,7 +69,16 @@
 			</p>
 		</div>
 		<div class="content">
-			<p>{post.content}</p>
+			<!-- <p>{post.content}</p> -->
+			<p>
+				{#each contentParts as part}
+					{#if part.match(urlRegex)}
+						<a on:click|stopPropagation href={part} target="_blank">{part}</a>
+					{:else}
+						{part}
+					{/if}
+				{/each}
+			</p>
 		</div>
 		<div class="actions">
 			<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 0 512 512"

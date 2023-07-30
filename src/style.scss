@@ -37,3 +37,18 @@ p {
 	padding: 10px 10px 10px;
 	border-bottom: 1px solid $color3;
 }
+
+a {
+	color: $color1;
+	text-decoration: none;
+
+	&:hover {
+		text-decoration: underline;
+	}
+}
+
+::selection,
+::-moz-selection {
+	background: $color1;
+	color: $color3;
+}

@@ -16,10 +16,12 @@
 			on:keypress={() => {
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
-			on:click|preventDefault={() => {
+			on:click|preventDefault={(e) => {
 				// allow dragging to select text
+
 				const selection = getSelection();
 				if (selection && selection.type === 'Range') return;
+				// if (e.target && e.target.matches('a')) return;
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
 			class="post-wrapper"

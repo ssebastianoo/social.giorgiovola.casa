@@ -51,7 +51,7 @@
 		<meta property="twitter:image" content={$page.url.toString() + '/image.png'} />
 	{:else}
 		<!-- Primary Meta Tags -->
-		<title>Social Giorgiovola Caso</title>
+		<title>Social Giorgiovola Casa</title>
 		<meta name="title" content="Social Giorgiovola Casa" />
 		<meta
 			name="description"
