@@ -1,13 +1,26 @@
 <script lang="ts">
 	import { user, isMobile } from '$lib/store';
 	import type { Post } from '$lib/types';
+	import Posts from './Posts.svelte';
 	import { page } from '$app/stores';
 	import { goto, invalidate } from '$app/navigation';
 
 	export let post: Post;
+	export let loadReplies = false;
 
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
 	$: contentParts = post.content.split(urlRegex);
+
+	const fetchRepliesPromise = async () => {
+		if (!loadReplies || post.replies_count === 0) return;
+		const res = await fetch(`/api/posts/${post.id}/replies`, {
+			headers: {
+				'Content-Type': 'application/json'
+			}
+		});
+		const json = await res.json();
+		return json;
+	};
 
 	async function deletePost(e: Event) {
 		const res = await fetch('/api/posts', {
@@ -124,6 +137,14 @@
 		</div>
 	</div>
 </div>
+<!-- TODO: styling (maybe thread-style?) -->
+{#if post.replies_count > 0 && loadReplies}
+	{#await fetchRepliesPromise()}
+		Loading replies...
+	{:then replies}
+		<Posts posts={replies} />
+	{/await}
+{/if}
 
 <style lang="scss">
 	@import 'src/variables.scss';

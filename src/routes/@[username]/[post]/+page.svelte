@@ -83,7 +83,7 @@
 				></button
 			>
 		</form>
-		<Posts posts={replies} />
+		<Posts loadReplies={true} posts={replies} />
 	</div>
 {/await}
 

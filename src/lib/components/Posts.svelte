@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 
 	export let posts: PostType[];
+	export let loadReplies = false; // maybe use a context? idk
 </script>
 
 <div class="posts" data-mobile={$isMobile}>
@@ -26,7 +27,7 @@
 			}}
 			class="post-wrapper"
 		>
-			<Post {post} />
+			<Post {loadReplies} {post} />
 		</div>
 	{/each}
 </div>
