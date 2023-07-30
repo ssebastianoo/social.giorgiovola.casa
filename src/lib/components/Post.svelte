@@ -5,11 +5,13 @@
 	import { goto, invalidate } from '$app/navigation';
 
 	export let post: Post;
+	let isModalOpen = false;
 
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
 	$: contentParts = post.content.split(urlRegex);
 
 	async function deletePost(e: Event) {
+		isModalOpen = false;
 		const res = await fetch('/api/posts', {
 			method: 'DELETE',
 			headers: {
@@ -50,11 +52,16 @@
 	}
 </script>
 
-<dialog open={true}>
+<dialog open={isModalOpen}>
 	<p>Are you sure you want to delete this post?</p>
 	<div class="buttons">
-		<button class="btn">Yes</button>
-		<button class="btn">No</button>
+		<button class="btn" on:click|stopPropagation={deletePost}>Yes</button>
+		<button
+			class="btn"
+			on:click|stopPropagation={() => {
+				isModalOpen = false;
+			}}>No</button
+		>
 	</div>
 </dialog>
 
@@ -120,7 +127,7 @@
 				<p>{post.likes ? post.likes : '0'}</p>
 			</div>
 			{#if $user && $user.username === post.user.username}
-				<button class="trash" on:click|preventDefault|stopPropagation={deletePost}>
+				<button class="trash" on:click|preventDefault|stopPropagation={() => (isModalOpen = true)}>
 					<svg xmlns="http://www.w3.org/2000/svg" height="15px" viewBox="0 0 448 512"
 						><path
 							fill-opacity=".4"
