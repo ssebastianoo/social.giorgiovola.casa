@@ -3,12 +3,31 @@
 	import type { Post as PostType } from '$lib/types';
 	import { isMobile } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 
 	export let posts: PostType[];
 	export let loadReplies = false; // maybe use a context? idk
+	export let scrollToNew = false;
+	let alreadyScrolled = false;
+
+	let listElement: HTMLDivElement;
+
+	$: if (posts) {
+		scrollToBottom(listElement);
+	}
+	const scrollToBottom = async (node: HTMLDivElement) => {
+		if (!scrollToNew) return;
+		if (!node) return;
+		if (!alreadyScrolled) {
+			alreadyScrolled = true;
+			return;
+		}
+		await tick(); // wait for DOM to update
+		scroll({ top: node.scrollHeight, behavior: 'smooth' });
+	};
 </script>
 
-<div class="posts" data-mobile={$isMobile}>
+<div class="posts" data-mobile={$isMobile} bind:this={listElement}>
 	{#each posts as post}
 		<div
 			tabindex="0"

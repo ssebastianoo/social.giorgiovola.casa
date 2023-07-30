@@ -7,6 +7,9 @@ export type GetPostsOptions = {
 	postId?: number | null;
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
 	excludeReplies?: boolean;
+	order?: 'ASC' | 'DESC';
+	limit?: number;
+	offset?: number;
 };
 
 // i hate typescript
@@ -16,7 +19,10 @@ export async function getPosts({
 	reply_to,
 	postId,
 	fromUser,
-	excludeReplies
+	excludeReplies,
+	order,
+	limit,
+	offset
 }: GetPostsOptions) {
 	const posts = await sql<Post[]>`
     SELECT
@@ -55,7 +61,11 @@ export async function getPosts({
 		} 
     ${excludeReplies ? sql`AND posts.reply_to IS NULL` : sql``}
     GROUP BY posts.id, users.id
-    ORDER BY posts.created_at DESC
+    ${sql.unsafe(order ? `ORDER BY posts.created_at ${order}` : '')} 
+    ${sql.unsafe(limit ? `LIMIT ${limit}` : '')}
+    ${sql.unsafe(offset ? `OFFSET ${offset}` : '')}
     `;
+	// ^^ unsafe because postgres doesn't allow paremeters in ORDER BY and friends, anyways order, limit and offset
+	// come from the server so it's fine
 	return posts as Post[];
 }
