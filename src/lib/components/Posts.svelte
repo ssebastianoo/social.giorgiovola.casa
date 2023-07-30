@@ -42,6 +42,7 @@
 		});
 		console.log(await res.json());
 	}
+	export let loadReplies = false; // maybe use a context? idk
 </script>
 
 <div class="posts" data-mobile={$isMobile} bind:this={listElement}>
