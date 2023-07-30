@@ -41,6 +41,7 @@
 		<meta property="og:article:published_time" content={$page.data.post.created_at.toISOString()} />
 
 		<!-- Twitter -->
+		<meta property="twitter:card" content="summary_large_image" />
 		<meta property="twitter:url" content={$page.url.toString()} />
 		<meta
 			property="twitter:title"
