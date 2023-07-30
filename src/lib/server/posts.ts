@@ -32,7 +32,7 @@ export async function getPosts({
         'created_at', users.created_at
     ) AS user,
     COUNT(likes.post_id) AS likes,
-    (SELECT COUNT(*) FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count
+    (SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count
     ${
 			loggedUser
 				? sql`, BOOL(MAX(case when likes.user_id = ${loggedUser.id} then 1 else 0 end)) as liked`
