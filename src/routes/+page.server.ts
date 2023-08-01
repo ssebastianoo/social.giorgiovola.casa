@@ -19,8 +19,6 @@ export const load = (async ({ locals, depends }) => {
 
 export const actions = {
 	async default({ locals, request }) {
-		//sleep
-		await new Promise((resolve) => setTimeout(resolve, 1000));
 		const formData = await request.formData();
 		if (!formData.has('currentPage')) {
 			throw error(400, 'Missing currentPage');

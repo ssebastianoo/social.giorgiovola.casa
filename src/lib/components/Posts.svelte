@@ -11,6 +11,7 @@
 	export let shouldLoadMore = false;
 	export let loadReplies = false; // maybe use a context? idk
 	export let scrollToNew = false;
+	export let replies = false;
 
 	let alreadyScrolled = false;
 	let currentPage = 0;
@@ -20,8 +21,7 @@
 		scrollToBottom(listElement);
 	}
 
-	const handleDeletedPost = (e) => {
-		console.log('ok', e.detail.id);
+	const handleDeletedPost = (e: CustomEvent) => {
 		posts = posts.filter((post) => {
 			return post.id !== e.detail.id;
 		});
@@ -57,28 +57,12 @@
 	}
 </script>
 
-<div class="posts" data-mobile={$isMobile} bind:this={listElement}>
+<div class="posts" bind:this={listElement} data-replies={replies}>
 	{#each posts as post, i}
-		<div
-			tabindex="0"
-			role="button"
-			aria-pressed="false"
-			on:keypress={() => {
-				goto(`/@${post.user.username}/${post.id}`);
-			}}
-			on:click|preventDefault={(e) => {
-				// allow dragging to select text
-
-				const selection = getSelection();
-				if (selection && selection.type === 'Range') return;
-				// if (e.target && e.target.matches('a')) return;
-				goto(`/@${post.user.username}/${post.id}`);
-			}}
-			class="post-wrapper"
-		>
+		<div class="post-wrapper">
 			{#if i === posts.length - 1 && shouldLoadMore}
 				<IntersectionObserver once let:intersecting>
-					<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} />
+					<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} isReply={replies} />
 					{#if intersecting}
 						{#await loadMore()}
 							Loading...
@@ -86,7 +70,7 @@
 					{/if}
 				</IntersectionObserver>
 			{:else}
-				<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} />
+				<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} isReply={replies} />
 			{/if}
 		</div>
 	{/each}
@@ -99,20 +83,20 @@
 		display: flex;
 		flex-direction: column;
 
-		.post-wrapper {
-			color: unset;
-			text-decoration: none;
-			border-radius: 5px;
-			cursor: pointer;
-			padding: 10px;
-			display: block;
-			-webkit-tap-highlight-color: transparent;
-		}
-	}
+		// .post-wrapper {
+		// 	color: unset;
+		// 	text-decoration: none;
+		// 	border-radius: 5px;
+		// 	cursor: pointer;
+		// 	padding: 10px;
+		// 	display: block;
+		// 	-webkit-tap-highlight-color: transparent;
+		// }
 
-	.posts[data-mobile='false'] {
-		.post-wrapper:hover {
-			background-color: black;
+		&[data-replies='true'] {
+			.post-wrapper {
+				padding: 0;
+			}
 		}
 	}
 </style>

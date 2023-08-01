@@ -5,7 +5,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) {
 		return new Response(null, { status: 401 });
 	}
-	
+
 	const user = locals.user;
 	const { id } = await request.json();
 	if (!id) {

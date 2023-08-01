@@ -52,7 +52,7 @@
 	}
 </script>
 
-<Post post={data.post} showReplyTo={true} />
+<Post post={data.post} showReplyTo={true} isPostOpen={true} loadReplies={false} />
 
 {#await getReplies()}
 	<div class="loading">
@@ -83,7 +83,11 @@
 				></button
 			>
 		</form>
-		<Posts scrollToNew={true} loadReplies={true} posts={replies} />
+		<div class="replies-parent">
+			<div class="replies">
+				<Posts scrollToNew={true} loadReplies={true} replies={true} posts={replies} />
+			</div>
+		</div>
 	</div>
 {/await}
 
