@@ -3,11 +3,13 @@
 	import type { Post } from '$lib/types';
 	import Posts from './Posts.svelte';
 	import { page } from '$app/stores';
-	import { goto, invalidate } from '$app/navigation';
+	import { goto } from '$app/navigation';
+	import { createEventDispatcher } from 'svelte';
 
 	export let loadReplies = false;
 	export let post: Post;
 	export let showReplyTo = false;
+	const dispatch = createEventDispatcher();
 	let isModalOpen = false;
 
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -39,8 +41,10 @@
 			if ($page.route.id === '/@[username]/[post]') {
 				return await goto('/');
 			}
-			invalidate('app:posts');
 		}
+		dispatch('postDeleted', {
+			id: post.id
+		});
 	}
 
 	async function toggleLike(e: Event) {

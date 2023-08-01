@@ -19,6 +19,14 @@
 	$: if (posts) {
 		scrollToBottom(listElement);
 	}
+
+	const handleDeletedPost = (e) => {
+		console.log('ok', e.detail.id);
+		posts = posts.filter((post) => {
+			return post.id !== e.detail.id;
+		});
+	};
+
 	const scrollToBottom = async (node: HTMLDivElement) => {
 		if (!scrollToNew) return;
 		if (!node) return;
@@ -70,7 +78,7 @@
 		>
 			{#if i === posts.length - 1 && shouldLoadMore}
 				<IntersectionObserver once let:intersecting>
-					<Post {loadReplies} {post} />
+					<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} />
 					{#if intersecting}
 						{#await loadMore()}
 							Loading...
@@ -78,7 +86,7 @@
 					{/if}
 				</IntersectionObserver>
 			{:else}
-				<Post {loadReplies} {post} />
+				<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} />
 			{/if}
 		</div>
 	{/each}
