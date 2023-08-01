@@ -1,22 +1,12 @@
 import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
 
-export const POST: RequestHandler = async ({ cookies, request }) => {
-	const token = cookies.get('social.giorgiovola.casa-token');
-	if (!token) {
+export const POST: RequestHandler = async ({ locals, request }) => {
+	if (!locals.user) {
 		return new Response('Unauthorized', { status: 401 });
 	}
-
-	const res = await sql`
-		SELECT user_id FROM sessions WHERE token = ${token}
-	`;
-	if (res.length === 0) {
-		return new Response('Unauthorized', { status: 401 });
-	}
-	const user_id = res[0].user_id;
-
 	const limitCheck = await sql`
-		SELECT COUNT(*) FROM posts WHERE user_id = ${user_id} AND created_at > NOW() - INTERVAL '5 seconds'
+		SELECT COUNT(*) FROM posts WHERE user_id = ${locals.user.id} AND created_at > NOW() - INTERVAL '5 seconds'
 	`;
 	if (limitCheck[0].count >= 1) {
 		return new Response('You can only post once every 5 seconds', { status: 429 });
@@ -30,30 +20,23 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 
 	const { content, reply_to } = json;
 	const posts = await sql`
-		INSERT INTO POSTS (user_id, content, reply_to) VALUES (${user_id}, ${content}, ${reply_to || null})
+		INSERT INTO POSTS (user_id, content, reply_to) VALUES (${locals.user.id}, ${content}, ${
+		reply_to || null
+	})
 		RETURNING content, created_at, edited_at, id, reply_to
 	`;
 	const users = await sql`
-		SELECT id, name, username, email, avatar FROM users WHERE id = ${user_id}
+		SELECT id, name, username, email, avatar FROM users WHERE id = ${locals.user.id}
 	`;
 	posts[0].user = users[0];
 
 	return new Response(JSON.stringify(posts[0]));
 };
 
-export const DELETE: RequestHandler = async ({ cookies, request }) => {
-	const token = cookies.get('social.giorgiovola.casa-token');
-	if (!token) {
+export const DELETE: RequestHandler = async ({ locals, request }) => {
+	if (!locals.user) {
 		return new Response('Unauthorized', { status: 401 });
 	}
-
-	const res = await sql`
-		SELECT user_id FROM sessions WHERE token = ${token}
-	`;
-	if (res.length === 0) {
-		return new Response('Unauthorized', { status: 401 });
-	}
-	const user_id = res[0].user_id;
 	const json = await request.json();
 
 	if (!json.id) {
@@ -70,7 +53,7 @@ export const DELETE: RequestHandler = async ({ cookies, request }) => {
 		return new Response('Post not found', { status: 404 });
 	}
 
-	if (posts[0].user_id !== user_id) {
+	if (posts[0].user_id !== locals.user.id) {
 		return new Response('Unauthorized', { status: 401 });
 	}
 
