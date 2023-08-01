@@ -7,7 +7,6 @@
 
 	export let loadReplies = false;
 	export let post: Post;
-	export let loadReplies = false;
 	export let showReplyTo = false;
 	let isModalOpen = false;
 
