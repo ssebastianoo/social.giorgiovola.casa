@@ -23,7 +23,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		INSERT INTO POSTS (user_id, content, reply_to) VALUES (${locals.user.id}, ${content}, ${
 		reply_to || null
 	})
-		RETURNING content, created_at, edited_at, id, reply_to
+		RETURNING content, created_at, edited_at, id, (SELECT jsonb_build_object(
+            'id', p.id,
+            'username', u.username
+        ) FROM posts p INNER JOIN users u ON p.user_id = u.id WHERE p.id = posts.reply_to) AS reply_to
+            
 	`;
 	const users = await sql`
 		SELECT id, name, username, email, avatar FROM users WHERE id = ${locals.user.id}

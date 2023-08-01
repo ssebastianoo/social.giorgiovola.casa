@@ -38,7 +38,12 @@ export async function getPosts({
         'created_at', users.created_at
     ) AS user,
     COUNT(likes.post_id) AS likes,
-    (SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count
+    (SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count,
+    (SELECT jsonb_build_object(
+        'username', u.username,
+        'id', p.id
+    ) FROM posts p INNER JOIN users u ON p.user_id = u.id WHERE p.id = posts.reply_to
+    ) AS reply_to
     ${
 			loggedUser
 				? sql`, BOOL(MAX(case when likes.user_id = ${loggedUser.id} then 1 else 0 end)) as liked`

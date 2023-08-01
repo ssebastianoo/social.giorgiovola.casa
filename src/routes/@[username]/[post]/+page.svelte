@@ -52,7 +52,7 @@
 	}
 </script>
 
-<Post post={data.post} />
+<Post post={data.post} showReplyTo={true} />
 
 {#await getReplies()}
 	<div class="loading">

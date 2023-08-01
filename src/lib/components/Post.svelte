@@ -7,6 +7,7 @@
 
 	export let post: Post;
 	export let loadReplies = false;
+	export let showReplyTo = false;
 	let isModalOpen = false;
 
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -77,7 +78,11 @@
 		>
 	</div>
 </dialog>
-
+{#if post.reply_to && showReplyTo}
+	<a class="reply_to" href={'/@' + post.reply_to.username + '/' + post.reply_to.id}
+		>Replying to @{post.reply_to.username}</a
+	>
+{/if}
 <div class="post" data-mobile={$isMobile}>
 	<a class="img-url" href={'/@' + post.user.username}>
 		<img
