@@ -4,6 +4,7 @@
 	import { isMobile } from '$lib/store';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
+	import IntersectionObserver from './IntersectionObserver.svelte';
 
 	export let posts: PostType[];
 	export let loadReplies = false; // maybe use a context? idk
@@ -25,10 +26,26 @@
 		await tick(); // wait for DOM to update
 		scroll({ top: node.scrollHeight, behavior: 'smooth' });
 	};
+	let currentPage = 0;
+	export let shouldLoadMore = false;
+
+	async function loadMore() {
+		currentPage++;
+		const res = await fetch('', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				page: currentPage
+			})
+		});
+		console.log(await res.json());
+	}
 </script>
 
 <div class="posts" data-mobile={$isMobile} bind:this={listElement}>
-	{#each posts as post}
+	{#each posts as post, i}
 		<div
 			tabindex="0"
 			role="button"
@@ -46,7 +63,18 @@
 			}}
 			class="post-wrapper"
 		>
-			<Post {loadReplies} {post} />
+			{#if i === posts.length - 1 && shouldLoadMore}
+				<IntersectionObserver once let:intersecting>
+					{#if intersecting}
+						{#await loadMore()}
+							Loading...
+						{/await}
+					{/if}
+					<Post {post} />
+				</IntersectionObserver>
+			{:else}
+				<Post {loadReplies} {post} />
+			{/if}
 		</div>
 	{/each}
 </div>

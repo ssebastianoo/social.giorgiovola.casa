@@ -66,7 +66,7 @@
 	</form>
 {/if}
 
-<Posts posts={data.posts} />
+<Posts shouldLoadMore posts={data.posts} />
 
 <style lang="scss">
 	@import '/src/variables';
