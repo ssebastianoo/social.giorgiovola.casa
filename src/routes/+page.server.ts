@@ -1,15 +1,16 @@
 import type { PageServerLoad } from './$types';
 import { getPosts } from '$lib/server/posts';
-import type { Actions } from '@sveltejs/kit';
+import { error, type Actions } from '@sveltejs/kit';
 
 const criteria = {
-	excludeReplies: true
-};
+	excludeReplies: true,
+	order: 'DESC'
+} as const;
 
 export const load = (async ({ locals, depends }) => {
 	depends('app:posts');
 
-	const posts = await getPosts({ ...criteria, loggedUser: locals.user });
+	const posts = await getPosts({ ...criteria, loggedUser: locals.user, limit: 10 });
 
 	return {
 		posts
@@ -17,16 +18,19 @@ export const load = (async ({ locals, depends }) => {
 }) satisfies PageServerLoad;
 
 export const actions = {
-	async loadMore({ locals, request }) {
-		const json = await request.json();
-		if (!json.currentPage) {
-			return new Response('Missing current page', { status: 400 });
+	async default({ locals, request }) {
+		const formData = await request.formData();
+		if (!formData.has('currentPage')) {
+			throw error(400, 'Missing currentPage');
 		}
 		const posts = await getPosts({
 			...criteria,
 			loggedUser: locals.user,
 			limit: 10,
-			offset: json.currentPage * 10
+			offset: (formData.get('currentPage') as unknown as number) * 10
 		});
+		return {
+			posts
+		};
 	}
 } satisfies Actions;
