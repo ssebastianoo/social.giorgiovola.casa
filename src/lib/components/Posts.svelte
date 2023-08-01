@@ -70,7 +70,7 @@
 		>
 			{#if i === posts.length - 1 && shouldLoadMore}
 				<IntersectionObserver once let:intersecting>
-					<Post {post} />
+					<Post {loadReplies} {post} />
 					{#if intersecting}
 						{#await loadMore()}
 							Loading...
