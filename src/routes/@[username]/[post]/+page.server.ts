@@ -12,7 +12,10 @@ export const load = (async ({ params, locals }) => {
 	return {
 		post: posts[0],
 		streamed: {
-			replies: getPosts({ loggedUser: locals.user, reply_to: parseInt(params.post) })
+			replies:
+				posts[0].replies_count > 0
+					? getPosts({ loggedUser: locals.user, reply_to: parseInt(params.post), order: 'ASC' })
+					: []
 		}
 	};
 }) satisfies PageServerLoad;

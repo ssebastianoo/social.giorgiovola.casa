@@ -23,4 +23,8 @@ export type Post = {
 	likes: number;
 	liked?: boolean;
 	replies_count: number;
+	reply_to: {
+		username: string;
+		id: number;
+	} | null;
 };

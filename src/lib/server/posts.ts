@@ -7,6 +7,9 @@ export type GetPostsOptions = {
 	postId?: number | null;
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
 	excludeReplies?: boolean;
+	order?: 'ASC' | 'DESC';
+	limit?: number;
+	offset?: number;
 };
 
 // i hate typescript
@@ -16,7 +19,10 @@ export async function getPosts({
 	reply_to,
 	postId,
 	fromUser,
-	excludeReplies
+	excludeReplies,
+	order,
+	limit,
+	offset
 }: GetPostsOptions) {
 	const posts = await sql<Post[]>`
     SELECT
@@ -32,7 +38,12 @@ export async function getPosts({
         'created_at', users.created_at
     ) AS user,
     COUNT(likes.post_id) AS likes,
-    (SELECT COUNT(*) FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count
+    (SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id) AS replies_count,
+    (SELECT jsonb_build_object(
+        'username', u.username,
+        'id', p.id
+    ) FROM posts p INNER JOIN users u ON p.user_id = u.id WHERE p.id = posts.reply_to
+    ) AS reply_to
     ${
 			loggedUser
 				? sql`, BOOL(MAX(case when likes.user_id = ${loggedUser.id} then 1 else 0 end)) as liked`
@@ -55,7 +66,11 @@ export async function getPosts({
 		} 
     ${excludeReplies ? sql`AND posts.reply_to IS NULL` : sql``}
     GROUP BY posts.id, users.id
-    ORDER BY posts.created_at DESC
+    ${sql.unsafe(order ? `ORDER BY posts.created_at ${order}` : '')} 
+    ${sql.unsafe(limit ? `LIMIT ${limit}` : '')}
+    ${sql.unsafe(offset ? `OFFSET ${offset}` : '')}
     `;
+	// ^^ unsafe because postgres doesn't allow paremeters in ORDER BY and friends, anyways order, limit and offset
+	// come from the server so it's fine
 	return posts as Post[];
 }

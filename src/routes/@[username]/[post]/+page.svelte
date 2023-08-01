@@ -36,7 +36,7 @@
 			});
 			if (res.ok) {
 				const post = await res.json();
-				replies = [post, ...replies];
+				replies = [...replies, post];
 				target.content.value = '';
 			} else {
 				if (res.status === 429) {
@@ -52,7 +52,7 @@
 	}
 </script>
 
-<Post post={data.post} />
+<Post post={data.post} showReplyTo={true} />
 
 {#await getReplies()}
 	<div class="loading">
@@ -83,7 +83,7 @@
 				></button
 			>
 		</form>
-		<Posts posts={replies} />
+		<Posts scrollToNew={true} loadReplies={true} posts={replies} />
 	</div>
 {/await}
 
