@@ -43,7 +43,7 @@ export const PATCH: RequestHandler = async ({ locals, request }) => {
 		const buffer = await avatar.arrayBuffer();
 		const ext = avatar.type.split('/')[1];
 		avatarPath = `avatars/${locals.user.id}.${ext}`;
-		await fs.promises.writeFile(`build/client/${avatarPath}`, Buffer.from(buffer));
+		await fs.promises.writeFile(`static/${avatarPath}`, Buffer.from(buffer));
 
 		users = await sql`
 			UPDATE users 
