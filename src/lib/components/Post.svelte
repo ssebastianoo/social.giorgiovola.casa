@@ -10,7 +10,7 @@
 	export let post: Post;
 	export let showReplyTo = false;
 	export let isPostOpen = false;
-	export let isReply = false;
+	export let showThread = false;
 
 	const dispatch = createEventDispatcher();
 	let isModalOpen = false;
@@ -96,7 +96,7 @@
 			class="post"
 			data-post-open={isPostOpen}
 			data-mobile={$isMobile}
-			data-reply={isReply}
+			data-thread={showThread}
 			tabindex="0"
 			role="button"
 			aria-pressed="false"
@@ -189,14 +189,13 @@
 			</div>
 		</div>
 	</div>
-	<!-- TODO: styling (maybe thread-style?) -->
 	{#if post.replies_count > 0 && loadReplies}
 		<div class="replies-parent">
 			<div class="replies">
 				{#await fetchRepliesPromise()}
 					Loading replies...
 				{:then replies}
-					<Posts posts={replies} replies={true} />
+					<Posts posts={replies} replies={true} showThread={true} />
 				{/await}
 			</div>
 		</div>
@@ -206,12 +205,12 @@
 <style lang="scss">
 	@import 'src/variables.scss';
 
-	:global(.replies-parent) {
+	.replies-parent {
 		display: flex;
 		justify-content: flex-end;
 
-		:global(.replies) {
-			width: 95%;
+		.replies {
+			width: 90.5%;
 			position: relative;
 
 			&::before {
@@ -257,19 +256,6 @@
 		padding: 10px;
 		-webkit-tap-highlight-color: transparent;
 		position: relative;
-
-		&[data-reply='true']::before {
-			content: '';
-			display: block;
-			width: 20px;
-			height: 5px;
-			border-bottom: 1px solid $color1;
-			border-left: 1px solid $color1;
-			border-bottom-left-radius: 10px;
-			position: absolute;
-			top: 27.5px;
-			left: -20px;
-		}
 
 		button {
 			all: unset;
@@ -346,6 +332,19 @@
 					opacity: 0.7;
 				}
 			}
+		}
+
+		&[data-thread='true']::before {
+			content: '';
+			display: block;
+			width: 20px;
+			height: 5px;
+			border-bottom: 1px solid $color1;
+			border-left: 1px solid $color1;
+			border-bottom-left-radius: 10px;
+			position: absolute;
+			top: 27.5px;
+			left: -20px;
 		}
 
 		&[data-mobile='false'] {

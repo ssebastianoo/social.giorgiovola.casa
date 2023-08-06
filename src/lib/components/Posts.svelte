@@ -12,6 +12,7 @@
 	export let loadReplies = false; // maybe use a context? idk
 	export let scrollToNew = false;
 	export let replies = false;
+	export let showThread = false;
 
 	let alreadyScrolled = false;
 	let currentPage = 0;
@@ -59,20 +60,18 @@
 
 <div class="posts" bind:this={listElement} data-replies={replies}>
 	{#each posts as post, i}
-		<div class="post-wrapper">
-			{#if i === posts.length - 1 && shouldLoadMore}
-				<IntersectionObserver once let:intersecting>
-					<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} isReply={replies} />
-					{#if intersecting}
-						{#await loadMore()}
-							Loading...
-						{/await}
-					{/if}
-				</IntersectionObserver>
-			{:else}
-				<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} isReply={replies} />
-			{/if}
-		</div>
+		{#if i === posts.length - 1 && shouldLoadMore}
+			<IntersectionObserver once let:intersecting>
+				<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
+				{#if intersecting}
+					{#await loadMore()}
+						Loading...
+					{/await}
+				{/if}
+			</IntersectionObserver>
+		{:else}
+			<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
+		{/if}
 	{/each}
 </div>
 
@@ -82,21 +81,5 @@
 	.posts {
 		display: flex;
 		flex-direction: column;
-
-		// .post-wrapper {
-		// 	color: unset;
-		// 	text-decoration: none;
-		// 	border-radius: 5px;
-		// 	cursor: pointer;
-		// 	padding: 10px;
-		// 	display: block;
-		// 	-webkit-tap-highlight-color: transparent;
-		// }
-
-		&[data-replies='true'] {
-			.post-wrapper {
-				padding: 0;
-			}
-		}
 	}
 </style>

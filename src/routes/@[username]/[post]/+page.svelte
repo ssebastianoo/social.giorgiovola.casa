@@ -83,11 +83,7 @@
 				></button
 			>
 		</form>
-		<div class="replies-parent">
-			<div class="replies">
-				<Posts scrollToNew={true} loadReplies={true} replies={true} posts={replies} />
-			</div>
-		</div>
+		<Posts scrollToNew={true} loadReplies={true} replies={true} posts={replies} />
 	</div>
 {/await}
 
