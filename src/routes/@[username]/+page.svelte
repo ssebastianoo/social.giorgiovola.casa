@@ -5,31 +5,29 @@
 	import { goto } from '$app/navigation';
 
 	export let data: PageData;
-	export let editing = false;
+	export let editing = true;
 
 	let error: string | null = null;
 
 	async function updateUser(e: Event) {
 		const target = e.target as HTMLFormElement;
 
-		const name = target.fullName.value;
-		const username = target.username.value;
-		const email = target.email.value;
+		const form = new FormData(target);
 
-		if (!name || !username || !email) {
+		const avatar = form.get('avatar') as File;
+
+		if (avatar.size > 1024 * 1024 * 10) {
+			error = 'Avatar too big, max size is 10mb';
+			return;
+		}
+
+		if (!form.get('fullName') || !form.get('username') || !form.get('email')) {
 			return;
 		}
 
 		const res = await fetch('/api/user', {
 			method: 'PATCH',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				name,
-				username,
-				email
-			})
+			body: form
 		});
 
 		if (!res.ok) {
@@ -61,7 +59,12 @@
 {/if}
 <div class="user">
 	<div class="avatar">
-		<img src={'https://source.boringavatars.com/beam/60/' + data.user.username} alt="" />
+		<img
+			src={data.user.avatar || 'https://source.boringavatars.com/beam/60/' + data.user.username}
+			alt={data.user.name}
+			height="60"
+			width="60"
+		/>
 	</div>
 	{#if !editing}
 		<div class="content">
@@ -82,6 +85,10 @@
 		</div>
 	{:else}
 		<form on:submit|preventDefault={updateUser}>
+			<div class="field">
+				<label for="avatar">Avatar</label>
+				<input name="avatar" id="avatar" type="file" accept="image/*" />
+			</div>
 			<div class="field">
 				<label for="fullName">Name</label>
 				<input
@@ -144,6 +151,11 @@
 		display: flex;
 		margin-bottom: 20px;
 		gap: 10px;
+
+		img {
+			border-radius: 50%;
+			object-fit: cover;
+		}
 
 		.content {
 			width: 100%;

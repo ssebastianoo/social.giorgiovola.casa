@@ -32,9 +32,10 @@
 		{#if $user}
 			<a href={'/@' + $user.username}>
 				<img
-					src={'https://source.boringavatars.com/beam/50/' + $user.username}
+					src={$user.avatar || 'https://source.boringavatars.com/beam/50/' + $user.username}
 					alt={$user.username + "'s avatar"}
-					height="50px"
+					height="50"
+					width="50"
 				/>
 			</a>
 		{:else}
@@ -68,6 +69,11 @@
 		.auth {
 			display: flex;
 			gap: 20px;
+
+			img {
+				object-fit: cover;
+				border-radius: 50%;
+			}
 		}
 
 		.left {

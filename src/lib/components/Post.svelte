@@ -114,8 +114,10 @@
 		>
 			<a class="img-url" href={'/@' + post.user.username}>
 				<img
-					src={'https://source.boringavatars.com/beam/45/' + post.user.username}
+					src={post.user.avatar || 'https://source.boringavatars.com/beam/45/' + post.user.username}
 					alt={post.user.name + "'s avatar"}
+					width="45"
+					height="45"
 				/>
 			</a>
 			<div class="text">
@@ -272,7 +274,8 @@
 			display: flex;
 
 			img {
-				height: fit-content;
+				border-radius: 50%;
+				object-fit: cover;
 			}
 		}
 
