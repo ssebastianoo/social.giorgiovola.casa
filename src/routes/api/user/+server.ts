@@ -1,6 +1,7 @@
 import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
 import fs from 'fs';
+import type postgres from 'postgres';
 
 export const PATCH: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) {
@@ -35,24 +36,36 @@ export const PATCH: RequestHandler = async ({ locals, request }) => {
 
 	let avatarPath: string | null = null;
 
-	if (avatar) {
+	let users: postgres.RowList<postgres.Row[]>;
+
+	if (avatar && (avatar as File).size > 0) {
 		avatar = avatar as File;
 		const buffer = await avatar.arrayBuffer();
 		const ext = avatar.type.split('/')[1];
 		avatarPath = `avatars/${locals.user.id}.${ext}`;
 		await fs.promises.writeFile(`static/${avatarPath}`, Buffer.from(buffer));
-	}
 
-	const users = await sql`
-		UPDATE users 
-		SET
-			name = ${name},
-			username = ${username.toLowerCase().replaceAll(' ', '')},
-			email = ${email},
-			avatar = ${avatarPath}
-		WHERE id = ${locals.user.id}
-		RETURNING id, name, username, email, avatar, created_at
-	`;
+		users = await sql`
+			UPDATE users 
+			SET
+				name = ${name},
+				username = ${username.toLowerCase().replaceAll(' ', '')},
+				email = ${email},
+				avatar = ${avatarPath + '?hash=' + Date.now()}
+			WHERE id = ${locals.user.id}
+			RETURNING id, name, username, email, avatar, created_at
+		`;
+	} else {
+		users = await sql`
+			UPDATE users 
+			SET
+				name = ${name},
+				username = ${username.toLowerCase().replaceAll(' ', '')},
+				email = ${email}
+			WHERE id = ${locals.user.id}
+			RETURNING id, name, username, email, avatar, created_at
+		`;
+	}
 
 	return new Response(JSON.stringify(users[0]));
 };

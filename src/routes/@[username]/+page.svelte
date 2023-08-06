@@ -2,10 +2,10 @@
 	import type { PageData } from './$types';
 	import Posts from '$lib/components/Posts.svelte';
 	import { user } from '$lib/store';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 
 	export let data: PageData;
-	export let editing = true;
+	export let editing = false;
 
 	let error: string | null = null;
 
@@ -50,6 +50,8 @@
 
 		if (redirect) {
 			goto(`/@${newUser.username}`);
+		} else {
+			location.reload();
 		}
 	}
 </script>
@@ -135,7 +137,9 @@
 	{/if}
 </div>
 
-<Posts posts={data.posts} />
+{#key data.user}
+	<Posts posts={data.posts} />
+{/key}
 
 <style lang="scss">
 	@import 'src/variables';
