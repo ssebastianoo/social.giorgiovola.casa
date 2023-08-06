@@ -103,7 +103,7 @@
 			on:keypress={() => {
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
-			on:click|preventDefault={(e) => {
+			on:click={(e) => {
 				// allow dragging to select text
 
 				const selection = getSelection();

@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
-import type { PublicUser } from '$lib/types';
+import type { PublicUser, User } from '$lib/types';
 import { getPosts } from '$lib/server/posts';
 
 export const load = (async ({ params, locals, depends }) => {
@@ -9,7 +9,7 @@ export const load = (async ({ params, locals, depends }) => {
 	depends('app:posts');
 
 	const users = await sql`
-		SELECT id, name, username, avatar, created_at
+		SELECT id, name, username, avatar, created_at, email
 		FROM users
 		WHERE username = ${username}
 	`;
@@ -18,16 +18,32 @@ export const load = (async ({ params, locals, depends }) => {
 		throw error(404, 'User not found');
 	}
 
-	const user: PublicUser = {
-		name: users[0].name,
-		username: users[0].username,
-		avatar: users[0].avatar,
-		created_at: users[0].created_at
-	};
+	let user: User;
+
+	if (locals.user?.username !== username) {
+		user = {
+			id: 0,
+			email: '',
+			name: users[0].name,
+			username: users[0].username,
+			avatar: users[0].avatar,
+			created_at: users[0].created_at
+		};
+	} else {
+		user = {
+			id: users[0].id,
+			name: users[0].name,
+			username: users[0].username,
+			avatar: users[0].avatar,
+			created_at: users[0].created_at,
+			email: users[0].email
+		};
+	}
 
 	const posts = await getPosts({ loggedUser: locals.user, fromUser: user });
 	return {
 		user,
-		posts
+		posts,
+		self: locals.user && locals.user.username === user.username
 	};
 }) satisfies PageServerLoad;
