@@ -62,7 +62,7 @@
 	</form>
 {:else}
 	<form class="create-post">
-		<input type="text" placeholder="Log in to post" disabled />
+		<input class="input" type="text" placeholder="Log in to post" disabled />
 	</form>
 {/if}
 
