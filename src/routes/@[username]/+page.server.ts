@@ -40,7 +40,7 @@ export const load = (async ({ params, locals, depends }) => {
 		};
 	}
 
-	const posts = await getPosts({ loggedUser: locals.user, fromUser: user });
+	const posts = await getPosts({ loggedUser: locals.user, fromUser: user, order: 'DESC' });
 	return {
 		user,
 		posts,
