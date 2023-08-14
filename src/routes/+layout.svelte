@@ -22,7 +22,7 @@
 
 <Header />
 <svelte:head>
-	{#if $page.route.id === '/@[username]/[post]'}
+	{#if $page.route.id === '/@[username]/[post]' && !$page.error}
 		<!-- Primary Meta Tags -->
 		<title>{`${$page.data.post.user.name} : "${$page.data.post.content}"`}</title>
 		<meta name="title" content={`${$page.data.post.user.name} on social.giorgiovola.casa`} />
