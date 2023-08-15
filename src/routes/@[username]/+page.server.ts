@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
-import type { PublicUser, User } from '$lib/types';
+import type { User } from '$lib/types';
 import { getPosts } from '$lib/server/posts';
 
 export const load = (async ({ params, locals, depends }) => {
@@ -40,7 +40,7 @@ export const load = (async ({ params, locals, depends }) => {
 		};
 	}
 
-	const posts = await getPosts({ loggedUser: locals.user, fromUser: user });
+	const posts = await getPosts({ loggedUser: locals.user, fromUser: user, order: 'DESC' });
 	return {
 		user,
 		posts,

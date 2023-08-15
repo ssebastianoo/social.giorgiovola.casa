@@ -314,6 +314,11 @@
 		-webkit-tap-highlight-color: transparent;
 		position: relative;
 
+		.share {
+			user-select: none;
+			-webkit-tap-highlight-color: transparent;
+		}
+
 		button {
 			all: unset;
 			display: flex;
