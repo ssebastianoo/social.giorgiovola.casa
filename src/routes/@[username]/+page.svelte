@@ -3,6 +3,7 @@
 	import Posts from '$lib/components/Posts.svelte';
 	import { user } from '$lib/store';
 	import { goto, invalidate } from '$app/navigation';
+	import Avatar from '$lib/components/Avatar.svelte';
 
 	export let data: PageData;
 	export let editing = false;
@@ -67,14 +68,8 @@
 	<p class="error">{error}</p>
 {/if}
 <div class="user">
-	<div class="avatar">
-		<img
-			src={data.user.avatar || 'https://source.boringavatars.com/beam/60/' + data.user.username}
-			alt={data.user.name}
-			height="60"
-			width="60"
-		/>
-	</div>
+	<Avatar size={60} user={data.user} clickable={false} />
+
 	{#if !editing}
 		<div class="content">
 			<div class="left">

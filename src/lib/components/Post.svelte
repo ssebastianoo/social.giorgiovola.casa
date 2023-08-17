@@ -5,6 +5,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { createEventDispatcher } from 'svelte';
+	import Likes from './Likes.svelte';
+	import Avatar from './Avatar.svelte';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -13,6 +15,7 @@
 	export let showThread = false;
 
 	const dispatch = createEventDispatcher();
+	let showingLikes = false;
 	let isModalOpen = false;
 	let popup: HTMLDivElement;
 
@@ -101,6 +104,12 @@
 		>
 	</div>
 </dialog>
+<dialog open={showingLikes}>
+	{#if showingLikes}<!--  we don't want to render the component until the dialog is open -->
+		<Likes postId={post.id} />
+		<button class="btn" on:click|stopPropagation={() => (showingLikes = false)}>Close</button>
+	{/if}
+</dialog>
 <div class="posts">
 	<div class="post-parent">
 		{#if post.reply_to && showReplyTo}
@@ -128,14 +137,7 @@
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
 		>
-			<a class="img-url" href={'/@' + post.user.username}>
-				<img
-					src={post.user.avatar || 'https://source.boringavatars.com/beam/45/' + post.user.username}
-					alt={post.user.name + "'s avatar"}
-					width="45"
-					height="45"
-				/>
-			</a>
+			<Avatar size={45} user={post.user} />
 			<div class="text">
 				<div class="post-info">
 					<p class="name">
@@ -190,7 +192,18 @@
 						>
 					</button>
 					<div class="likes">
-						<p>{post.likes ? post.likes : '0'}</p>
+						<div
+							role="button"
+							tabindex="0"
+							on:keypress|stopPropagation={() => {
+								showingLikes = true;
+							}}
+							on:click|stopPropagation={() => {
+								showingLikes = true;
+							}}
+						>
+							{post.likes ? post.likes : '0'}
+						</div>
 					</div>
 					<svg
 						on:click|preventDefault|stopPropagation={() => {
@@ -295,6 +308,14 @@
 		gap: 10px;
 	}
 
+	.likes {
+		cursor: pointer;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+
 	.post-parent {
 		display: flex;
 		flex-direction: column;
@@ -303,10 +324,6 @@
 		.reply_to {
 			margin-left: 3px;
 		}
-	}
-
-	p {
-		cursor: text;
 	}
 
 	.post {
@@ -341,15 +358,6 @@
 			}
 		}
 
-		.img-url {
-			display: flex;
-
-			img {
-				border-radius: 50%;
-				object-fit: cover;
-			}
-		}
-
 		.text {
 			display: flex;
 			flex-direction: column;
@@ -358,6 +366,8 @@
 
 			.content {
 				p {
+					cursor: text;
+
 					overflow-wrap: anywhere;
 				}
 			}
