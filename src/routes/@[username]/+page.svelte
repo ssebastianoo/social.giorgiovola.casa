@@ -25,6 +25,13 @@
 			return;
 		}
 
+		if (form.get('password')) {
+			if (form.get('password') !== form.get('confirmPassword')) {
+				error = 'Passwords do not match';
+				return;
+			}
+		}
+
 		const res = await fetch('/api/user', {
 			method: 'PATCH',
 			body: form
@@ -123,6 +130,14 @@
 					value={data.user.email}
 					required
 				/>
+			</div>
+			<div class="field">
+				<label for="password">New password</label>
+				<input placeholder="G1*rg!07" name="password" type="password" />
+			</div>
+			<div class="field">
+				<label for="password">Confirm new password</label>
+				<input placeholder="G1*rg!07" name="confirmPassword" type="password" />
 			</div>
 			<div class="buttons">
 				<button class="btn" type="submit">Save</button>
