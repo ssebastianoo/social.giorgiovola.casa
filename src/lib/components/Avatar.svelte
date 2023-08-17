@@ -6,25 +6,35 @@
 	export let clickable: boolean = true;
 </script>
 
-{#if clickable}
-	<a class="img-url" href={'/@' + user.username}>
+<div class="avatar">
+	{#if clickable}
+		<a class="img-url" href={'/@' + user.username}>
+			<img
+				src={user.avatar || `https://source.boringavatars.com/beam/${size}/${user.username}`}
+				alt={user.name + "'s avatar"}
+				width={size}
+				height={size}
+			/>
+		</a>
+	{:else}
 		<img
 			src={user.avatar || `https://source.boringavatars.com/beam/${size}/${user.username}`}
 			alt={user.name + "'s avatar"}
 			width={size}
 			height={size}
 		/>
-	</a>
-{:else}
-	<img
-		src={user.avatar || `https://source.boringavatars.com/beam/${size}/${user.username}`}
-		alt={user.name + "'s avatar"}
-		width={size}
-		height={size}
-	/>
-{/if}
+	{/if}
+</div>
 
 <style lang="scss">
+	.avatar {
+		display: flex;
+
+		img {
+			border-radius: 50%;
+			object-fit: cover;
+		}
+	}
 	.img-url {
 		display: flex;
 

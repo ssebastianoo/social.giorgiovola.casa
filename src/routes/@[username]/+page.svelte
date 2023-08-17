@@ -167,14 +167,6 @@
 		margin-bottom: 20px;
 		gap: 10px;
 
-		.avatar {
-			display: flex;
-
-			img {
-				border-radius: 50%;
-				object-fit: cover;
-			}
-		}
 		.content {
 			width: 100%;
 			display: flex;
