@@ -17,7 +17,8 @@
 	let popup: HTMLDivElement;
 
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
-	$: contentParts = post.content.split(urlRegex);
+	const mentionRegex = /@[a-zA-Z0-9_]+$/g;
+	$: contentParts = post.content.split(/(\s)/);
 
 	const fetchRepliesPromise = async () => {
 		if (!loadReplies || post.replies_count === 0) return;
@@ -151,6 +152,8 @@
 						{#each contentParts as part}
 							{#if part.match(urlRegex)}
 								<a on:click|stopPropagation href={part} target="_blank">{part}</a>
+							{:else if part.match(mentionRegex)}
+								<a on:click|stopPropagation href={`/${part}`}>{part}</a>
 							{:else}
 								{part}
 							{/if}
