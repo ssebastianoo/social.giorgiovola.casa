@@ -76,8 +76,10 @@
 	function sharePost(post: Post) {
 		navigator.clipboard.writeText(`${window.location.origin}/@${post.user.username}/${post.id}`);
 		popup.style.top = '90px';
+		popup.style.visibility = 'visible';
 		setTimeout(() => {
 			popup.style.top = '-100px';
+			popup.style.visibility = 'hidden';
 		}, 1500);
 	}
 </script>
@@ -246,6 +248,7 @@
 	@import 'src/variables.scss';
 
 	.popup {
+		visibility: hidden;
 		position: fixed;
 		background-color: rgba(0, 0, 0, 0.1);
 		backdrop-filter: blur(2px);
