@@ -81,15 +81,17 @@
 				<h2>{data.user.name}</h2>
 				<p>@{data.user.username}</p>
 			</div>
-			<div class="right">
-				<button
-					class="btn"
-					on:click={() => {
-						editing = true;
-					}}>Edit</button
-				>
-				<a href="/logout" class="btn">Logout</a>
-			</div>
+			{#if $user && $user.id === data.user.id}
+				<div class="right">
+					<button
+						class="btn"
+						on:click={() => {
+							editing = true;
+						}}>Edit</button
+					>
+					<a href="/logout" class="btn">Logout</a>
+				</div>
+			{/if}
 		</div>
 	{:else}
 		<form on:submit|preventDefault={updateUser}>
