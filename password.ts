@@ -17,3 +17,14 @@ await sql`
     SET password = ${hash}, salt = ${salt}
     WHERE username = ${username}
 `;
+
+const users = await sql`
+    SELECT id
+    FROM users
+    WHERE username = ${username}
+`;
+
+await sql`
+    DELETE FROM sessions
+    WHERE user_id = ${users[0].id}
+`;
