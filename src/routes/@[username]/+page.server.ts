@@ -5,7 +5,7 @@ import type { User } from '$lib/types';
 import { getPosts } from '$lib/server/posts';
 
 export const load = (async ({ params, locals, depends }) => {
-	const username = params.username;
+	const username = params.username.toLowerCase();
 	depends('app:posts');
 
 	const users = await sql`
