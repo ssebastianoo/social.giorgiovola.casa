@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { user } from '$lib/store';
 	import { version } from '$app/environment';
+
+	export let notisCount = 0;
 </script>
 
 <header>
@@ -30,6 +32,9 @@
 	</div>
 	<div class="auth">
 		{#if $user}
+			{#if notisCount > 0}
+				<a href="/notifications">You have {notisCount} notifications</a>
+			{/if}
 			<a href={'/@' + $user.username}>
 				<img
 					src={$user.avatar || 'https://source.boringavatars.com/beam/50/' + $user.username}
