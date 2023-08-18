@@ -94,7 +94,7 @@
 
 <dialog open={isModalOpen}>
 	<div class="modal">
-		<div class="content">
+		<div class="dialog-content">
 			<p>Are you sure you want to delete this post?</p>
 			<div class="buttons">
 				<button class="btn" on:click|stopPropagation={deletePost}>Yes</button>
@@ -111,7 +111,7 @@
 <dialog open={showingLikes}>
 	{#if showingLikes}<!--  we don't want to render the component until the dialog is open -->
 		<div class="modal">
-			<div class="content">
+			<div class="dialog-content">
 				<div class="top">
 					<h3>Users who liked</h3>
 					<button class="btn" on:click|stopPropagation={() => (showingLikes = false)}>
@@ -287,7 +287,7 @@
 <style lang="scss">
 	@import 'src/variables.scss';
 
-	dialog .content {
+	dialog .dialog-content {
 		.top {
 			display: flex;
 			justify-content: space-between;

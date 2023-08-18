@@ -84,7 +84,7 @@ dialog {
 	backdrop-filter: blur(2px);
 	color: $color3;
 	position: fixed;
-	width: 100%;
+	width: 100vw;
 	height: 100%;
 	margin: 0;
 	padding: 0;
@@ -97,7 +97,7 @@ dialog {
 		justify-content: center;
 		height: 100%;
 
-		.content {
+		.dialog-content {
 			width: calc(85% - 40px);
 			max-width: 350px;
 			display: flex;
