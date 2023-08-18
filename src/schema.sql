@@ -73,6 +73,7 @@ CREATE OR REPLACE FUNCTION notify_posts() RETURNS TRIGGER AS $notify_posts$
                     NEW.id,
                     'reply'
                    ) ON CONFLICT DO NOTHING;
+        ELSIF matches IS NOT NULL THEN
         FOREACH match in ARRAY matches
             LOOP
                 INSERT INTO inbox(user_id, sender_id, post_id, type)
