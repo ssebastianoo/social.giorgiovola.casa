@@ -17,11 +17,6 @@
 		if ('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0) {
 			$isMobile = true;
 		}
-
-		document.documentElement.style.setProperty('--fh', `${window.innerHeight}px`);
-		window.addEventListener('resize', () => {
-			document.documentElement.style.setProperty('--fh', `${window.innerHeight}px`);
-		});
 	});
 </script>
 
@@ -94,7 +89,6 @@
 		display: flex;
 		justify-content: center;
 		margin-top: 80px;
-		position: relative;
 	}
 
 	.container {

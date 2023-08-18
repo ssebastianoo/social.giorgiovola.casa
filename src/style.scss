@@ -61,7 +61,6 @@ a {
 	border-radius: 5px;
 	background-color: $color2;
 	color: $color3;
-	text-align: center;
 
 	&:hover {
 		background-color: $color1;
@@ -69,55 +68,12 @@ a {
 	}
 }
 
-.btn-red {
-	border-color: $color4;
-
-	&:hover {
-		background-color: $color4;
-	}
-}
-
 dialog {
 	z-index: 999;
-	background-color: rgba($color: $color2, $alpha: 0.2);
+	background-color: $color5;
 	border: none;
-	backdrop-filter: blur(2px);
+	backdrop-filter: blur(1px);
 	color: $color3;
-	position: fixed;
-	width: 100%;
-	height: 100%;
-	margin: 0;
-	padding: 0;
-	top: 0;
-	left: 0;
-
-	.modal {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-
-		.content {
-			width: calc(85% - 40px);
-			max-width: 350px;
-			display: flex;
-			flex-direction: column;
-			gap: 10px;
-			border: 1px solid $color1;
-			padding: 20px;
-			border-radius: 6px;
-			background-color: rgba($color: $color2, $alpha: 0.8);
-
-			.buttons {
-				display: flex;
-				gap: 10px;
-
-				.btn {
-					width: 100%;
-				}
-			}
-		}
-	}
 
 	&::backdrop {
 		filter: blur(10px);
