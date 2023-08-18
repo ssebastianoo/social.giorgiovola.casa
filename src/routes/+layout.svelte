@@ -25,7 +25,7 @@
 	});
 </script>
 
-<Header />
+<Header notisCount={data.notisCount} />
 <svelte:head>
 	{#if $page.route.id === '/@[username]/[post]' && !$page.error}
 		<!-- Primary Meta Tags -->
