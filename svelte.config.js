@@ -21,13 +21,13 @@ const config = {
             directives: {
                 'default-src': ['none'],
                 'script-src': ['self', 'static.cloudflareinsights.com'],
-                'style-src': ['self'],
-                'connect-src': ['self'],
+                'style-src': ['self', 'unsafe-inline'],
+                'connect-src': ['self', 'cloudflareinsights.com'],
                 'img-src': ['self', 'source.boringavatars.com'],
                 'base-uri': ['self'],
                 'form-action': ['self'],
                 'manifest-src': ['self'],
-                'font-src': ['self'],
+                'font-src': ['self', 'data:'],
             }
         },
     }
