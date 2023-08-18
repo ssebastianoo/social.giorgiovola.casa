@@ -20,7 +20,7 @@ const config = {
             mode: 'auto',
             directives: {
                 'default-src': ['none'],
-                'script-src': ['self'],
+                'script-src': ['self', 'static.cloudflareinsights.com'],
                 'style-src': ['self'],
                 'connect-src': ['self'],
                 'img-src': ['self', 'source.boringavatars.com'],
