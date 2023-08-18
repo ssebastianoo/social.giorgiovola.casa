@@ -93,21 +93,44 @@
 </div>
 
 <dialog open={isModalOpen}>
-	<p>Are you sure you want to delete this post?</p>
-	<div class="buttons">
-		<button class="btn" on:click|stopPropagation={deletePost}>Yes</button>
-		<button
-			class="btn"
-			on:click|stopPropagation={() => {
-				isModalOpen = false;
-			}}>No</button
-		>
+	<div class="modal">
+		<div class="content">
+			<p>Are you sure you want to delete this post?</p>
+			<div class="buttons">
+				<button class="btn" on:click|stopPropagation={deletePost}>Yes</button>
+				<button
+					class="btn btn-red"
+					on:click|stopPropagation={() => {
+						isModalOpen = false;
+					}}>No</button
+				>
+			</div>
+		</div>
 	</div>
 </dialog>
 <dialog open={showingLikes}>
 	{#if showingLikes}<!--  we don't want to render the component until the dialog is open -->
-		<Likes postId={post.id} />
-		<button class="btn" on:click|stopPropagation={() => (showingLikes = false)}>Close</button>
+		<div class="modal">
+			<div class="content">
+				<div class="top">
+					<h3>Users who liked</h3>
+					<button class="btn" on:click|stopPropagation={() => (showingLikes = false)}>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							height="1.6em"
+							viewBox="0 0 384 512"
+							fill="#bb5353"
+							><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
+								d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"
+							/></svg
+						>
+					</button>
+				</div>
+				<div class="likes">
+					<Likes postId={post.id} />
+				</div>
+			</div>
+		</div>
 	{/if}
 </dialog>
 <div class="posts">
@@ -263,6 +286,25 @@
 
 <style lang="scss">
 	@import 'src/variables.scss';
+
+	dialog .content {
+		.top {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+
+			button {
+				all: unset;
+				cursor: pointer;
+				display: flex;
+			}
+		}
+
+		.likes {
+			max-height: calc(var(--fh) - 160px);
+			overflow: auto;
+		}
+	}
 
 	.popup {
 		visibility: hidden;
