@@ -43,12 +43,13 @@
 		color: $color3;
 		width: 100%;
 	}
+
 	.likes {
 		width: 300px;
-		padding: 10px;
 		display: flex;
 		flex-direction: column;
 		gap: 15px;
 		align-items: start;
+		overflow: auto;
 	}
 </style>
