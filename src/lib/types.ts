@@ -28,3 +28,13 @@ export type Post = {
 		id: number;
 	} | null;
 };
+
+export type Notification = {
+	id: number;
+	user_id: number;
+	sender: Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
+	post: Pick<Post, 'id' | 'content'>;
+	type: 'like' | 'reply' | 'mention';
+	created_at: Date;
+	read_at: Date | null;
+};
