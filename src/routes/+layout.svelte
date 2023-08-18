@@ -3,11 +3,12 @@
 	import { onMount } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import type { LayoutData } from './$types';
-	import { user, isMobile } from '$lib/store';
+	import { user, isMobile, notisCount } from '$lib/store';
 	import { page } from '$app/stores';
 
 	export let data: LayoutData;
 	$user = data.user;
+	$notisCount = data.notisCount;
 
 	onMount(async () => {
 		if ('serviceWorker' in navigator) {
@@ -25,7 +26,7 @@
 	});
 </script>
 
-<Header notisCount={data.notisCount} />
+<Header />
 <svelte:head>
 	{#if $page.route.id === '/@[username]/[post]' && !$page.error}
 		<!-- Primary Meta Tags -->
