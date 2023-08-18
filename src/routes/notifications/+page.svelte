@@ -79,7 +79,8 @@
 	.notifications {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 15px;
+		margin-top: 10px;
 	}
 
 	.notification {
@@ -90,21 +91,14 @@
 		gap: 0.5rem;
 		background-color: $color5;
 		padding: 0.5rem;
+		border-radius: 10px;
 
 		.content {
 			color: $color6;
 		}
 
 		&[data-unread='true'] {
-			background-color: $color1;
-
-			.content {
-				color: $color7;
-			}
-
-			a {
-				color: $color5;
-			}
+			border: 1px solid $color1;
 		}
 	}
 </style>
