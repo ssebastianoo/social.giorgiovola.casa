@@ -4,7 +4,8 @@
 	import Header from '$lib/components/Header.svelte';
 	import type { LayoutData } from './$types';
 	import { user, isMobile, notisCount } from '$lib/store';
-	import { page } from '$app/stores';
+	import { navigating, page } from '$app/stores';
+	import Loading from '$lib/components/Loading.svelte';
 
 	export let data: LayoutData;
 	$user = data.user;
@@ -88,6 +89,9 @@
 	<div class="container">
 		<slot />
 	</div>
+	{#if $navigating}
+		<div class="footer"><Loading /></div>
+	{/if}
 </main>
 
 <style>
@@ -96,6 +100,12 @@
 		justify-content: center;
 		margin-top: 80px;
 		position: relative;
+	}
+
+	.footer {
+		position: fixed;
+		bottom: 0;
+		right: 0;
 	}
 
 	.container {
