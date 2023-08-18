@@ -1,5 +1,6 @@
 import { sql } from '$lib/server/db';
 import type { Notification } from '$lib/types';
+import type { Actions } from './$types';
 import type { PageServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {
@@ -32,3 +33,20 @@ export const load = (async ({ locals }) => {
 		notifications: res as Notification[]
 	};
 }) satisfies PageServerLoad;
+
+export const actions = {
+	default: async (event) => {
+		if (!event.locals.user) throw new Error('Unauthorized');
+		const formData = await event.request.formData();
+		const id = formData.get('id') as string;
+		if (!id) throw new Error('Missing id');
+		await sql`
+        UPDATE inbox
+        SET read_at = NOW()
+        WHERE id = ${id}
+        `;
+		return {
+			status: 200
+		};
+	}
+} satisfies Actions;
