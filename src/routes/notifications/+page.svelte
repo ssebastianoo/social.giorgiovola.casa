@@ -21,7 +21,7 @@
 				<p>
 					<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
 					mentioned you in
-					<a href={`/@${$user?.username}/${notification.post.id}`}>a post</a>
+					<a href={`/@${notification.sender.username}/${notification.post.id}`}>a post</a>
 				</p>
 			{:else if notification.type === 'reply'}
 				<p>
