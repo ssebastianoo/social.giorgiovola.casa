@@ -6,6 +6,7 @@
 	import { user, isMobile, notisCount } from '$lib/store';
 	import { navigating, page } from '$app/stores';
 	import Loading from '$lib/components/Loading.svelte';
+	import { PUBLIC_URL } from '$env/static/public';
 
 	export let data: LayoutData;
 	$user = data.user;
@@ -64,7 +65,6 @@
 			name="description"
 			content="Imagine a new way of thinking the social networking world. u got it? this isn't it, bye."
 		/>
-
 		<!-- Open Graph / Facebook -->
 		<meta property="og:type" content="website" />
 		<meta property="og:url" content="https://social.giorgiovola.casa/" />
@@ -84,6 +84,7 @@
 		/>
 		<meta property="twitter:image" content="/OpenGraph.png" />
 	{/if}
+	<link rel="canonical" href={`${PUBLIC_URL}${$page.url.pathname}`} />
 </svelte:head>
 <main>
 	<div class="container">
