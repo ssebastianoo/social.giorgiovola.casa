@@ -1,4 +1,4 @@
-import type { RequestHandler } from '../$types';
+import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
 
 export const POST: RequestHandler = async ({ locals, params }) => {
