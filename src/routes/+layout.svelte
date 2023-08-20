@@ -7,6 +7,7 @@
 	import { navigating, page } from '$app/stores';
 	import Loading from '$lib/components/Loading.svelte';
 	import { PUBLIC_URL } from '$env/static/public';
+	import { getAvatar } from '$lib/utils';
 
 	export let data: LayoutData;
 	$user = data.user;
@@ -57,6 +58,40 @@
 		/>
 		<meta property="twitter:description" content={$page.data.post.content} />
 		<meta property="twitter:image" content={$page.url.toString() + '/image.png'} />
+	{:else if $page.route.id === '/@[username]' && !$page.error}
+		<!-- Primary Meta Tags -->
+		<title>{$page.data.user.name} (@{$page.data.user.username}) / social.giorgiovola.casa</title>
+		<meta
+			name="title"
+			content={`${$page.data.user.name} (@${$page.data.user.username}) / social.giorgiovola.casa`}
+		/>
+
+		<!-- Open Graph / Facebook -->
+		<meta property="og:type" content="profile" />
+		<meta property="og:url" content={$page.url.toString()} />
+		<meta
+			property="og:title"
+			content={`${$page.data.user.name} (@${$page.data.user.username}) / social.giorgiovola.casa}`}
+		/>
+		<meta
+			property="og:description"
+			content={`Follow @${$page.data.user.username} on social.giorgiovola.casa`}
+		/>
+		<meta property="og:image" content={getAvatar($page.data.user, 500)} />
+		<meta property="og:profile:username" content={$page.data.user.username} />
+		<meta property="og:profile:first_name" content={$page.data.user.name} />
+		<!-- Twitter -->
+		<meta property="twitter:card" content="summary_large_image" />
+		<meta property="twitter:url" content={$page.url.toString()} />
+		<meta
+			property="twitter:title"
+			content={`${$page.data.user.name} (@${$page.data.user.username}) / social.giorgiovola.casa`}
+		/>
+		<meta
+			property="twitter:description"
+			content={`Follow @${$page.data.user.username} on social.giorgiovola.casa`}
+		/>
+		<meta property="twitter:image" content={`${getAvatar($page.data.user, 500, true)}`} />
 	{:else}
 		<!-- Primary Meta Tags -->
 		<title>Social Giorgiovola Casa</title>
@@ -82,7 +117,7 @@
 			property="twitter:description"
 			content="Imagine a new way of thinking the social networking world. u got it? this isn't it, bye."
 		/>
-		<meta property="twitter:image" content="/OpenGraph.png" />
+		<meta property="twitter:image" content={`${PUBLIC_URL}/OpenGraph.png`} />
 	{/if}
 	<link rel="canonical" href={`${PUBLIC_URL}${$page.url.pathname}`} />
 </svelte:head>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { User } from '$lib/types';
+	import { getAvatar } from '$lib/utils';
 
 	export let user: Pick<User, 'username' | 'name' | 'avatar'>;
 	export let size: number;
@@ -9,20 +10,10 @@
 <div class="avatar">
 	{#if clickable}
 		<a class="img-url" href={'/@' + user.username}>
-			<img
-				src={user.avatar || `https://source.boringavatars.com/beam/${size}/${user.username}`}
-				alt={user.name + "'s avatar"}
-				width={size}
-				height={size}
-			/>
+			<img src={getAvatar(user, size)} alt={user.name + "'s avatar"} width={size} height={size} />
 		</a>
 	{:else}
-		<img
-			src={user.avatar || `https://source.boringavatars.com/beam/${size}/${user.username}`}
-			alt={user.name + "'s avatar"}
-			width={size}
-			height={size}
-		/>
+		<img src={getAvatar(user, size)} alt={user.name + "'s avatar"} width={size} height={size} />
 	{/if}
 </div>
 
