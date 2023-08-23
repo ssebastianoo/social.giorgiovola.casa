@@ -6,7 +6,7 @@ self-hosted social network
 docker volume create social-data
 
 # customize settings
-cp .example.env prod.env
+cp .env.example prod.env
 nano prod.env
 
 # build & run
