@@ -1,10 +1,12 @@
-best social ever
-## configure
-- build with `npm run build`
-- run postgres with `docker compose up -d`
-- create a `.env` (based on `.example.env`)
-- edit `ORIGIN` and `PORT`
-## run
+self-hosted social network
+
+## running with Docker
 ```
-node -r dotenv/config build
+# create a persistent volume for your social's data
+docker volume create social-data
+
+# build & run
+docker-compose up -d
 ```
+
+The app will listen on port 3000 (customize it in `docker-compose.yaml`), you should put it behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression

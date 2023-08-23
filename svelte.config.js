@@ -14,7 +14,7 @@ const config = {
         // See https://kit.svelte.dev/docs/adapters for more information about adapters.
         adapter: adapter(),
         version: {
-            name: child_process.execSync('git rev-parse --short HEAD').toString().trim()
+            name: process.env.VERSION || child_process.execSync('git rev-parse --short HEAD').toString().trim(),
         },
         csp: {
             mode: 'auto',
