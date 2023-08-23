@@ -66,7 +66,7 @@
 			content={`${$page.data.user.name} (@${$page.data.user.username}) / social.giorgiovola.casa`}
 		/>
 		<meta
-			property="description"
+			name="description"
 			content={`Follow @${$page.data.user.username} on social.giorgiovola.casa`}
 		/>
 
