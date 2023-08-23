@@ -65,6 +65,10 @@
 			name="title"
 			content={`${$page.data.user.name} (@${$page.data.user.username}) / social.giorgiovola.casa`}
 		/>
+		<meta
+			property="description"
+			content={`Follow @${$page.data.user.username} on social.giorgiovola.casa`}
+		/>
 
 		<!-- Open Graph / Facebook -->
 		<meta property="og:type" content="profile" />
