@@ -5,6 +5,10 @@ self-hosted social network
 # create a persistent volume for your social's data
 docker volume create social-data
 
+# customize settings
+cp .example.env prod.env
+nano prod.env
+
 # build & run
 docker-compose up -d
 ```
