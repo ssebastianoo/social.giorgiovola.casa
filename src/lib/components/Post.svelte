@@ -7,6 +7,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import Likes from './Likes.svelte';
 	import Avatar from './Avatar.svelte';
+	import { onMount } from 'svelte';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -21,7 +22,18 @@
 
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
 	const mentionRegex = /@[a-zA-Z0-9_]+$/g;
+	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
+
+	let images: string[] = [];
+
+	onMount(() => {
+		const matchImage = post.content.match(imageRegex);
+		if (matchImage) {
+			images = [...images, matchImage[1]];
+			post.content = post.content.replace(imageRegex, '');
+		}
+	});
 
 	const fetchRepliesPromise = async () => {
 		if (!loadReplies || post.replies_count === 0) return;
@@ -184,6 +196,9 @@
 							{/if}
 						{/each}
 					</p>
+					{#each images as image}
+						<img src={image} alt="" />
+					{/each}
 				</div>
 				<div class="actions">
 					<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 0 512 512"
@@ -408,10 +423,17 @@
 			gap: 3px;
 
 			.content {
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+
 				p {
 					cursor: text;
-
 					overflow-wrap: anywhere;
+				}
+
+				img {
+					border-radius: 5px;
 				}
 			}
 
