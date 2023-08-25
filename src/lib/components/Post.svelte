@@ -197,7 +197,7 @@
 						{/each}
 					</p>
 					{#each images as image}
-						<img src={image} alt="" />
+						<img width="100%" src={image} alt="" />
 					{/each}
 				</div>
 				<div class="actions">
