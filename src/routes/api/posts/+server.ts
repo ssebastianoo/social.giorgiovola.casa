@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
 import { DISCORD_WEBHOOK_URL } from '$env/static/private';
 import { PUBLIC_URL } from '$env/static/public';
+import { getAvatar } from '$lib/utils';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) {
@@ -37,13 +38,15 @@ export const POST: RequestHandler = async ({ locals, request }) => {
             
 	`;
 	if (!reply_to) {
-		await fetch(DISCORD_WEBHOOK_URL, {
+		await fetch(DISCORD_WEBHOOK_URL + '?wait=false', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				content: `${PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`
+				content: `${PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`,
+				username: posts[0].user.name,
+				avatar_url: getAvatar(posts[0].user, 512, true)
 			})
 		});
 	}
