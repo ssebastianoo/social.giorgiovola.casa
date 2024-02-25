@@ -33,6 +33,10 @@ export const actions = {
 		if (emailCheck.length > 0) {
 			errorMessages.push('Email already in use.');
 		}
+		if(username.includes(' ')) errorMessages.push('Username cannot contain spaces.');
+		if(username.includes('@')) errorMessages.push('Username cannot contain @ symbol.');
+		if(username.includes('.')) errorMessages.push('Username cannot contain . symbol.');
+		if(username.includes('/')) errorMessages.push('Username cannot contain / symbol.');
 		const usernameCheck = await sql`
 			SELECT username FROM users WHERE username = ${username}
 		`;
