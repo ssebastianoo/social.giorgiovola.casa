@@ -1,4 +1,4 @@
-import { PUBLIC_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 import type { User } from './types';
 
 export function getAvatar(
@@ -6,7 +6,11 @@ export function getAvatar(
 	size: number,
 	absolute = false
 ) {
-	if (!user.avatar) return `https://source.boringavatars.com/beam/${size}/${user.username}`;
-	if (absolute) return `${PUBLIC_URL}${user.avatar}`;
+	if (!user.avatar) {
+		// social cards and Discord don't accept SVGs
+		if (absolute) return `${env.PUBLIC_URL}/avatar/${user.username}.png?size=${size}`;
+		return `/avatar/${user.username}.svg?size=${size}`;
+	}
+	if (absolute) return `${env.PUBLIC_URL}${user.avatar}`;
 	return user.avatar;
 }

@@ -2,6 +2,15 @@ import adapter from '@sveltejs/adapter-node';
 import * as child_process from 'node:child_process';
 import { vitePreprocess } from '@sveltejs/kit/vite';
 
+// there is no .git directory inside the docker build
+function gitVersion() {
+	try {
+		return child_process.execSync('git rev-parse --short HEAD', { stdio: 'pipe' }).toString().trim();
+	} catch {
+		return 'dev';
+	}
+}
+
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	// Consult https://kit.svelte.dev/docs/integrations#preprocessors
@@ -14,9 +23,7 @@ const config = {
 		// See https://kit.svelte.dev/docs/adapters for more information about adapters.
 		adapter: adapter(),
 		version: {
-			name:
-				process.env.VERSION ||
-				child_process.execSync('git rev-parse --short HEAD').toString().trim()
+			name: process.env.VERSION || gitVersion()
 		},
 		csp: {
 			mode: 'auto',
@@ -25,7 +32,6 @@ const config = {
 				'script-src': ['self', 'static.cloudflareinsights.com'],
 				'style-src': ['self', 'unsafe-inline'],
 				'connect-src': ['self', 'cloudflareinsights.com'],
-				// 'img-src': ['self', 'source.boringavatars.com'],
 				'img-src': ['*'],
 				'base-uri': ['self'],
 				'form-action': ['self'],

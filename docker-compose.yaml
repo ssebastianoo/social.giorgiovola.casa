@@ -1,25 +1,36 @@
-version: '3.1'
-
 services:
   web:
-    restart: unless-stopped
     build: .
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@db/postgres
-    env_file:
-      - prod.env
-    ports:
-      - "3000:3000"
-    depends_on:
-      - db
-  db:
-    build: 
-      context: .
-      dockerfile: Dockerfile.postgres
     restart: unless-stopped
+    ports:
+      - '${PORT:-7777}:${PORT:-7777}'
+    environment:
+      PORT: ${PORT:-7777}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
+      ORIGIN: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     volumes:
-      - social-data:/var/lib/postgresql/data
+      - avatars:/app/static/avatars
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 2s
+      timeout: 5s
+      retries: 30
 
 volumes:
-  social-data:
-    external: true
+  postgres-data:
+  avatars:

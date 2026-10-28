@@ -6,7 +6,7 @@
 	import { user, isMobile, notisCount } from '$lib/store';
 	import { navigating, page } from '$app/stores';
 	import Loading from '$lib/components/Loading.svelte';
-	import { PUBLIC_URL } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import { getAvatar } from '$lib/utils';
 
 	export let data: LayoutData;
@@ -81,7 +81,7 @@
 			property="og:description"
 			content={`Follow @${$page.data.user.username} on social.giorgiovola.casa`}
 		/>
-		<meta property="og:image" content={getAvatar($page.data.user, 500)} />
+		<meta property="og:image" content={getAvatar($page.data.user, 500, true)} />
 		<meta property="og:profile:username" content={$page.data.user.username} />
 		<meta property="og:profile:first_name" content={$page.data.user.name} />
 		<!-- Twitter -->
@@ -121,9 +121,9 @@
 			property="twitter:description"
 			content="Imagine a new way of thinking the social networking world. u got it? this isn't it, bye."
 		/>
-		<meta property="twitter:image" content={`${PUBLIC_URL}/OpenGraph.png`} />
+		<meta property="twitter:image" content={`${env.PUBLIC_URL}/OpenGraph.png`} />
 	{/if}
-	<link rel="canonical" href={`${PUBLIC_URL}${$page.url.pathname}`} />
+	<link rel="canonical" href={`${env.PUBLIC_URL}${$page.url.pathname}`} />
 </svelte:head>
 <main>
 	<div class="container">

@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
-import { createCanvas } from 'canvas';
-import type { CanvasRenderingContext2D } from 'canvas';
+import { createCanvas } from '@napi-rs/canvas';
+import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
 
 // source: https://fjolt.com/article/html-canvas-how-to-wrap-text
 const wrapText = function (

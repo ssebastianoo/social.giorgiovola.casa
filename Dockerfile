@@ -1,17 +1,30 @@
-FROM node:20.5.1-bullseye
-
+FROM oven/bun:1 AS base
 WORKDIR /app
 
-COPY package.json /app
+FROM base AS deps
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
-RUN apt-get update
+FROM deps AS build
+COPY . .
+RUN bun run build
 
-RUN apt-get -y install build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+FROM base AS prod-deps
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
 
-RUN npm install
+FROM base
+# Roboto is used to render the social card images
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends fonts-roboto fontconfig \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& mkdir -p static/avatars
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/build ./build
+COPY package.json initdb.ts ./
+COPY src/schema.sql ./src/schema.sql
 
-RUN echo "VERSION=$(git rev-parse --short HEAD)" >> /app/.env
-
-COPY . /app
-
-CMD ["bash", "build-container.sh"]
+ENV PORT=7777
+EXPOSE 7777
+# the schema uses IF NOT EXISTS so it is safe to apply on every start
+CMD ["sh", "-c", "bun initdb.ts && exec bun build/index.js"]

@@ -3,6 +3,7 @@
 	import { version } from '$app/environment';
 
 	import { notisCount } from '$lib/store';
+	import { getAvatar } from '$lib/utils';
 </script>
 
 <header>
@@ -44,7 +45,7 @@
 			</a>
 			<a href={'/@' + $user.username}>
 				<img
-					src={$user.avatar || 'https://source.boringavatars.com/beam/50/' + $user.username}
+					src={getAvatar($user, 50)}
 					alt={$user.username + "'s avatar"}
 					height="50"
 					width="50"

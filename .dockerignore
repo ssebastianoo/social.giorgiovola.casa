@@ -1,9 +1,11 @@
-Dockerfile
-.dockerignore
-.npmrc
+.git
 .svelte-kit
 .vscode
 node_modules
 build
 package
-**/.env
+.env
+.env.*
+!.env.example
+Dockerfile
+docker-compose.yaml

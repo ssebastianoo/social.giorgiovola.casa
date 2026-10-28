@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
-import { DISCORD_WEBHOOK_URL } from '$env/static/private';
-import { PUBLIC_URL } from '$env/static/public';
+import { env as privateEnv } from '$env/dynamic/private';
+import { env } from '$env/dynamic/public';
 import { getAvatar } from '$lib/utils';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
@@ -37,14 +37,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
         ) FROM users u WHERE u.id = user_id) AS user
             
 	`;
-	if (!reply_to) {
-		await fetch(DISCORD_WEBHOOK_URL + '?wait=false', {
+	if (!reply_to && privateEnv.DISCORD_WEBHOOK_URL) {
+		await fetch(privateEnv.DISCORD_WEBHOOK_URL + '?wait=false', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				content: `${PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`,
+				content: `${env.PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`,
 				username: posts[0].user.name,
 				avatar_url: getAvatar(posts[0].user, 512, true)
 			})
