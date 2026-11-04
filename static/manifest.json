@@ -1,75 +1,61 @@
 {
+	"id": "/",
 	"name": "Social Giorgiovola Casa",
 	"short_name": "SGC",
+	"description": "Imagine a new way of thinking the social networking world. u got it? this isn't it, bye.",
+	"lang": "en",
 	"start_url": "/",
-	"icons": [
-		{
-			"src": "/icons/android-icon-36x36.png",
-			"sizes": "36x36",
-			"type": "image/png",
-			"density": "0.75"
-		},
-		{
-			"src": "/icons/android-icon-48x48.png",
-			"sizes": "48x48",
-			"type": "image/png",
-			"density": "1.0"
-		},
-		{
-			"src": "/icons/android-icon-72x72.png",
-			"sizes": "72x72",
-			"type": "image/png",
-			"density": "1.5"
-		},
-		{
-			"src": "/icons/android-icon-96x96.png",
-			"sizes": "96x96",
-			"type": "image/png",
-			"density": "2.0"
-		},
-		{
-			"src": "/icons/android-icon-144x144.png",
-			"sizes": "144x144",
-			"type": "image/png",
-			"density": "3.0"
-		},
-		{
-			"src": "/icons/android-icon-192x192.png",
-			"sizes": "192x192",
-			"type": "image/png",
-			"density": "4.0"
-		}
-	],
+	"scope": "/",
 	"display": "standalone",
 	"background_color": "#0c0b0b",
-	"theme_color": "#0c0b0b",
-	"orientation": "portrait",
+	"theme_color": "#799a74",
+	"icons": [
+		{
+			"src": "/icons/icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/maskable-192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "maskable"
+		},
+		{
+			"src": "/icons/maskable-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	],
 	"shortcuts": [
 		{
 			"name": "Feed",
 			"short_name": "Feed",
 			"description": "Open the app feed",
 			"url": "/",
-			"icons": [
-				{
-					"src": "/icons/Home.png",
-					"sizes": "192x192",
-					"type": "image/png"
-				}
-			]
+			"icons": [{ "src": "/icons/Home.png", "sizes": "192x192", "type": "image/png" }]
+		},
+		{
+			"name": "Notifications",
+			"short_name": "Notifications",
+			"description": "See your notifications",
+			"url": "/notifications",
+			"icons": [{ "src": "/icons/Home.png", "sizes": "192x192", "type": "image/png" }]
 		},
 		{
 			"name": "Profile",
 			"short_name": "Profile",
 			"description": "Open your profile",
 			"url": "/profile",
-			"icons": [
-				{
-					"src": "/icons/Profile.png",
-					"sizes": "192x192",
-					"type": "image/png"
-				}
-			]
+			"icons": [{ "src": "/icons/Profile.png", "sizes": "192x192", "type": "image/png" }]
 		}
 	]
 }

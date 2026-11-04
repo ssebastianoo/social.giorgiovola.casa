@@ -36,10 +36,6 @@
 	});
 
 	onMount(async () => {
-		if ('serviceWorker' in navigator) {
-			navigator.serviceWorker.register('/sw.js');
-		}
-
 		if ('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0) {
 			$isMobile = true;
 		}
