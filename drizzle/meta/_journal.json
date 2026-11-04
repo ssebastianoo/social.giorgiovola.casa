@@ -26,8 +26,15 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1793832031071,
-      "tag": "0003_post_images",
+      "when": 1793833503471,
+      "tag": "0003_fix_mention_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793833897804,
+      "tag": "0004_post_images",
       "breakpoints": true
     }
   ]
