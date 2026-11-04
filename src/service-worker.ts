@@ -58,3 +58,57 @@ self.addEventListener('fetch', (event) => {
 		event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
 	}
 });
+
+type PushPayload = { title: string; body: string; url: string; tag?: string };
+
+self.addEventListener('push', (event) => {
+	let data: PushPayload;
+	try {
+		data = event.data!.json();
+	} catch {
+		return;
+	}
+
+	event.waitUntil(
+		(async () => {
+			// the open page already shows the new notification (realtime stream and badge)
+			const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+			if (windows.some((w) => w.visibilityState === 'visible' && w.focused)) return;
+
+			await self.registration.showNotification(data.title, {
+				body: data.body,
+				icon: '/icons/icon-192.png',
+				tag: data.tag,
+				// `renotify` is missing from the bundled lib types
+				...({ renotify: !!data.tag } as object),
+				data: { url: data.url }
+			});
+		})()
+	);
+});
+
+self.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+
+	// only ever open pages of this app
+	let target = new URL('/notifications', self.location.origin);
+	try {
+		const url = new URL(event.notification.data?.url ?? '', self.location.origin);
+		if (url.origin === self.location.origin) target = url;
+	} catch {
+		// keep the notifications page
+	}
+
+	event.waitUntil(
+		(async () => {
+			const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+			const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+			if (open) {
+				await open.focus();
+				await open.navigate(target.href).catch(() => {});
+			} else {
+				await self.clients.openWindow(target.href);
+			}
+		})()
+	);
+});

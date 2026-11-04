@@ -5,10 +5,28 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { disablePush, enablePush, getPushState, type PushState } from '#lib/push.js';
 	export let data: PageData;
+
+	let push: PushState | null = null;
+	let pushBusy = false;
+	let pushError = false;
+
+	const togglePush = async () => {
+		pushBusy = true;
+		pushError = false;
+		try {
+			push = push === 'on' ? await disablePush() : await enablePush();
+		} catch (e) {
+			console.error(e);
+			pushError = true;
+		}
+		pushBusy = false;
+	};
 
 	// the unread count is pushed by the layout; reload the list when it grows
 	onMount(() => {
+		getPushState().then((state) => (push = state));
 		let last = $notisCount;
 		return notisCount.subscribe((count) => {
 			if (count > last) invalidateAll();
@@ -44,6 +62,23 @@
 </script>
 
 <h1>Notifications</h1>
+{#if push === 'on' || push === 'off'}
+	<div class="push">
+		<p>
+			{push === 'on'
+				? 'Push notifications are on for this browser.'
+				: 'Get a notification on this device when someone likes, replies or mentions you.'}
+		</p>
+		<button class="btn" disabled={pushBusy} on:click={togglePush}>
+			{push === 'on' ? 'Turn off' : 'Turn on'}
+		</button>
+	</div>
+	{#if pushError}<p class="push-note">Something went wrong, try again.</p>{/if}
+{:else if push === 'denied'}
+	<p class="push-note">
+		Notifications are blocked for this site: allow them in your browser settings to turn them on.
+	</p>
+{/if}
 <div class="notifications">
 	{#each data.notifications as notification}
 		<div
@@ -116,6 +151,22 @@
 
 <style lang="scss">
 	@import 'src/variables.scss';
+	.push {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 10px;
+		margin-top: 10px;
+		padding: 10px;
+		border-radius: 10px;
+		background-color: $color5;
+	}
+
+	.push-note {
+		margin-top: 10px;
+		color: $color6;
+	}
+
 	.notifications {
 		display: flex;
 		flex-direction: column;

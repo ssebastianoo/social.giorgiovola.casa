@@ -9,6 +9,7 @@
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
 	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
+	import { syncPush } from '#lib/push.js';
 
 	export let data: LayoutData;
 	$user = data.user;
@@ -24,6 +25,15 @@
 	$: if (mounted) {
 		userId;
 		connectRealtime();
+	}
+
+	// push subscriptions belong to a session: bind this browser's one to the profile now in use
+	$: if (mounted && userId !== null) syncPush().catch(() => {});
+
+	// unread count on the installed app's icon
+	$: if (mounted && 'setAppBadge' in navigator) {
+		if ($notisCount > 0) navigator.setAppBadge($notisCount).catch(() => {});
+		else navigator.clearAppBadge().catch(() => {});
 	}
 
 	onMount(() => {

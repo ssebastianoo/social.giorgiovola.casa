@@ -112,3 +112,24 @@ CREATE INDEX IF NOT EXISTS users_owner_id ON users(owner_id);
 
 -- sessions always belong to an account (user_id); acting_id is the identity currently in use
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+-- web push: key/value settings (the VAPID key pair is generated on first use) and the browser
+-- subscriptions. A subscription hangs off the session that created it, so logging out (or the
+-- session expiring) stops the notifications for that account on that browser.
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    session_token TEXT NOT NULL REFERENCES sessions(token) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (session_token, endpoint)
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_endpoint ON push_subscriptions(endpoint);
+
+-- set once a push for this inbox row has been sent, so it never goes out twice
+ALTER TABLE inbox ADD COLUMN IF NOT EXISTS pushed_at TIMESTAMPTZ;
