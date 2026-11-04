@@ -6,6 +6,7 @@ services:
       - '${PORT:-7777}:${PORT:-7777}'
     environment:
       PORT: ${PORT:-7777}
+      BODY_SIZE_LIMIT: 12M
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
       ORIGIN: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}

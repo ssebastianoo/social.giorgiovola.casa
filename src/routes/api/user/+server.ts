@@ -40,7 +40,16 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	if (avatar && (avatar as File).size > 0) {
 		avatar = avatar as File;
 		const buffer = await avatar.arrayBuffer();
-		const ext = avatar.type.split('/')[1];
+		const allowed: Record<string, string> = {
+			'image/png': 'png',
+			'image/jpeg': 'jpg',
+			'image/gif': 'gif',
+			'image/webp': 'webp'
+		};
+		const ext = allowed[avatar.type];
+		if (!ext) {
+			return new Response('Unsupported avatar type', { status: 400 });
+		}
 		avatarPath = `/avatars/${locals.user.id}.${ext}`;
 		await fs.promises.writeFile(`static${avatarPath}`, Buffer.from(buffer));
 	}
