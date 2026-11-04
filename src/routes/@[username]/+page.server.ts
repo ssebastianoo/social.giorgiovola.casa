@@ -10,7 +10,7 @@ export const load = (async ({ params, locals, depends }) => {
 	depends('app:posts');
 
 	const users = await sql`
-		SELECT id, name, username, avatar, created_at, email
+		SELECT id, name, username, avatar, created_at, email, owner_id
 		FROM users
 		WHERE username = ${username}
 	`;
@@ -28,7 +28,9 @@ export const load = (async ({ params, locals, depends }) => {
 			name: users[0].name,
 			username: users[0].username,
 			avatar: users[0].avatar,
-			created_at: users[0].created_at
+			created_at: users[0].created_at,
+			// who owns an identity is private
+			owner_id: null
 		};
 	} else {
 		user = {
@@ -37,7 +39,8 @@ export const load = (async ({ params, locals, depends }) => {
 			username: users[0].username,
 			avatar: users[0].avatar,
 			created_at: users[0].created_at,
-			email: users[0].email
+			email: users[0].email,
+			owner_id: users[0].owner_id
 		};
 	}
 

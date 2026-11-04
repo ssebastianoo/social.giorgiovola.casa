@@ -3,7 +3,7 @@
 	import { version } from '$app/env';
 
 	import { notisCount } from '#lib/store.js';
-	import { getAvatar } from '#lib/utils.js';
+	import AccountSwitcher from './AccountSwitcher.svelte';
 </script>
 
 <header>
@@ -43,14 +43,7 @@
 					<p>{$notisCount}</p>
 				{/if}
 			</a>
-			<a href={'/@' + $user.username}>
-				<img
-					src={getAvatar($user, 50)}
-					alt={$user.username + "'s avatar"}
-					height="50"
-					width="50"
-				/>
-			</a>
+			<AccountSwitcher />
 		{:else}
 			<p><a href="/login">login</a></p>
 		{/if}
@@ -107,11 +100,6 @@
 			display: flex;
 			gap: 20px;
 			align-items: center;
-
-			img {
-				object-fit: cover;
-				border-radius: 50%;
-			}
 		}
 
 		.left {

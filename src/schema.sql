@@ -96,3 +96,19 @@ DROP TRIGGER IF EXISTS posts_notification ON posts;
 CREATE TRIGGER posts_notification
     AFTER INSERT ON posts
     FOR EACH ROW EXECUTE function notify_posts();
+
+-- identities: extra profiles owned by an account, with no email or password of their own.
+-- They can only be used by switching to them from the owning account (see src/routes/accounts).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN salt DROP NOT NULL;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_identity_check;
+ALTER TABLE users ADD CONSTRAINT users_identity_check CHECK (
+    (owner_id IS NULL AND email IS NOT NULL AND password IS NOT NULL AND salt IS NOT NULL)
+    OR (owner_id IS NOT NULL AND owner_id != id AND email IS NULL AND password IS NULL AND salt IS NULL)
+);
+CREATE INDEX IF NOT EXISTS users_owner_id ON users(owner_id);
+
+-- sessions always belong to an account (user_id); acting_id is the identity currently in use
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_id INTEGER REFERENCES users(id) ON DELETE SET NULL;

@@ -1,4 +1,5 @@
 import { sql } from '#lib/server/db.js';
+import { getSwitcher } from '#lib/server/accounts.js';
 import type { LayoutServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {
@@ -12,6 +13,7 @@ export const load = (async ({ locals }) => {
 
 	return {
 		user: locals.user,
-		notisCount
+		notisCount,
+		accounts: await getSwitcher(locals)
 	};
 }) satisfies LayoutServerLoad;

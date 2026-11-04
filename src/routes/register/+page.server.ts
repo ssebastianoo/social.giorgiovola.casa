@@ -29,7 +29,7 @@ export const load = (() => {
 }) satisfies PageServerLoad;
 
 export const actions = {
-	default: async ({ request, cookies, getClientAddress }): Promise<Result> => {
+	default: async ({ request, cookies, getClientAddress, locals }): Promise<Result> => {
 		if (!SIGNUP_PASSWORD) {
 			return { success: false, errors: ['Registration is closed.'] };
 		}
@@ -108,10 +108,11 @@ export const actions = {
 			name: res[0].name,
 			username: res[0].username,
 			avatar: res[0].avatar,
-			created_at: res[0].created_at
+			created_at: res[0].created_at,
+			owner_id: null
 		};
 
-		await createSession(cookies, user.id);
+		await createSession(cookies, user.id, locals.sessions);
 
 		return {
 			success: true,

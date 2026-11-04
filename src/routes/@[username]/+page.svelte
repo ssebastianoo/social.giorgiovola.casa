@@ -10,6 +10,9 @@
 
 	let error: string | null = null;
 
+	// identities have no email or password of their own
+	$: identity = data.user.owner_id !== null;
+
 	async function updateUser(e: Event) {
 		const target = e.target as HTMLFormElement;
 
@@ -22,7 +25,7 @@
 			return;
 		}
 
-		if (!form.get('fullName') || !form.get('username') || !form.get('email')) {
+		if (!form.get('fullName') || !form.get('username') || (!identity && !form.get('email'))) {
 			return;
 		}
 
@@ -84,7 +87,7 @@
 							editing = true;
 						}}>Edit</button
 					>
-					<form method="POST" action="/logout">
+					<form method="POST" action="/logout?/current">
 						<button type="submit" class="btn logout">Logout</button>
 					</form>
 				</div>
@@ -118,25 +121,27 @@
 					required
 				/>
 			</div>
-			<div class="field">
-				<label for="email">Email</label>
-				<input
-					id="email"
-					placeholder="social@giorgiovola.casa"
-					name="email"
-					type="email"
-					value={data.user.email}
-					required
-				/>
-			</div>
-			<div class="field">
-				<label for="password">New password</label>
-				<input placeholder="G1*rg!07" name="password" type="password" />
-			</div>
-			<div class="field">
-				<label for="password">Confirm new password</label>
-				<input placeholder="G1*rg!07" name="confirmPassword" type="password" />
-			</div>
+			{#if !identity}
+				<div class="field">
+					<label for="email">Email</label>
+					<input
+						id="email"
+						placeholder="social@giorgiovola.casa"
+						name="email"
+						type="email"
+						value={data.user.email}
+						required
+					/>
+				</div>
+				<div class="field">
+					<label for="password">New password</label>
+					<input placeholder="G1*rg!07" name="password" type="password" />
+				</div>
+				<div class="field">
+					<label for="password">Confirm new password</label>
+					<input placeholder="G1*rg!07" name="confirmPassword" type="password" />
+				</div>
+			{/if}
 			<div class="buttons">
 				<button class="btn" type="submit">Save</button>
 				<button

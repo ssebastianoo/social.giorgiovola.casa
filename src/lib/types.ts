@@ -1,10 +1,23 @@
 export type User = {
 	id: number;
-	email: string;
+	/** null for identities */
+	email: string | null;
 	name: string;
 	username: string;
 	avatar: string | null;
 	created_at: Date;
+	/** the account owning this identity, null for regular accounts */
+	owner_id: number | null;
+};
+
+/** An entry of the account switcher. */
+export type SwitcherProfile = Pick<User, 'id' | 'name' | 'username' | 'avatar'> & {
+	unread: number;
+	active: boolean;
+};
+
+export type SwitcherAccount = SwitcherProfile & {
+	identities: SwitcherProfile[];
 };
 
 export type PublicUser = {

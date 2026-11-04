@@ -11,7 +11,7 @@ const MAX_FAILS_PER_IP = 30;
 const GENERIC_ERROR = 'Wrong username or password.';
 
 export const actions = {
-	default: async ({ request, cookies, getClientAddress }) => {
+	default: async ({ request, cookies, getClientAddress, locals }) => {
 		const data = await request.formData();
 
 		const username = data.get('username');
@@ -39,10 +39,11 @@ export const actions = {
 
 		const res = login.includes('@')
 			? await sql`
-					SELECT * FROM users WHERE lower(email) = ${login}
+					SELECT * FROM users WHERE lower(email) = ${login} AND owner_id IS NULL
 					ORDER BY (email = ${username.trim()}) DESC LIMIT 1
 				`
-			: await sql`SELECT * FROM users WHERE username = ${login}`;
+			: // identities have no password and can't be logged into directly
+			  await sql`SELECT * FROM users WHERE username = ${login} AND owner_id IS NULL`;
 
 		let ok = false;
 		if (res.length > 0) {
@@ -72,10 +73,11 @@ export const actions = {
 			username: res[0].username,
 			avatar: res[0].avatar,
 			created_at: res[0].created_at,
-			id: res[0].id
+			id: res[0].id,
+			owner_id: null
 		};
 
-		await createSession(cookies, user.id);
+		await createSession(cookies, user.id, locals.sessions);
 
 		return {
 			logged: true,

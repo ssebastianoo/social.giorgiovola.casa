@@ -41,6 +41,8 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 		return new Response('Unauthorized', { status: 401 });
 	}
 	const me = locals.user;
+	// identities have no credentials: email and password can't be set on them
+	const identity = me.owner_id !== null;
 
 	const data = await request.formData();
 	const field = (name: string) => {
@@ -49,26 +51,26 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	};
 
 	const name = field('fullName').trim();
-	const email = field('email').trim();
+	const email = identity ? null : field('email').trim();
 	const username = field('username').trim().toLowerCase();
-	const password = field('password');
+	const password = identity ? '' : field('password');
 	const avatar = data.get('avatar');
 
-	if (!name || !username || !email) {
+	if (!name || !username || email === '') {
 		return bad('Missing fields');
 	}
 
 	// usernames created before validation existed are kept as long as they don't change
 	const validationError =
 		validateName(name) ??
-		validateEmail(email) ??
+		(email !== null ? validateEmail(email) : null) ??
 		(username !== me.username ? validateUsername(username) : null) ??
 		(password ? validatePassword(password) : null);
 	if (validationError) return bad(validationError);
 
 	const taken = await sql`
 		SELECT username, email FROM users
-		WHERE (username = ${username} OR lower(email) = lower(${email}))
+		WHERE (username = ${username} ${email !== null ? sql`OR lower(email) = lower(${email})` : sql``})
 		AND id != ${me.id}
 	`;
 	if (taken.some((u) => u.username === username)) return bad('Username already in use.');
@@ -99,12 +101,12 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 			UPDATE users
 			SET
 				name = ${name},
-				username = ${username},
 				${avatarPath ? sql`avatar = ${avatarPath + '?hash=' + Date.now()},` : sql``}
 				${crypt ? sql`password = ${crypt.hash}, salt = ${crypt.salt},` : sql``}
-				email = ${email}
+				${email !== null ? sql`email = ${email},` : sql``}
+				username = ${username}
 			WHERE id = ${me.id}
-			RETURNING id, name, username, email, avatar, created_at
+			RETURNING id, name, username, email, avatar, created_at, owner_id
 		`;
 	} catch (e) {
 		if (isUniqueViolation(e)) return bad('Username or email already in use.');
