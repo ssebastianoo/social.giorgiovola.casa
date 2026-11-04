@@ -2,6 +2,7 @@ import adapter from '@sveltejs/adapter-node';
 import * as child_process from 'node:child_process';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
 
 // there is no .git directory inside the docker build
@@ -26,6 +27,7 @@ function publicOrigin(mode: string) {
 
 export default defineConfig(({ mode }) => ({
 	plugins: [
+		tailwindcss(),
 		sveltekit({
 			preprocess: vitePreprocess(),
 			adapter: adapter(),

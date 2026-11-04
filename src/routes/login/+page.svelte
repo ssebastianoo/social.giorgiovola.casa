@@ -17,51 +17,15 @@
 	<p>{form.error}</p>
 {/if}
 
-<div class="register">
+<div class="mb-2.5 rounded-[5px] bg-black/70 p-2 text-[0.8rem]">
 	<p>New here? <a href="/register">Register!</a></p>
 </div>
-<form method="POST" class="login">
+<form method="POST" class="flex flex-col gap-5">
 	<input type="text" class="input" name="username" placeholder="Username or Email" required />
 	<input type="password" class="input" name="password" placeholder="Password" required />
-	<input type="submit" value="Login" />
+	<input
+		class="mt-2.5 cursor-pointer rounded-[5px] border border-foreground p-2.5 text-center outline-none hover:bg-black/70"
+		type="submit"
+		value="Login"
+	/>
 </form>
-
-<style lang="scss">
-	@import 'src/variables';
-
-	.register {
-		background-color: $color5;
-		padding: 8px;
-		border-radius: 5px;
-		font-size: 0.8rem;
-		margin-bottom: 10px;
-
-		a {
-			color: $color1;
-		}
-	}
-
-	.login {
-		display: flex;
-		flex-direction: column;
-		gap: 20px;
-
-		input {
-			width: calc(100% - 20px);
-		}
-
-		input[type='submit'] {
-			all: unset;
-			border: 1px solid $color3;
-			padding: 10px;
-			border-radius: 5px;
-			cursor: pointer;
-			text-align: center;
-			margin-top: 10px;
-
-			&:hover {
-				background-color: $color5;
-			}
-		}
-	}
-</style>

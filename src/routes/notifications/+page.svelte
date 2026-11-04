@@ -44,11 +44,12 @@
 </script>
 
 <h1>Notifications</h1>
-<div class="notifications">
+<div class="mt-2.5 flex flex-col gap-3.75">
 	{#each data.notifications as notification}
 		<div
-			class="notification"
-			data-unread={!Boolean(notification.read_at)}
+			class="flex cursor-pointer items-center justify-between rounded-[10px] bg-black/70 p-2.5 {notification.read_at
+				? ''
+				: 'border border-accent'}"
 			role="button"
 			tabindex="0"
 			on:keypress={async () => {
@@ -58,9 +59,9 @@
 				await readNotification(notification);
 			}}
 		>
-			<div class="notification-content">
+			<div class="flex gap-2.5">
 				<Avatar user={notification.sender} size={50} />
-				<div class="notification-text">
+				<div class="flex flex-col justify-center">
 					{#if notification.type === 'like'}
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
@@ -79,7 +80,7 @@
 							replied to
 							<a href={`/@${notification.sender.username}/${notification.post.id}`}>your post</a>
 						</p>
-						<p class="content">
+						<p class="text-muted">
 							{notification.post.content.slice(
 								0,
 								100
@@ -90,7 +91,7 @@
 			</div>
 			{#if !notification.read_at}
 				<button
-					class="btn"
+					class="btn flex size-8 items-center justify-center"
 					on:keypress|stopPropagation|preventDefault={async () => {
 						await readNotification(notification, false);
 					}}
@@ -113,50 +114,3 @@
 		</div>
 	{/each}
 </div>
-
-<style lang="scss">
-	@import 'src/variables.scss';
-	.notifications {
-		display: flex;
-		flex-direction: column;
-		gap: 15px;
-		margin-top: 10px;
-	}
-
-	.notification {
-		cursor: pointer;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		background-color: $color5;
-		padding: 10px;
-		border-radius: 10px;
-
-		.notification-content {
-			display: flex;
-			gap: 10px;
-
-			.notification-text {
-				display: flex;
-				flex-direction: column;
-				justify-content: center;
-			}
-		}
-
-		.btn {
-			width: 20px;
-			height: 20px;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-		}
-
-		.content {
-			color: $color6;
-		}
-
-		&[data-unread='true'] {
-			border: 1px solid $color1;
-		}
-	}
-</style>

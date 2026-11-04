@@ -48,13 +48,6 @@
 	});
 </script>
 
-<div bind:this={container}>
+<div class="size-full" bind:this={container}>
 	<slot {intersecting} />
 </div>
-
-<style>
-	div {
-		width: 100%;
-		height: 100%;
-	}
-</style>

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import '../style.scss';
+	import '@fontsource-variable/manrope';
+	import '../app.css';
 	import { onMount } from 'svelte';
 	import Header from '#lib/components/Header.svelte';
 	import type { LayoutData } from './$types';
@@ -147,32 +148,11 @@
 	{/if}
 	<link rel="canonical" href={`${PUBLIC_URL}${page.url.pathname}`} />
 </svelte:head>
-<main>
-	<div class="container">
+<main class="relative mt-20 flex justify-center">
+	<div class="w-full max-w-160 p-5">
 		<slot />
 	</div>
 	{#if navigating.to}
-		<div class="footer"><Loading /></div>
+		<div class="fixed right-0 bottom-0"><Loading /></div>
 	{/if}
 </main>
-
-<style>
-	main {
-		display: flex;
-		justify-content: center;
-		margin-top: 80px;
-		position: relative;
-	}
-
-	.footer {
-		position: fixed;
-		bottom: 0;
-		right: 0;
-	}
-
-	.container {
-		padding: 20px;
-		width: 100%;
-		max-width: 600px;
-	}
-</style>
