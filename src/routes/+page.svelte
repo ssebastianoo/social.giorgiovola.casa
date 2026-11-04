@@ -2,9 +2,19 @@
 	import type { PageServerData } from './$types';
 	import Posts from '#lib/components/Posts.svelte';
 	import { user } from '#lib/store.js';
+	import { onMount } from 'svelte';
+	import { onRealtime } from '#lib/realtime.js';
 
 	export let data: PageServerData;
 	let error: string | null = null;
+
+	// new top level posts from anyone; own posts may already be in the list
+	onMount(() =>
+		onRealtime('post', (post) => {
+			if (post.reply_to || data.posts.some((p) => p.id === post.id)) return;
+			data.posts = [post, ...data.posts];
+		})
+	);
 
 	async function createPost(e: Event) {
 		const target = e.target as HTMLFormElement;
@@ -20,7 +30,7 @@
 			});
 			if (res.ok) {
 				const post = await res.json();
-				data.posts = [post, ...data.posts];
+				if (!data.posts.some((p) => p.id === post.id)) data.posts = [post, ...data.posts];
 				target.content.value = '';
 			} else {
 				error = res.status === 400 ? await res.text() : 'Something went wrong.';

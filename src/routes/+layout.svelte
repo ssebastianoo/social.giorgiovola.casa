@@ -8,6 +8,7 @@
 	import Loading from '#lib/components/Loading.svelte';
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
+	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
 
 	export let data: LayoutData;
 	$user = data.user;
@@ -16,6 +17,23 @@
 	// adapter-node no longer rewrites the request URL to the public origin (SvelteKit 3 dropped
 	// ORIGIN), so build absolute share URLs from PUBLIC_URL like the canonical link does
 	const publicUrl = () => `${PUBLIC_URL || page.url.origin}${page.url.pathname}${page.url.search}`;
+
+	// the stream is tied to the active profile (unread count), so reconnect when it changes
+	let mounted = false;
+	$: userId = data.user?.id ?? null;
+	$: if (mounted) {
+		userId;
+		connectRealtime();
+	}
+
+	onMount(() => {
+		mounted = true;
+		const off = onRealtime('notifications', ({ count }) => ($notisCount = count));
+		return () => {
+			off();
+			disconnectRealtime();
+		};
+	});
 
 	onMount(async () => {
 		if ('serviceWorker' in navigator) {

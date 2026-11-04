@@ -4,6 +4,7 @@ import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
 import { getAvatar } from '#lib/utils.js';
 import { LIMITS, parseId } from '#lib/server/validation.js';
+import { publishPost, publishDeleted } from '#lib/server/realtime.js';
 
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
 	try {
@@ -50,6 +51,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
             'avatar', u.avatar
         ) FROM users u WHERE u.id = user_id) AS user
 	`;
+	void publishPost(posts[0].id);
 	if (!reply_to && DISCORD_WEBHOOK_URL) {
 		// a broken webhook shouldn't make posting fail
 		try {
@@ -85,7 +87,7 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 
 	const deleted = await sql`
 		DELETE FROM posts WHERE id = ${postId} AND user_id = ${locals.user.id}
-		RETURNING id
+		RETURNING id, reply_to
 	`;
 	if (deleted.length === 0) {
 		const exists = await sql`SELECT id FROM posts WHERE id = ${postId}`;
@@ -94,5 +96,6 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 			: new Response('Forbidden', { status: 403 });
 	}
 
+	publishDeleted(postId, deleted[0].reply_to);
 	return new Response('Post deleted');
 };

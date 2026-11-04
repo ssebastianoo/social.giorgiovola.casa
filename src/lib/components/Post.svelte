@@ -8,6 +8,7 @@
 	import Likes from './Likes.svelte';
 	import Avatar from './Avatar.svelte';
 	import { onMount } from 'svelte';
+	import { onRealtime } from '#lib/realtime.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -45,6 +46,22 @@
 			if (src.startsWith('https://') && isHttpUrl(src)) images = [...images, src];
 			post.content = post.content.replace(imageRegex, '');
 		}
+	});
+
+	onMount(() => {
+		const offCounts = onRealtime('counts', (c) => {
+			if (c.id !== post.id) return;
+			if (c.likes !== undefined) post.likes = c.likes;
+			if (c.replies_count !== undefined) post.replies_count = c.replies_count;
+		});
+		const offDeleted = onRealtime('post_deleted', ({ id }) => {
+			// the open post vanished under the viewer
+			if (id === post.id && isPostOpen) goto('/');
+		});
+		return () => {
+			offCounts();
+			offDeleted();
+		};
 	});
 
 	const fetchRepliesPromise = async () => {

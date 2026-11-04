@@ -3,8 +3,18 @@
 	import { notisCount, user } from '#lib/store.js';
 	import type { Notification } from '#lib/types.js';
 	import Avatar from '#lib/components/Avatar.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
 	export let data: PageData;
+
+	// the unread count is pushed by the layout; reload the list when it grows
+	onMount(() => {
+		let last = $notisCount;
+		return notisCount.subscribe((count) => {
+			if (count > last) invalidateAll();
+			last = count;
+		});
+	});
 
 	const readNotification = async (notification: Notification, redirect = true) => {
 		if (notification.read_at === null) {

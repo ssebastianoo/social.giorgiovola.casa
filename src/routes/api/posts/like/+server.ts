@@ -1,5 +1,6 @@
 import { sql } from '#lib/server/db.js';
 import { parseId } from '#lib/server/validation.js';
+import { publishLikes } from '#lib/server/realtime.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
@@ -19,7 +20,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	}
 	const postId = id;
 
-	const exists = await sql`SELECT id FROM posts WHERE id = ${postId}`;
+	const exists = await sql`SELECT id, user_id FROM posts WHERE id = ${postId}`;
 	if (exists.length === 0) return new Response(null, { status: 404 });
 
 	const liked = await sql.begin(async (sql) => {
@@ -42,6 +43,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		}
 	});
 
+	void publishLikes(postId, exists[0].user_id);
 	return new Response(JSON.stringify({ liked }), {
 		headers: { 'Content-Type': 'application/json' }
 	});

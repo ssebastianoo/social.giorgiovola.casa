@@ -4,6 +4,8 @@
 	import { tick } from 'svelte';
 	import IntersectionObserver from './IntersectionObserver.svelte';
 	import { deserialize } from '$app/forms';
+	import { onMount } from 'svelte';
+	import { onRealtime } from '#lib/realtime.js';
 
 	export let posts: PostType[];
 	export let shouldLoadMore = false;
@@ -19,6 +21,12 @@
 	$: if (posts) {
 		scrollToBottom(listElement);
 	}
+
+	onMount(() =>
+		onRealtime('post_deleted', ({ id }) => {
+			if (posts.some((p) => p.id === id)) posts = posts.filter((p) => p.id !== id);
+		})
+	);
 
 	const handleDeletedPost = (e: CustomEvent) => {
 		posts = posts.filter((post) => {

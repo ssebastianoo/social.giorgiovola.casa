@@ -4,6 +4,8 @@
 	import type { PageData } from './$types';
 	import Posts from '#lib/components/Posts.svelte';
 	import Loading from '#lib/components/Loading.svelte';
+	import { onMount } from 'svelte';
+	import { onRealtime } from '#lib/realtime.js';
 
 	export let data: PageData;
 
@@ -18,6 +20,13 @@
 			replies = await data.streamed.replies;
 		};
 	}
+
+	onMount(() =>
+		onRealtime('post', (post) => {
+			if (post.reply_to?.id !== data.post.id || replies.some((r) => r.id === post.id)) return;
+			replies = [...replies, post];
+		})
+	);
 
 	async function createPost(e: Event) {
 		const target = e.target as HTMLFormElement;
@@ -36,7 +45,7 @@
 			});
 			if (res.ok) {
 				const post = await res.json();
-				replies = [...replies, post];
+				if (!replies.some((r) => r.id === post.id)) replies = [...replies, post];
 				target.content.value = '';
 			} else {
 				error = res.status === 400 ? await res.text() : 'Something went wrong.';
