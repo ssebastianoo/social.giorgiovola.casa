@@ -90,10 +90,37 @@ export const inbox = pgTable(
 		post_id: integer('post_id').references(() => posts.id, { onDelete: 'cascade' }),
 		type: text('type', { enum: ['mention', 'reply', 'like'] }).notNull(),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
-		read_at: timestamptz('read_at')
+		read_at: timestamptz('read_at'),
+		// set once a push for this row has been sent, so it never goes out twice
+		pushed_at: timestamptz('pushed_at')
 	},
 	(t) => [
 		unique().on(t.user_id, t.sender_id, t.post_id, t.type),
 		check('inbox_type_check', sql`${t.type} IN ('mention', 'reply', 'like')`)
+	]
+);
+
+// key/value settings (the web push VAPID key pair is generated on first use)
+export const settings = pgTable('settings', {
+	key: text('key').primaryKey(),
+	value: text('value').notNull()
+});
+
+// A browser subscription hangs off the session that created it, so logging out (or the session
+// expiring) stops the notifications for that account on that browser.
+export const push_subscriptions = pgTable(
+	'push_subscriptions',
+	{
+		session_token: text('session_token')
+			.notNull()
+			.references(() => sessions.token, { onDelete: 'cascade' }),
+		endpoint: text('endpoint').notNull(),
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.session_token, t.endpoint] }),
+		index('push_subscriptions_endpoint').on(t.endpoint)
 	]
 );

@@ -15,6 +15,13 @@
       "when": 1793830688527,
       "tag": "0001_notification_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793831508305,
+      "tag": "0002_web_push",
+      "breakpoints": true
     }
   ]
 }

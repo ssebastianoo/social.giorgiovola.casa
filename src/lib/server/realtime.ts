@@ -1,6 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, inbox, likes, posts } from './db/index.js';
 import { getPosts } from './posts';
+import { sendPush } from './push';
 
 /**
  * In-process hub for server-sent events. One instance per server process, so this assumes a
@@ -108,6 +109,7 @@ export async function publishPost(postId: number) {
 			.from(inbox)
 			.where(eq(inbox.post_id, postId));
 		await pushUnread(received.map((r) => r.user_id));
+		await sendPush(postId);
 	} catch (e) {
 		console.error('realtime: publishPost failed', e);
 	}
@@ -127,6 +129,7 @@ export async function publishLikes(postId: number, ownerId: number | null) {
 		const total = await db.$count(likes, eq(likes.post_id, postId));
 		broadcast('counts', { id: postId, likes: total });
 		await pushUnread([ownerId]);
+		await sendPush(postId, 'like');
 	} catch (e) {
 		console.error('realtime: publishLikes failed', e);
 	}
