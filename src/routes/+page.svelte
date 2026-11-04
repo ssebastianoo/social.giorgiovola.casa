@@ -4,9 +4,11 @@
 	import { user } from '#lib/store.js';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
+	import MentionInput from '#lib/components/MentionInput.svelte';
 
 	export let data: PageServerData;
 	let error: string | null = null;
+	let content = '';
 
 	// new top level posts from anyone; own posts may already be in the list
 	onMount(() =>
@@ -16,11 +18,8 @@
 		})
 	);
 
-	async function createPost(e: Event) {
-		const target = e.target as HTMLFormElement;
-		const content = target.content.value;
-
-		if (content) {
+	async function createPost() {
+		if (content.trim()) {
 			const res = await fetch('/api/posts', {
 				method: 'POST',
 				headers: {
@@ -31,7 +30,7 @@
 			if (res.ok) {
 				const post = await res.json();
 				if (!data.posts.some((p) => p.id === post.id)) data.posts = [post, ...data.posts];
-				target.content.value = '';
+				content = '';
 			} else {
 				error = res.status === 400 ? await res.text() : 'Something went wrong.';
 				setTimeout(() => {
@@ -50,15 +49,7 @@
 
 {#if $user}
 	<form class="mb-5 flex" on:submit|preventDefault={createPost}>
-		<input
-			class="input"
-			type="text"
-			name="content"
-			required
-			placeholder="twitter sucks"
-			maxlength="2000"
-			autocomplete="off"
-		/>
+		<MentionInput bind:value={content} required placeholder="twitter sucks" />
 		<button
 			type="submit"
 			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"

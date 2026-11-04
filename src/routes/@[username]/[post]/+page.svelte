@@ -6,11 +6,13 @@
 	import Loading from '#lib/components/Loading.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
+	import MentionInput from '#lib/components/MentionInput.svelte';
 
 	export let data: PageData;
 
 	let replies: PostType[] = [];
 	let error: string | null = null;
+	let content = '';
 	let getReplies: () => Promise<void>;
 
 	// we need a reactive block because server promises are not reactive and
@@ -28,11 +30,8 @@
 		})
 	);
 
-	async function createPost(e: Event) {
-		const target = e.target as HTMLFormElement;
-		const content = target.content.value;
-
-		if (content) {
+	async function createPost() {
+		if (content.trim()) {
 			const res = await fetch('/api/posts', {
 				method: 'POST',
 				headers: {
@@ -46,7 +45,7 @@
 			if (res.ok) {
 				const post = await res.json();
 				if (!replies.some((r) => r.id === post.id)) replies = [...replies, post];
-				target.content.value = '';
+				content = '';
 			} else {
 				error = res.status === 400 ? await res.text() : 'Something went wrong.';
 				setTimeout(() => {
@@ -72,15 +71,7 @@
 		{/if}
 
 		<form class="mb-5 flex" on:submit|preventDefault={createPost}>
-			<input
-				class="input"
-				type="text"
-				name="content"
-				required
-				placeholder="twitter sucks"
-				maxlength="2000"
-				autocomplete="off"
-			/>
+			<MentionInput bind:value={content} required placeholder="twitter sucks" />
 			<button
 				type="submit"
 				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
