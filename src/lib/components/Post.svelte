@@ -9,6 +9,8 @@
 	import Avatar from './Avatar.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
+	import { markMentionSeen } from '#lib/mentions.js';
+	import { isHttpLink } from '#lib/utils.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -25,29 +27,41 @@
 	let isModalOpen = false;
 	let popup: HTMLDivElement;
 
-	// anchored, so things like `javascript:alert(1)//https://x` never become links
-	const urlRegex = /^https?:\/\/\S+$/;
 	const mentionRegex = /^@[a-zA-Z0-9_]+$/;
 
-	function isHttpUrl(value: string) {
-		try {
-			const { protocol } = new URL(value);
-			return protocol === 'https:' || protocol === 'http:';
-		} catch {
-			return false;
-		}
-	}
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
 
 	let images: string[] = [];
+
+	// a mention notification is read as soon as the post it points at is actually on screen
+	let postElement: HTMLDivElement;
+	let onScreen = false;
+	let visibilityState: DocumentVisibilityState;
+	$: if (
+		$user &&
+		onScreen &&
+		visibilityState === 'visible' &&
+		contentParts.includes(`@${$user.username}`)
+	)
+		markMentionSeen($user.id, post.id);
+
+	onMount(() => {
+		if (!$user) return;
+		// below the fixed header, and past the very bottom edge of the screen
+		const observer = new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting), {
+			rootMargin: '-80px 0px -10% 0px'
+		});
+		observer.observe(postElement);
+		return () => observer.disconnect();
+	});
 
 	onMount(() => {
 		const matchImage = post.content.match(imageRegex);
 		if (matchImage) {
 			// only absolute https images: no same-origin URLs that could trigger actions
 			const src = matchImage[1].trim();
-			if (src.startsWith('https://') && isHttpUrl(src)) images = [...images, src];
+			if (src.startsWith('https://') && isHttpLink(src)) images = [...images, src];
 			post.content = post.content.replace(imageRegex, '');
 		}
 	});
@@ -133,6 +147,8 @@
 	}
 </script>
 
+<svelte:document bind:visibilityState />
+
 <div
 	class="invisible fixed top-[-100px] left-1/2 z-999 w-[calc(80%+42px)] max-w-[442px] -translate-x-1/2 rounded-[5px] border border-accent bg-black/10 p-5 text-center backdrop-blur-[2px] transition-all duration-400 ease-[cubic-bezier(0.86,0,0.07,1)]"
 	bind:this={popup}
@@ -192,6 +208,7 @@
 			>
 		{/if}
 		<div
+			bind:this={postElement}
 			class="relative flex cursor-pointer gap-2.5 rounded-[5px] p-2.5 [-webkit-tap-highlight-color:transparent] {showThread
 				? 'before:absolute before:top-[27.5px] before:-left-5 before:block before:h-1.5 before:w-[21px] before:rounded-bl-[10px] before:border-b before:border-l before:border-accent'
 				: ''} {!isPostOpen && !$isMobile ? 'hover:bg-black' : ''}"
@@ -226,7 +243,7 @@
 				<div class="flex flex-col gap-2.5">
 					<p class="cursor-text wrap-anywhere">
 						{#each contentParts as part}
-							{#if urlRegex.test(part) && isHttpUrl(part)}
+							{#if isHttpLink(part)}
 								<a
 									on:click|stopPropagation
 									href={part}

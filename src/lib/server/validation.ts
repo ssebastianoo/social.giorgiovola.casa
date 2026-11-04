@@ -1,5 +1,6 @@
 export const LIMITS = {
 	postContent: 2000,
+	messageContent: 2000,
 	name: 64,
 	username: 32,
 	email: 254,

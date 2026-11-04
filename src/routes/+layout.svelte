@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import Header from '#lib/components/Header.svelte';
 	import type { LayoutData } from './$types';
-	import { user, isMobile, notisCount } from '#lib/store.js';
+	import { user, isMobile, notisCount, messagesCount } from '#lib/store.js';
 	import { navigating, page } from '$app/state';
 	import Loading from '#lib/components/Loading.svelte';
 	import { PUBLIC_URL } from '$app/env/public';
@@ -15,6 +15,7 @@
 	export let data: LayoutData;
 	$user = data.user;
 	$notisCount = data.notisCount;
+	$messagesCount = data.messagesCount;
 
 	// adapter-node no longer rewrites the request URL to the public origin (SvelteKit 3 dropped
 	// ORIGIN), so build absolute share URLs from PUBLIC_URL like the canonical link does
@@ -33,15 +34,18 @@
 
 	// unread count on the installed app's icon
 	$: if (mounted && 'setAppBadge' in navigator) {
-		if ($notisCount > 0) navigator.setAppBadge($notisCount).catch(() => {});
+		if ($notisCount + $messagesCount > 0)
+			navigator.setAppBadge($notisCount + $messagesCount).catch(() => {});
 		else navigator.clearAppBadge().catch(() => {});
 	}
 
 	onMount(() => {
 		mounted = true;
-		const off = onRealtime('notifications', ({ count }) => ($notisCount = count));
+		const offNotifications = onRealtime('notifications', ({ count }) => ($notisCount = count));
+		const offMessages = onRealtime('messages_unread', ({ count }) => ($messagesCount = count));
 		return () => {
-			off();
+			offNotifications();
+			offMessages();
 			disconnectRealtime();
 		};
 	});

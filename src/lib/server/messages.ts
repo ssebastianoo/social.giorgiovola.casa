@@ -1,0 +1,132 @@
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { db, messages, users } from './db/index.js';
+import type { ChatMessage, ChatPeer, Conversation } from '#lib/types.js';
+
+const THREAD_PAGE = 30;
+const PREVIEW_LENGTH = 200;
+
+type Party = { id: number; username: string };
+
+const between = (a: number, b: number) =>
+	or(
+		and(eq(messages.sender_id, a), eq(messages.recipient_id, b)),
+		and(eq(messages.sender_id, b), eq(messages.recipient_id, a))
+	);
+
+export function unreadMessageCount(userId: number) {
+	return db.$count(messages, and(eq(messages.recipient_id, userId), isNull(messages.read_at)));
+}
+
+export async function findPeer(username: string): Promise<(ChatPeer & Party) | null> {
+	const [peer] = await db
+		.select({ id: users.id, username: users.username, name: users.name, avatar: users.avatar })
+		.from(users)
+		.where(eq(users.username, username.toLowerCase()));
+	return peer ?? null;
+}
+
+/** A page of a conversation, oldest first: the latest messages, or the ones before `before`. */
+export async function getThread(me: Party, peer: Party, before?: number | null) {
+	const rows = await db
+		.select({
+			id: messages.id,
+			sender_id: messages.sender_id,
+			content: messages.content,
+			created_at: messages.created_at
+		})
+		.from(messages)
+		.where(and(between(me.id, peer.id), before != null ? lt(messages.id, before) : undefined))
+		.orderBy(desc(messages.id))
+		.limit(THREAD_PAGE + 1);
+
+	return {
+		hasMore: rows.length > THREAD_PAGE,
+		messages: rows
+			.slice(0, THREAD_PAGE)
+			.reverse()
+			.map(
+				(row): ChatMessage => ({
+					id: row.id,
+					sender: row.sender_id === me.id ? me.username : peer.username,
+					recipient: row.sender_id === me.id ? peer.username : me.username,
+					content: row.content,
+					created_at: row.created_at
+				})
+			)
+	};
+}
+
+export async function sendMessage(me: Party, peer: Party, content: string): Promise<ChatMessage> {
+	const [row] = await db
+		.insert(messages)
+		.values({ sender_id: me.id, recipient_id: peer.id, content })
+		.returning({ id: messages.id, created_at: messages.created_at });
+	return { ...row, sender: me.username, recipient: peer.username, content };
+}
+
+/** Marks what `peerId` sent to `userId` as read; returns whether anything changed. */
+export async function markThreadRead(userId: number, peerId: number) {
+	const updated = await db
+		.update(messages)
+		.set({ read_at: sql`NOW()` })
+		.where(
+			and(
+				eq(messages.recipient_id, userId),
+				eq(messages.sender_id, peerId),
+				isNull(messages.read_at)
+			)
+		)
+		.returning({ id: messages.id });
+	return updated.length > 0;
+}
+
+/** The user's conversations, most recent first. */
+export async function getConversations(userId: number): Promise<Conversation[]> {
+	// the pair of participants, in the same order whoever sent the message
+	const low = sql`LEAST(${messages.sender_id}, ${messages.recipient_id})`;
+	const high = sql`GREATEST(${messages.sender_id}, ${messages.recipient_id})`;
+	const latest = await db
+		.selectDistinctOn([low, high], {
+			id: messages.id,
+			sender_id: messages.sender_id,
+			recipient_id: messages.recipient_id,
+			content: sql<string>`LEFT(${messages.content}, ${PREVIEW_LENGTH})`,
+			created_at: messages.created_at
+		})
+		.from(messages)
+		.where(or(eq(messages.sender_id, userId), eq(messages.recipient_id, userId)))
+		.orderBy(low, high, desc(messages.id));
+	if (latest.length === 0) return [];
+
+	const peerOf = (row: (typeof latest)[number]) =>
+		row.sender_id === userId ? row.recipient_id : row.sender_id;
+
+	const [peers, unread] = await Promise.all([
+		db
+			.select({ id: users.id, username: users.username, name: users.name, avatar: users.avatar })
+			.from(users)
+			.where(inArray(users.id, latest.map(peerOf))),
+		db
+			.select({ sender_id: messages.sender_id, count: sql<number>`COUNT(*)::int` })
+			.from(messages)
+			.where(and(eq(messages.recipient_id, userId), isNull(messages.read_at)))
+			.groupBy(messages.sender_id)
+	]);
+
+	return latest
+		.sort((a, b) => b.id - a.id)
+		.flatMap((row) => {
+			const peer = peers.find((p) => p.id === peerOf(row));
+			if (!peer) return [];
+			const { username, name, avatar } = peer;
+			return [
+				{
+					peer: { username, name, avatar },
+					preview: row.content,
+					mine: row.sender_id === userId,
+					created_at: row.created_at,
+					unread: unread.find((u) => u.sender_id === peer.id)?.count ?? 0
+				}
+			];
+		});
+}

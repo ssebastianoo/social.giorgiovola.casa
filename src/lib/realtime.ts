@@ -1,4 +1,4 @@
-import type { Post } from './types';
+import type { ChatMessage, Post } from './types';
 
 /** Events pushed by /api/stream. */
 export type RealtimeEvents = {
@@ -6,6 +6,10 @@ export type RealtimeEvents = {
 	post_deleted: { id: number };
 	counts: { id: number; likes?: number; replies_count?: number };
 	notifications: { count: number };
+	message: ChatMessage;
+	messages_unread: { count: number };
+	/** the stream (re)connected: anything sent while it was down was missed */
+	open: undefined;
 };
 
 type Listener<K extends keyof RealtimeEvents> = (data: RealtimeEvents[K]) => void;
@@ -25,7 +29,17 @@ export function onRealtime<K extends keyof RealtimeEvents>(event: K, fn: Listene
 export function connectRealtime() {
 	disconnectRealtime();
 	source = new EventSource('/api/stream');
-	const events: (keyof RealtimeEvents)[] = ['post', 'post_deleted', 'counts', 'notifications'];
+	source.addEventListener('open', () => {
+		for (const fn of listeners.get('open') ?? []) (fn as () => void)();
+	});
+	const events: (keyof RealtimeEvents)[] = [
+		'post',
+		'post_deleted',
+		'counts',
+		'notifications',
+		'message',
+		'messages_unread'
+	];
 	for (const event of events) {
 		source.addEventListener(event, (e) => {
 			let data;

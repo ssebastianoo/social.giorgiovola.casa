@@ -51,3 +51,24 @@ export type Notification = {
 	created_at: Date;
 	read_at: Date | null;
 };
+
+/** A direct message. Sender and recipient are usernames: ids of other profiles stay private. */
+export type ChatMessage = {
+	id: number;
+	sender: string;
+	recipient: string;
+	content: string;
+	created_at: Date;
+};
+
+export type ChatPeer = Pick<User, 'username' | 'name' | 'avatar'>;
+
+/** An entry of the conversation list. */
+export type Conversation = {
+	peer: ChatPeer;
+	/** the latest message, clipped */
+	preview: string;
+	mine: boolean;
+	created_at: Date;
+	unread: number;
+};

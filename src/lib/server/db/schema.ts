@@ -100,6 +100,29 @@ export const inbox = pgTable(
 	]
 );
 
+// Direct messages between two profiles (an identity has its own conversations, like its own inbox).
+export const messages = pgTable(
+	'messages',
+	{
+		id: serial('id').primaryKey(),
+		sender_id: integer('sender_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		recipient_id: integer('recipient_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		content: text('content').notNull(),
+		created_at: timestamptz('created_at').notNull().defaultNow(),
+		read_at: timestamptz('read_at')
+	},
+	(t) => [
+		index('messages_sender_recipient').on(t.sender_id, t.recipient_id, t.id),
+		index('messages_recipient_sender').on(t.recipient_id, t.sender_id, t.id),
+		index('messages_unread').on(t.recipient_id, t.sender_id).where(sql`${t.read_at} IS NULL`),
+		check('messages_not_self', sql`${t.sender_id} != ${t.recipient_id}`)
+	]
+);
+
 // key/value settings (the web push VAPID key pair is generated on first use)
 export const settings = pgTable('settings', {
 	key: text('key').primaryKey(),

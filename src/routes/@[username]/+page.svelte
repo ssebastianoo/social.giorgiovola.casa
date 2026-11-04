@@ -91,6 +91,8 @@
 						<button type="submit" class="btn btn-red h-8">Logout</button>
 					</form>
 				</div>
+			{:else if $user}
+				<a class="btn h-8 hover:no-underline" href={`/messages/${data.user.username}`}>Message</a>
 			{/if}
 		</div>
 	{:else}
