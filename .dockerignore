@@ -10,3 +10,5 @@ package
 Dockerfile
 docker-compose.yaml
 static/avatars/*
+
+static/uploads/*

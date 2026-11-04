@@ -1,7 +1,8 @@
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import { db, sessions, users } from '#lib/server/db/index.js';
+import { imagesOfPostTrees, removeUploads } from '#lib/server/images.js';
 import { setSessionCookies } from '#lib/server/session.js';
 import {
 	MAX_IDENTITIES,
@@ -100,12 +101,15 @@ export const actions = {
 		const id = parseId(data.get('id'));
 		if (!locals.user || !locals.accountId || !id) return fail(400, { error: 'Invalid profile.' });
 
+		// collect the images first: the posts (and replies to them) go away with the identity
+		const images = await imagesOfPostTrees(sql`user_id = ${id}`);
 		const deleted = await db
 			.delete(users)
 			.where(and(eq(users.id, id), eq(users.owner_id, locals.accountId)))
 			.returning({ id: users.id });
 		if (deleted.length === 0) return fail(404, { error: 'Identity not found.' });
 		await removeAvatarFiles(id);
+		await removeUploads(images);
 
 		// sessions acting as it fall back to the account (acting_id is ON DELETE SET NULL)
 		redirect(303, '/accounts');

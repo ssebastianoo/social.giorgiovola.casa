@@ -31,6 +31,8 @@ export type Post = {
 	id: number;
 	user: User | PublicUser;
 	content: string;
+	/** URL paths of uploaded images */
+	images: string[];
 	created_at: Date;
 	edited_at: Date | null;
 	likes: number;

@@ -43,6 +43,7 @@
 		"dotenv": "^16.3.1",
 		"drizzle-orm": "0.45.4",
 		"postgres": "^3.3.5",
+		"sharp": "^0.35.5",
 		"web-push": "^3.6.7"
 	},
 	"imports": {
