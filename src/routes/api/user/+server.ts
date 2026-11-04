@@ -2,7 +2,8 @@ import type { RequestHandler } from './$types';
 import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { db, sessions, users } from '#lib/server/db/index.js';
 import fs from 'fs';
-import { sniffImage } from '#lib/server/images.js';
+import { AVATAR_SIZE, ImageError, sniffImage, toWebp } from '#lib/server/images.js';
+import { removeAvatarFiles } from '#lib/server/accounts.js';
 import { hashPassword } from '#lib/server/password.js';
 import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
@@ -13,9 +14,6 @@ import {
 	validatePassword,
 	validateUsername
 } from '#lib/server/validation.js';
-
-const AVATAR_DIR = 'static/avatars';
-const AVATAR_EXTS = ['png', 'jpg', 'gif', 'webp'];
 
 const bad = (message: string) => new Response(message, { status: 400 });
 
@@ -72,15 +70,20 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 		if (avatar.size > LIMITS.avatarBytes) return bad('Avatar too big, max size is 10mb');
 		const buffer = Buffer.from(await avatar.arrayBuffer());
 		const ext = sniffImage(buffer);
-		if (!ext || !AVATAR_EXTS.includes(ext)) {
-			return bad('Unsupported avatar type, use PNG, JPEG, GIF or WebP');
+		if (!ext) {
+			return bad('Unsupported avatar type, use PNG, JPEG, GIF, WebP, AVIF, BMP, ICO or SVG');
 		}
-		avatarPath = `/avatars/${me.id}.${ext}`;
-		await fs.promises.writeFile(`static${avatarPath}`, buffer);
-		// drop a previous avatar saved with a different extension
-		for (const other of AVATAR_EXTS.filter((e) => e !== ext)) {
-			await fs.promises.rm(`${AVATAR_DIR}/${me.id}.${other}`, { force: true });
+		let webp: Buffer;
+		try {
+			webp = await toWebp(buffer, ext, { size: AVATAR_SIZE, square: true });
+		} catch (e) {
+			if (e instanceof ImageError) return bad(e.message);
+			throw e;
 		}
+		// avatars used to keep their uploaded format: drop any older file first
+		await removeAvatarFiles(me.id);
+		avatarPath = `/avatars/${me.id}.webp`;
+		await fs.promises.writeFile(`static${avatarPath}`, webp);
 	}
 
 	const crypt = password ? await hashPassword(password) : null;

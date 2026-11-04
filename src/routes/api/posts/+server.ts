@@ -5,7 +5,15 @@ import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
 import { getAvatar } from '#lib/utils.js';
 import { LIMITS, parseId } from '#lib/server/validation.js';
-import { imagesOfPostTrees, removeUploads, saveUpload, sniffImage } from '#lib/server/images.js';
+import {
+	ImageError,
+	POST_IMAGE_SIZE,
+	imagesOfPostTrees,
+	removeUploads,
+	saveUpload,
+	sniffImage,
+	toWebp
+} from '#lib/server/images.js';
 import { publishPost, publishDeleted } from '#lib/server/realtime.js';
 
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
@@ -77,7 +85,16 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		if (parent.length === 0) return new Response('Post not found', { status: 404 });
 	}
 
-	const images = await Promise.all(uploads.map((u) => saveUpload(u.buffer, u.ext)));
+	let optimized: Buffer[];
+	try {
+		optimized = await Promise.all(
+			uploads.map((u) => toWebp(u.buffer, u.ext, { size: POST_IMAGE_SIZE }))
+		);
+	} catch (e) {
+		if (e instanceof ImageError) return new Response(e.message, { status: 400 });
+		throw e;
+	}
+	const images = await Promise.all(optimized.map(saveUpload));
 
 	let created;
 	try {

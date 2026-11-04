@@ -2,11 +2,16 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { sql } from 'drizzle-orm';
+import sharp from 'sharp';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { db } from './db/index.js';
 
 export const UPLOAD_DIR = 'static/uploads';
 
-/** Everything browsers can render natively. The extension is what ends up on disk and in the URL. */
+/**
+ * Formats accepted on upload. Everything is re-encoded to WebP before it's stored; the other
+ * entries are only used to serve files written before that.
+ */
 export const IMAGE_TYPES: Record<string, string> = {
 	png: 'image/png',
 	jpg: 'image/jpeg',
@@ -26,8 +31,7 @@ const SVG_RE =
 
 /**
  * Detects the image type from the file's magic bytes (one of the keys of IMAGE_TYPES);
- * the client-declared MIME type and file name are not trusted. Animated GIF/WebP/AVIF are
- * stored untouched, so animations survive.
+ * the client-declared MIME type and file name are not trusted.
  */
 export function sniffImage(buf: Buffer): string | null {
 	if (
@@ -77,9 +81,62 @@ export function uploadType(file: string): string | null {
 	return ext ? IMAGE_TYPES[ext] ?? null : null;
 }
 
-/** Writes an image under a random name; returns the URL path stored with the post. */
-export async function saveUpload(buf: Buffer, ext: string): Promise<string> {
-	const file = `${crypto.randomUUID()}.${ext}`;
+// decoding a huge (or decompression-bomb) image would eat the server's memory
+const MAX_INPUT_PIXELS = 100_000_000;
+
+export class ImageError extends Error {}
+
+/** A sharp pipeline for a sniffed image. libvips can't read BMP and ICO, skia decodes those. */
+async function decode(buf: Buffer, ext: string) {
+	const options = { animated: true, limitInputPixels: MAX_INPUT_PIXELS };
+	if (ext !== 'bmp' && ext !== 'ico') return sharp(buf, options).rotate();
+	const img = await loadImage(buf);
+	if (img.width * img.height > MAX_INPUT_PIXELS) throw new ImageError('Image too large');
+	const ctx = createCanvas(img.width, img.height).getContext('2d');
+	ctx.drawImage(img, 0, 0);
+	const { data } = ctx.getImageData(0, 0, img.width, img.height);
+	return sharp(Buffer.from(data.buffer, data.byteOffset, data.byteLength), {
+		raw: { width: img.width, height: img.height, channels: 4 }
+	});
+}
+
+/**
+ * Re-encodes an image as WebP: EXIF orientation applied, metadata (GPS and the like) stripped,
+ * animations kept, and scaled down to fit in `size` (a square crop for avatars). SVGs are
+ * rasterized, so no scripts can ever be served back. Throws ImageError when it can't be decoded.
+ */
+export async function toWebp(
+	buf: Buffer,
+	ext: string,
+	{ size, square = false }: { size: number; square?: boolean }
+): Promise<Buffer> {
+	try {
+		const image = await decode(buf, ext);
+		let width = size;
+		let height = size;
+		if (square) {
+			// crop to a square without upscaling small images
+			const meta = await image.metadata();
+			const side = Math.min(size, meta.width, meta.pageHeight ?? meta.height);
+			width = height = side;
+		}
+		return await image
+			.resize(width, height, { fit: square ? 'cover' : 'inside', withoutEnlargement: true })
+			.webp({ quality: 82, effort: 4 })
+			.toBuffer();
+	} catch (e) {
+		if (e instanceof ImageError) throw e;
+		throw new ImageError('Invalid or corrupted image');
+	}
+}
+
+/** Longest side of a stored post image; bigger ones are scaled down. */
+export const POST_IMAGE_SIZE = 2048;
+export const AVATAR_SIZE = 512;
+
+/** Writes a WebP image under a random name; returns the URL path stored with the post. */
+export async function saveUpload(buf: Buffer): Promise<string> {
+	const file = `${crypto.randomUUID()}.webp`;
 	await fs.promises.mkdir(UPLOAD_DIR, { recursive: true });
 	await fs.promises.writeFile(path.join(UPLOAD_DIR, file), buf);
 	return `/uploads/${file}`;
