@@ -8,7 +8,7 @@ export const LIMITS = {
 	avatarBytes: 10 * 1024 * 1024
 } as const;
 
-// same character set the mention trigger in schema.sql recognises
+// same character set the mention trigger (see drizzle/0001_notification_triggers.sql) recognises
 export const USERNAME_RE = /^[a-z0-9_]{1,32}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -43,7 +43,9 @@ export function validatePassword(password: string): string | null {
 	return null;
 }
 
-/** Postgres unique_violation */
-export function isUniqueViolation(e: unknown) {
-	return typeof e === 'object' && e !== null && (e as { code?: string }).code === '23505';
+/** Postgres unique_violation (drizzle wraps the driver error, the code is on its `cause`) */
+export function isUniqueViolation(e: unknown): boolean {
+	if (typeof e !== 'object' || e === null) return false;
+	const { code, cause } = e as { code?: string; cause?: unknown };
+	return code === '23505' || (cause !== undefined && isUniqueViolation(cause));
 }

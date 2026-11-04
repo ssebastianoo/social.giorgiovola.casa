@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
-import { sql } from '#lib/server/db.js';
+import { eq } from 'drizzle-orm';
+import { db, users as usersTable } from '#lib/server/db/index.js';
 import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
 import { getPosts } from '#lib/server/posts.js';
@@ -9,11 +10,18 @@ export const load = (async ({ params, locals, depends }) => {
 	const username = params.username.toLowerCase();
 	depends('app:posts');
 
-	const users = await sql`
-		SELECT id, name, username, avatar, created_at, email, owner_id
-		FROM users
-		WHERE username = ${username}
-	`;
+	const users = await db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+			username: usersTable.username,
+			avatar: usersTable.avatar,
+			created_at: usersTable.created_at,
+			email: usersTable.email,
+			owner_id: usersTable.owner_id
+		})
+		.from(usersTable)
+		.where(eq(usersTable.username, username));
 
 	if (users.length === 0) {
 		error(404, 'User not found');

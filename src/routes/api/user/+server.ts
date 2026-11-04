@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { sql } from '#lib/server/db.js';
+import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { db, sessions, users } from '#lib/server/db/index.js';
 import fs from 'fs';
 import { hashPassword } from '#lib/server/password.js';
 import { SESSION_COOKIE } from '#lib/server/session.js';
@@ -68,11 +69,18 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 		(password ? validatePassword(password) : null);
 	if (validationError) return bad(validationError);
 
-	const taken = await sql`
-		SELECT username, email FROM users
-		WHERE (username = ${username} ${email !== null ? sql`OR lower(email) = lower(${email})` : sql``})
-		AND id != ${me.id}
-	`;
+	const taken = await db
+		.select({ username: users.username, email: users.email })
+		.from(users)
+		.where(
+			and(
+				or(
+					eq(users.username, username),
+					email !== null ? sql`lower(${users.email}) = lower(${email})` : undefined
+				),
+				ne(users.id, me.id)
+			)
+		);
 	if (taken.some((u) => u.username === username)) return bad('Username already in use.');
 	if (taken.length > 0) return bad('Email already in use.');
 
@@ -95,19 +103,27 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 
 	const crypt = password ? await hashPassword(password) : null;
 
-	let users;
+	let updated;
 	try {
-		users = await sql`
-			UPDATE users
-			SET
-				name = ${name},
-				${avatarPath ? sql`avatar = ${avatarPath + '?hash=' + Date.now()},` : sql``}
-				${crypt ? sql`password = ${crypt.hash}, salt = ${crypt.salt},` : sql``}
-				${email !== null ? sql`email = ${email},` : sql``}
-				username = ${username}
-			WHERE id = ${me.id}
-			RETURNING id, name, username, email, avatar, created_at, owner_id
-		`;
+		[updated] = await db
+			.update(users)
+			.set({
+				name,
+				username,
+				...(avatarPath ? { avatar: avatarPath + '?hash=' + Date.now() } : {}),
+				...(crypt ? { password: crypt.hash, salt: crypt.salt } : {}),
+				...(email !== null ? { email } : {})
+			})
+			.where(eq(users.id, me.id))
+			.returning({
+				id: users.id,
+				name: users.name,
+				username: users.username,
+				email: users.email,
+				avatar: users.avatar,
+				created_at: users.created_at,
+				owner_id: users.owner_id
+			});
 	} catch (e) {
 		if (isUniqueViolation(e)) return bad('Username or email already in use.');
 		throw e;
@@ -116,14 +132,12 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	if (crypt) {
 		// log out every other session after a password change
 		const token = cookies.get(SESSION_COOKIE);
-		await sql`
-			DELETE FROM sessions
-			WHERE user_id = ${me.id}
-			${token ? sql`AND token != ${token}` : sql``}
-		`;
+		await db
+			.delete(sessions)
+			.where(and(eq(sessions.user_id, me.id), token ? ne(sessions.token, token) : undefined));
 	}
 
-	return new Response(JSON.stringify(users[0]), {
+	return new Response(JSON.stringify(updated), {
 		headers: { 'Content-Type': 'application/json' }
 	});
 };

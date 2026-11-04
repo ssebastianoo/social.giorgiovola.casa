@@ -1,6 +1,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { SIGNUP_PASSWORD } from '$app/env/private';
-import { sql } from '#lib/server/db.js';
+import { eq, or, sql } from 'drizzle-orm';
+import { db, users } from '#lib/server/db/index.js';
 import { hashPassword, secretsEqual } from '#lib/server/password.js';
 import { createSession } from '#lib/server/session.js';
 import { clientIp, hit, isLimited } from '#lib/server/ratelimit.js';
@@ -72,11 +73,11 @@ export const actions = {
 		].filter((e): e is string => e !== null);
 
 		if (errorMessages.length === 0) {
-			const taken = await sql`
-				SELECT username, email FROM users
-				WHERE username = ${username} OR lower(email) = lower(${email})
-			`;
-			if (taken.some((u) => u.email.toLowerCase() === email.toLowerCase()))
+			const taken = await db
+				.select({ username: users.username, email: users.email })
+				.from(users)
+				.where(or(eq(users.username, username), sql`lower(${users.email}) = lower(${email})`));
+			if (taken.some((u) => u.email?.toLowerCase() === email.toLowerCase()))
 				errorMessages.push('Email already in use.');
 			if (taken.some((u) => u.username === username))
 				errorMessages.push('Username already in use.');
@@ -88,13 +89,19 @@ export const actions = {
 
 		const { salt, hash } = await hashPassword(password);
 
-		let res;
+		let created;
 		try {
-			res = await sql`
-				INSERT INTO users (email, name, username, password, salt)
-				VALUES (${email}, ${name}, ${username}, ${hash}, ${salt})
-				returning id, email, name, username, avatar, created_at
-			`;
+			[created] = await db
+				.insert(users)
+				.values({ email, name, username, password: hash, salt })
+				.returning({
+					id: users.id,
+					email: users.email,
+					name: users.name,
+					username: users.username,
+					avatar: users.avatar,
+					created_at: users.created_at
+				});
 		} catch (e) {
 			// lost a race with a concurrent registration
 			if (isUniqueViolation(e))
@@ -103,12 +110,7 @@ export const actions = {
 		}
 
 		const user: User = {
-			id: res[0].id,
-			email: res[0].email,
-			name: res[0].name,
-			username: res[0].username,
-			avatar: res[0].avatar,
-			created_at: res[0].created_at,
+			...created,
 			owner_id: null
 		};
 

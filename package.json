@@ -9,7 +9,10 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --plugin-search-dir . --check . && eslint .",
-		"format": "prettier --plugin-search-dir . --write ."
+		"format": "prettier --plugin-search-dir . --write .",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "bun migrate.ts",
+		"db:studio": "drizzle-kit studio"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "^6.0.0",
@@ -19,6 +22,7 @@
 		"@types/node": "^22.20.5",
 		"@typescript-eslint/eslint-plugin": "^5.45.0",
 		"@typescript-eslint/parser": "^5.45.0",
+		"drizzle-kit": "0.31.11",
 		"eslint": "^8.28.0",
 		"eslint-config-prettier": "^8.5.0",
 		"eslint-plugin-svelte": "^2.30.0",
@@ -36,6 +40,7 @@
 		"@fontsource-variable/manrope": "^5.0.5",
 		"@napi-rs/canvas": "^1.0.13",
 		"dotenv": "^16.3.1",
+		"drizzle-orm": "0.45.4",
 		"postgres": "^3.3.5"
 	},
 	"imports": {

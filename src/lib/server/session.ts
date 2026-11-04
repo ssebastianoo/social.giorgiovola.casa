@@ -1,5 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
-import { sql } from './db';
+import { eq, inArray, lt, sql } from 'drizzle-orm';
+import { db, sessions } from './db/index.js';
 
 /** Token of the session currently in use. */
 export const SESSION_COOKIE = 'social.giorgiovola.casa-token';
@@ -37,11 +38,12 @@ export function setSessionCookies(cookies: Cookies, tokens: string[]) {
 /** Signs `userId` in on top of the accounts already signed in, and makes it the active one. */
 export async function createSession(cookies: Cookies, userId: number, signedIn: SessionRef[] = []) {
 	// opportunistic cleanup so expired sessions don't pile up
-	await sql`DELETE FROM sessions WHERE created_at < NOW() - make_interval(days => ${SESSION_DAYS})`;
-	const sessions = await sql`
-		INSERT INTO sessions (user_id) VALUES (${userId})
-		RETURNING token
-	`;
+	await db
+		.delete(sessions)
+		.where(lt(sessions.created_at, sql`NOW() - make_interval(days => ${SESSION_DAYS})`));
+	const [created] = await db.insert(sessions).values({ user_id: userId }).returning({
+		token: sessions.token
+	});
 
 	// signing in to an account that is already signed in replaces its old session,
 	// and the oldest account is signed out once there are too many
@@ -50,10 +52,10 @@ export async function createSession(cookies: Cookies, userId: number, signedIn: 
 		...signedIn.filter((s) => s.accountId === userId),
 		...others.slice(MAX_SESSIONS - 1)
 	].map((s) => s.token);
-	if (dropped.length > 0) await sql`DELETE FROM sessions WHERE token IN ${sql(dropped)}`;
+	if (dropped.length > 0) await db.delete(sessions).where(inArray(sessions.token, dropped));
 
 	setSessionCookies(cookies, [
-		sessions[0].token,
+		created.token,
 		...others.slice(0, MAX_SESSIONS - 1).map((s) => s.token)
 	]);
 }
@@ -61,7 +63,7 @@ export async function createSession(cookies: Cookies, userId: number, signedIn: 
 /** Signs out the active account; the next signed in account (if any) becomes active. */
 export async function destroySession(cookies: Cookies, signedIn: SessionRef[]) {
 	const token = cookies.get(SESSION_COOKIE);
-	if (token) await sql`DELETE FROM sessions WHERE token = ${token}`;
+	if (token) await db.delete(sessions).where(eq(sessions.token, token));
 	setSessionCookies(
 		cookies,
 		signedIn.map((s) => s.token).filter((t) => t !== token)
@@ -71,6 +73,6 @@ export async function destroySession(cookies: Cookies, signedIn: SessionRef[]) {
 /** Signs out every account on this browser. */
 export async function destroyAllSessions(cookies: Cookies) {
 	const tokens = cookieTokens(cookies);
-	if (tokens.length > 0) await sql`DELETE FROM sessions WHERE token IN ${sql(tokens)}`;
+	if (tokens.length > 0) await db.delete(sessions).where(inArray(sessions.token, tokens));
 	setSessionCookies(cookies, []);
 }

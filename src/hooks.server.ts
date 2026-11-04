@@ -1,5 +1,6 @@
 import type { Handle } from '@sveltejs/kit/hooks';
-import { sql } from '#lib/server/db.js';
+import { and, eq, gt, inArray, or, sql } from 'drizzle-orm';
+import { db, sessions, users } from '#lib/server/db/index.js';
 import { SESSION_DAYS, cookieTokens, setSessionCookies } from '#lib/server/session.js';
 import { PUBLIC_URL } from '$app/env/public';
 
@@ -17,15 +18,32 @@ export const handle = (async ({ event, resolve }) => {
 	const tokens = cookieTokens(event.cookies);
 	if (tokens.length > 0) {
 		// one row per valid session, with the profile it is currently acting as
-		const rows = await sql`
-			SELECT sessions.token, sessions.user_id AS account_id,
-				users.id, users.email, users.name, users.username, users.avatar, users.created_at, users.owner_id
-			FROM sessions
-			INNER JOIN users ON users.id = COALESCE(sessions.acting_id, sessions.user_id)
-				AND (users.id = sessions.user_id OR users.owner_id = sessions.user_id)
-			WHERE sessions.token IN ${sql(tokens)}
-			AND sessions.created_at > NOW() - make_interval(days => ${SESSION_DAYS})
-		`;
+		const rows = await db
+			.select({
+				token: sessions.token,
+				account_id: sessions.user_id,
+				id: users.id,
+				email: users.email,
+				name: users.name,
+				username: users.username,
+				avatar: users.avatar,
+				created_at: users.created_at,
+				owner_id: users.owner_id
+			})
+			.from(sessions)
+			.innerJoin(
+				users,
+				and(
+					eq(users.id, sql`COALESCE(${sessions.acting_id}, ${sessions.user_id})`),
+					or(eq(users.id, sessions.user_id), eq(users.owner_id, sessions.user_id))
+				)
+			)
+			.where(
+				and(
+					inArray(sessions.token, tokens),
+					gt(sessions.created_at, sql`NOW() - make_interval(days => ${SESSION_DAYS})`)
+				)
+			);
 		const valid = tokens
 			.map((token) => rows.find((r) => r.token === token))
 			.filter((r): r is (typeof rows)[number] => !!r);
@@ -37,7 +55,7 @@ export const handle = (async ({ event, resolve }) => {
 				valid.map((r) => r.token)
 			);
 
-		event.locals.sessions = valid.map((r) => ({ token: r.token, accountId: r.account_id }));
+		event.locals.sessions = valid.map((r) => ({ token: r.token, accountId: r.account_id ?? r.id }));
 		if (valid.length > 0) {
 			const u = valid[0];
 			event.locals.accountId = u.account_id;

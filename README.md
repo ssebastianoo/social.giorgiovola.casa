@@ -5,7 +5,7 @@ self-hosted social network
 docker compose up -d
 ```
 
-That's it: the database is created and the schema applied automatically. The app listens on port `7777` at http://localhost:7777 (only on localhost by default, see `BIND_ADDRESS`). Set `SIGNUP_PASSWORD` to allow registrations.
+That's it: the database is created and migrated automatically on every start. The app listens on port `7777` at http://localhost:7777 (only on localhost by default, see `BIND_ADDRESS`). Set `SIGNUP_PASSWORD` to allow registrations.
 
 To customize settings, copy `.env.example` to `.env` (docker compose picks it up automatically) and edit it:
 
@@ -30,6 +30,11 @@ Data lives in the `postgres-data` and `avatars` docker volumes. You should put t
 ```
 bun install
 cp .env.example .env # set DATABASE_URL to a postgres instance
-bun initdb.ts
+bun run db:migrate
 bun run dev
 ```
+
+## database
+The schema lives in `src/lib/server/db/schema.ts` and is managed with [drizzle](https://orm.drizzle.team) migrations (the generated SQL is in `drizzle/`). Pending migrations are applied every time the container starts, or by hand with `bun run db:migrate`. Databases created before migrations were introduced are detected and picked up automatically.
+
+To change the schema, edit `schema.ts`, then run `bun run db:generate` and commit the new files in `drizzle/`. For things drizzle can't model (triggers, functions, data fixes) use `bunx drizzle-kit generate --custom --name <name>` and write the SQL by hand, like `drizzle/0001_notification_triggers.sql`.
