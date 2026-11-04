@@ -3,7 +3,9 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - '${PORT:-7777}:${PORT:-7777}'
+      # only reachable from this machine by default: put a reverse proxy in front.
+      # Set BIND_ADDRESS=0.0.0.0 if your proxy runs on another host.
+      - '${BIND_ADDRESS:-127.0.0.1}:${PORT:-7777}:${PORT:-7777}'
     environment:
       PORT: ${PORT:-7777}
       BODY_SIZE_LIMIT: 12582912
@@ -11,6 +13,8 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
       ORIGIN: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      SIGNUP_PASSWORD: ${SIGNUP_PASSWORD:-}
+      ADDRESS_HEADER: ${ADDRESS_HEADER:-}
     volumes:
       - avatars:/app/static/avatars
     depends_on:

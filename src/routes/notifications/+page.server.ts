@@ -1,10 +1,12 @@
 import { sql } from '$lib/server/db';
 import type { Notification } from '$lib/types';
 import type { Actions } from './$types';
+import { error, redirect } from '@sveltejs/kit';
+import { parseId } from '$lib/server/validation';
 import type { PageServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {
-	if (!locals.user) throw new Error('Unauthorized');
+	if (!locals.user) throw redirect(303, '/login');
 	const res = await sql<Notification[]>`
     SELECT id,
     (
@@ -36,14 +38,14 @@ export const load = (async ({ locals }) => {
 
 export const actions = {
 	default: async (event) => {
-		if (!event.locals.user) throw new Error('Unauthorized');
+		if (!event.locals.user) throw error(401, 'Unauthorized');
 		const formData = await event.request.formData();
-		const id = formData.get('id') as string;
-		if (!id) throw new Error('Missing id');
+		const id = parseId(formData.get('id'));
+		if (id === null) throw error(400, 'Missing id');
 		await sql`
         UPDATE inbox
         SET read_at = NOW()
-        WHERE id = ${id}
+        WHERE id = ${id} AND user_id = ${event.locals.user.id}
         `;
 		return {
 			status: 200

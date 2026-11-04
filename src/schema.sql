@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS sessions (
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- sessions expire server side (see src/lib/server/session.ts)
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
 CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,

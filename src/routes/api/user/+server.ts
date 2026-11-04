@@ -2,90 +2,126 @@ import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
 import fs from 'fs';
 import { hashPassword } from '$lib/server/password';
+import { SESSION_COOKIE } from '$lib/server/session';
+import {
+	LIMITS,
+	isUniqueViolation,
+	validateEmail,
+	validateName,
+	validatePassword,
+	validateUsername
+} from '$lib/server/validation';
+
+const AVATAR_DIR = 'static/avatars';
+const AVATAR_EXTS = ['png', 'jpg', 'gif', 'webp'];
+
+/** Detects the image type from the file's magic bytes; the client-declared MIME type is not trusted. */
+function sniffImage(buf: Buffer): string | null {
+	if (
+		buf.length >= 8 &&
+		buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+	)
+		return 'png';
+	if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+	const head = buf.subarray(0, 6).toString('latin1');
+	if (head === 'GIF87a' || head === 'GIF89a') return 'gif';
+	if (
+		buf.length >= 12 &&
+		buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
+		buf.subarray(8, 12).toString('latin1') === 'WEBP'
+	)
+		return 'webp';
+	return null;
+}
+
+const bad = (message: string) => new Response(message, { status: 400 });
 
 export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	if (!locals.user) {
 		return new Response('Unauthorized', { status: 401 });
 	}
+	const me = locals.user;
 
 	const data = await request.formData();
+	const field = (name: string) => {
+		const value = data.get(name);
+		return typeof value === 'string' ? value : '';
+	};
 
-	if (!data.get('fullName') || !data.get('username') || !data.get('email')) {
-		return new Response('Missing fields', { status: 400 });
+	const name = field('fullName').trim();
+	const email = field('email').trim();
+	const username = field('username').trim().toLowerCase();
+	const password = field('password');
+	const avatar = data.get('avatar');
+
+	if (!name || !username || !email) {
+		return bad('Missing fields');
 	}
 
-	const name = data.get('fullName') as string;
-	const email = data.get('email') as string;
-	let username = data.get('username') as string;
-	let avatar = data.get('avatar');
-	const password = data.get('password');
+	// usernames created before validation existed are kept as long as they don't change
+	const validationError =
+		validateName(name) ??
+		validateEmail(email) ??
+		(username !== me.username ? validateUsername(username) : null) ??
+		(password ? validatePassword(password) : null);
+	if (validationError) return bad(validationError);
 
-	username = username.toLowerCase().replaceAll(' ', '');
-
-	const check = await sql`
-		SELECT username FROM users
-		WHERE username = ${username}
-		OR email = ${email}
+	const taken = await sql`
+		SELECT username, email FROM users
+		WHERE (username = ${username} OR lower(email) = lower(${email}))
+		AND id != ${me.id}
 	`;
-	if (
-		check.length > 0 &&
-		check[0].username !== locals.user.username &&
-		check[0].email !== locals.user.email
-	) {
-		return new Response('Username already in use.', { status: 400 });
-	}
+	if (taken.some((u) => u.username === username)) return bad('Username already in use.');
+	if (taken.length > 0) return bad('Email already in use.');
 
 	let avatarPath: string | null = null;
 
-	if (avatar && (avatar as File).size > 0) {
-		avatar = avatar as File;
-		const buffer = await avatar.arrayBuffer();
-		const allowed: Record<string, string> = {
-			'image/png': 'png',
-			'image/jpeg': 'jpg',
-			'image/gif': 'gif',
-			'image/webp': 'webp'
-		};
-		const ext = allowed[avatar.type];
+	if (avatar instanceof File && avatar.size > 0) {
+		if (avatar.size > LIMITS.avatarBytes) return bad('Avatar too big, max size is 10mb');
+		const buffer = Buffer.from(await avatar.arrayBuffer());
+		const ext = sniffImage(buffer);
 		if (!ext) {
-			return new Response('Unsupported avatar type', { status: 400 });
+			return bad('Unsupported avatar type, use PNG, JPEG, GIF or WebP');
 		}
-		avatarPath = `/avatars/${locals.user.id}.${ext}`;
-		await fs.promises.writeFile(`static${avatarPath}`, Buffer.from(buffer));
+		avatarPath = `/avatars/${me.id}.${ext}`;
+		await fs.promises.writeFile(`static${avatarPath}`, buffer);
+		// drop a previous avatar saved with a different extension
+		for (const other of AVATAR_EXTS.filter((e) => e !== ext)) {
+			await fs.promises.rm(`${AVATAR_DIR}/${me.id}.${other}`, { force: true });
+		}
 	}
 
-	let crypt: null | {
-		salt: string;
-		hash: string;
-	} = null;
+	const crypt = password ? await hashPassword(password) : null;
 
-	if (password) {
-		const { salt, hash } = await hashPassword(password as string);
-		crypt = { salt, hash };
+	let users;
+	try {
+		users = await sql`
+			UPDATE users
+			SET
+				name = ${name},
+				username = ${username},
+				${avatarPath ? sql`avatar = ${avatarPath + '?hash=' + Date.now()},` : sql``}
+				${crypt ? sql`password = ${crypt.hash}, salt = ${crypt.salt},` : sql``}
+				email = ${email}
+			WHERE id = ${me.id}
+			RETURNING id, name, username, email, avatar, created_at
+		`;
+	} catch (e) {
+		if (isUniqueViolation(e)) return bad('Username or email already in use.');
+		throw e;
 	}
-
-	const users = await sql`
-		UPDATE users 
-		SET
-			name = ${name},
-			username = ${username.toLowerCase().replaceAll(' ', '')},
-			${avatarPath ? sql`avatar = ${avatarPath + '?hash=' + Date.now()},` : sql``}
-			${crypt ? sql`password = ${crypt.hash}, salt = ${crypt.salt},` : sql``}
-			email = ${email}
-		WHERE id = ${locals.user.id}
-		RETURNING id, name, username, email, avatar, created_at
-	`;
 
 	if (crypt) {
-		const token = cookies.get('social.giorgiovola.casa-token');
-		if (token) {
-			await sql`
-				DELETE FROM sessions
-				WHERE token != ${token}
-				AND user_id = ${locals.user.id}
-			`;
-		}
+		// log out every other session after a password change
+		const token = cookies.get(SESSION_COOKIE);
+		await sql`
+			DELETE FROM sessions
+			WHERE user_id = ${me.id}
+			${token ? sql`AND token != ${token}` : sql``}
+		`;
 	}
 
-	return new Response(JSON.stringify(users[0]));
+	return new Response(JSON.stringify(users[0]), {
+		headers: { 'Content-Type': 'application/json' }
+	});
 };

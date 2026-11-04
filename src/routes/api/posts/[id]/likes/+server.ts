@@ -1,15 +1,21 @@
 import { sql } from '$lib/server/db';
+import { parseId } from '$lib/server/validation';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({params}) => {
-    const response = await sql`
+export const GET: RequestHandler = async ({ params }) => {
+	const id = parseId(params.id);
+	if (id === null) return new Response('Not found', { status: 404 });
+
+	const response = await sql`
     SELECT
     users.username,
     users.name,
     users.avatar
     FROM likes
     INNER JOIN users ON users.id = likes.user_id
-    WHERE likes.post_id = ${params.id}
+    WHERE likes.post_id = ${id}
     `;
-    return new Response(JSON.stringify(response));
+	return new Response(JSON.stringify(response), {
+		headers: { 'Content-Type': 'application/json' }
+	});
 };

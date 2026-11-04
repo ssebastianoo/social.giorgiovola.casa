@@ -53,8 +53,8 @@ export async function getPosts({
     INNER JOIN users ON posts.user_id = users.id
     LEFT JOIN likes ON posts.id = likes.post_id
     WHERE TRUE
-    ${reply_to ? sql`AND posts.reply_to = ${reply_to}` : sql``}
-    ${postId ? sql`AND posts.id = ${postId}` : sql``}
+    ${reply_to != null ? sql`AND posts.reply_to = ${reply_to}` : sql``}
+    ${postId != null ? sql`AND posts.id = ${postId}` : sql``}
     ${
 			fromUser
 				? fromUser.id
@@ -63,14 +63,18 @@ export async function getPosts({
 					? sql`AND users.username=${fromUser.username}`
 					: sql``
 				: sql``
-		} 
+		}
     ${excludeReplies ? sql`AND posts.reply_to IS NULL` : sql``}
     GROUP BY posts.id, users.id
-    ${sql.unsafe(order ? `ORDER BY posts.created_at ${order}` : '')} 
-    ${sql.unsafe(limit ? `LIMIT ${limit}` : '')}
-    ${sql.unsafe(offset ? `OFFSET ${offset}` : '')}
+    ${
+			order === 'ASC'
+				? sql`ORDER BY posts.created_at ASC`
+				: order === 'DESC'
+				? sql`ORDER BY posts.created_at DESC`
+				: sql``
+		}
+    ${limit != null ? sql`LIMIT ${limit}` : sql``}
+    ${offset != null ? sql`OFFSET ${offset}` : sql``}
     `;
-	// ^^ unsafe because postgres doesn't allow paremeters in ORDER BY and friends, anyways order, limit and offset
-	// come from the server so it's fine
 	return posts as Post[];
 }

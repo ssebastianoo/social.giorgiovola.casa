@@ -28,5 +28,7 @@ ENV PORT=7777
 # adapter-node defaults to 512K, too small for avatar uploads (client allows 10MB)
 ENV BODY_SIZE_LIMIT=12582912
 EXPOSE 7777
-# the schema uses IF NOT EXISTS so it is safe to apply on every start
-CMD ["sh", "-c", "bun initdb.ts && exec bun build/index.js"]
+# the schema uses IF NOT EXISTS so it is safe to apply on every start.
+# Starts as root only to fix ownership of the avatars volume (older volumes were written
+# as root), then drops to the unprivileged bun user for everything else.
+CMD ["sh", "-c", "chown -R bun:bun static/avatars && exec setpriv --reuid=bun --regid=bun --init-groups sh -c 'bun initdb.ts && exec bun build/index.js'"]

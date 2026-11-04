@@ -1,8 +1,9 @@
 <script lang="ts">
-	import type { ActionData } from './$types';
+	import type { ActionData, PageData } from './$types';
 	import { onMount } from 'svelte';
 
 	export let form: ActionData;
+	export let data: PageData;
 
 	onMount(() => {
 		if (form?.user) {
@@ -23,13 +24,49 @@
 	</div>
 {/if}
 
-<form method="POST" class="register">
-	<input class="input" type="email" name="email" placeholder="Email" required />
-	<input class="input" type="text" name="fullName" placeholder="Full name" required />
-	<input class="input" type="text" name="username" placeholder="Username" required />
-	<input class="input" type="password" name="password" placeholder="Password" required />
-	<input type="submit" value="Register" />
-</form>
+{#if data.registrationOpen}
+	<form method="POST" class="register">
+		<input
+			class="input"
+			type="password"
+			name="signupPassword"
+			placeholder="Signup password"
+			autocomplete="off"
+			required
+		/>
+		<input class="input" type="email" name="email" placeholder="Email" maxlength="254" required />
+		<input
+			class="input"
+			type="text"
+			name="fullName"
+			placeholder="Full name"
+			maxlength="64"
+			required
+		/>
+		<input
+			class="input"
+			type="text"
+			name="username"
+			placeholder="Username (a-z, 0-9, _)"
+			pattern={'[a-zA-Z0-9_]{1,32}'}
+			maxlength="32"
+			required
+		/>
+		<input
+			class="input"
+			type="password"
+			name="password"
+			placeholder="Password (min. 8 characters)"
+			minlength="8"
+			maxlength="256"
+			autocomplete="new-password"
+			required
+		/>
+		<input type="submit" value="Register" />
+	</form>
+{:else}
+	<p>Registration is currently closed.</p>
+{/if}
 
 <style lang="scss">
 	@import 'src/variables';

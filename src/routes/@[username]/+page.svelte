@@ -84,7 +84,9 @@
 							editing = true;
 						}}>Edit</button
 					>
-					<a href="/logout" class="btn">Logout</a>
+					<form method="POST" action="/logout">
+						<button type="submit" class="btn logout">Logout</button>
+					</form>
 				</div>
 			{/if}
 		</div>
@@ -149,7 +151,7 @@
 </div>
 
 {#key data.user}
-	<Posts posts={data.posts} />
+	<Posts shouldLoadMore posts={data.posts} />
 {/key}
 
 <style lang="scss">
@@ -180,7 +182,8 @@
 					height: 20px;
 				}
 
-				a {
+				.logout {
+					height: auto;
 					border-color: $color4;
 
 					&:hover {

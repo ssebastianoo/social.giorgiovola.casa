@@ -1,35 +1,46 @@
 import { sql } from '$lib/server/db';
+import { SESSION_COOKIE, SESSION_DAYS } from '$lib/server/session';
+import { env } from '$env/dynamic/public';
 import type { Handle } from '@sveltejs/kit';
 
+const securityHeaders: Record<string, string> = {
+	'X-Content-Type-Options': 'nosniff',
+	'X-Frame-Options': 'DENY',
+	'Referrer-Policy': 'strict-origin-when-cross-origin'
+};
+
 export const handle = (async ({ event, resolve }) => {
-	const cookie = event.cookies.get('social.giorgiovola.casa-token');
-	if (!cookie) {
-		event.locals.user = null;
-		return await resolve(event);
+	event.locals.user = null;
+
+	const token = event.cookies.get(SESSION_COOKIE);
+	if (token) {
+		const res = await sql`
+			SELECT users.id, users.email, users.name, users.username, users.avatar, users.created_at
+			FROM sessions
+			INNER JOIN users ON users.id = sessions.user_id
+			WHERE sessions.token = ${token}
+			AND sessions.created_at > NOW() - make_interval(days => ${SESSION_DAYS})
+		`;
+		if (res.length > 0) {
+			const u = res[0];
+			event.locals.user = {
+				id: u.id,
+				email: u.email,
+				name: u.name,
+				username: u.username,
+				avatar: u.avatar,
+				created_at: u.created_at
+			};
+		}
 	}
 
-	const sessions = await sql`
-		SELECT user_id FROM sessions WHERE token = ${cookie}
-	`;
-
-	if (sessions.length === 0) {
-		event.locals.user = null;
-		return await resolve(event);
+	const response = await resolve(event);
+	try {
+		for (const [name, value] of Object.entries(securityHeaders)) response.headers.set(name, value);
+		if (env.PUBLIC_URL?.startsWith('https://'))
+			response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+	} catch {
+		// some responses (e.g. Response.redirect) have immutable headers
 	}
-
-	const res = await sql`
-		SELECT * FROM users WHERE id = ${sessions[0].user_id}
-	`;
-
-	const user = {
-		id: res[0].id,
-		email: res[0].email,
-		name: res[0].name,
-		username: res[0].username,
-		avatar: res[0].avatar,
-		created_at: res[0].created_at
-	};
-
-	event.locals.user = user;
-	return await resolve(event);
+	return response;
 }) satisfies Handle;

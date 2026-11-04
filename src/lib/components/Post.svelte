@@ -20,8 +20,18 @@
 	let isModalOpen = false;
 	let popup: HTMLDivElement;
 
-	const urlRegex = /(https?:\/\/[^\s]+)/g;
-	const mentionRegex = /@[a-zA-Z0-9_]+$/g;
+	// anchored, so things like `javascript:alert(1)//https://x` never become links
+	const urlRegex = /^https?:\/\/\S+$/;
+	const mentionRegex = /^@[a-zA-Z0-9_]+$/;
+
+	function isHttpUrl(value: string) {
+		try {
+			const { protocol } = new URL(value);
+			return protocol === 'https:' || protocol === 'http:';
+		} catch {
+			return false;
+		}
+	}
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
 
@@ -30,7 +40,9 @@
 	onMount(() => {
 		const matchImage = post.content.match(imageRegex);
 		if (matchImage) {
-			images = [...images, matchImage[1]];
+			// only absolute https images: no same-origin URLs that could trigger actions
+			const src = matchImage[1].trim();
+			if (src.startsWith('https://') && isHttpUrl(src)) images = [...images, src];
 			post.content = post.content.replace(imageRegex, '');
 		}
 	});
@@ -187,9 +199,14 @@
 				<div class="content">
 					<p>
 						{#each contentParts as part}
-							{#if part.match(urlRegex)}
-								<a on:click|stopPropagation href={part} target="_blank">{part}</a>
-							{:else if part.match(mentionRegex)}
+							{#if urlRegex.test(part) && isHttpUrl(part)}
+								<a
+									on:click|stopPropagation
+									href={part}
+									target="_blank"
+									rel="noopener noreferrer nofollow">{part}</a
+								>
+							{:else if mentionRegex.test(part)}
 								<a on:click|stopPropagation href={`/${part}`}>{part}</a>
 							{:else}
 								{part}
@@ -197,7 +214,7 @@
 						{/each}
 					</p>
 					{#each images as image}
-						<img width="100%" src={image} alt="" />
+						<img width="100%" src={image} alt="" referrerpolicy="no-referrer" loading="lazy" />
 					{/each}
 				</div>
 				<div class="actions">

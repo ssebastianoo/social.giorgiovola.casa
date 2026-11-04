@@ -1,13 +1,12 @@
-import type { PageServerLoad } from './$types';
-import { sql } from '$lib/server/db';
+import { redirect } from '@sveltejs/kit';
+import type { Actions } from './$types';
+import { destroySession } from '$lib/server/session';
 
-export const load = (async ({ cookies }) => {
-	const sessionToken = cookies.get('social.giorgiovola.casa-token');
-
-	if (sessionToken) {
-		await sql`
-			DELETE FROM sessions WHERE token = ${sessionToken}
-		`;
-		cookies.delete('social.giorgiovola.casa-token');
+// Logging out is a POST action: a GET that changes state could be triggered by an <img>
+// in a post or by SvelteKit's hover preloading.
+export const actions = {
+	default: async ({ cookies }) => {
+		await destroySession(cookies);
+		throw redirect(303, '/');
 	}
-}) satisfies PageServerLoad;
+} satisfies Actions;

@@ -5,7 +5,10 @@ import { vitePreprocess } from '@sveltejs/kit/vite';
 // there is no .git directory inside the docker build
 function gitVersion() {
 	try {
-		return child_process.execSync('git rev-parse --short HEAD', { stdio: 'pipe' }).toString().trim();
+		return child_process
+			.execSync('git rev-parse --short HEAD', { stdio: 'pipe' })
+			.toString()
+			.trim();
 	} catch {
 		return 'dev';
 	}
@@ -34,6 +37,8 @@ const config = {
 				'connect-src': ['self', 'cloudflareinsights.com'],
 				'img-src': ['*'],
 				'base-uri': ['self'],
+				'frame-ancestors': ['none'],
+				'object-src': ['none'],
 				'form-action': ['self'],
 				'manifest-src': ['self'],
 				'font-src': ['self', 'data:']

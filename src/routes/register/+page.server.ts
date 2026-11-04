@@ -1,63 +1,106 @@
-import { error } from '@sveltejs/kit';
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+import { env } from '$env/dynamic/private';
 import { sql } from '$lib/server/db';
-import { hashPassword } from '$lib/server/password';
+import { hashPassword, secretsEqual } from '$lib/server/password';
+import { createSession } from '$lib/server/session';
+import { clientIp, hit, isLimited } from '$lib/server/ratelimit';
+import {
+	isUniqueViolation,
+	validateEmail,
+	validateName,
+	validatePassword,
+	validateUsername
+} from '$lib/server/validation';
 import type { User } from '$lib/types';
 
+const WINDOW_MS = 15 * 60 * 1000;
+// wrong signup passwords allowed per IP, and across everyone (covers the no-ADDRESS_HEADER case)
+const MAX_FAILS_PER_IP = 10;
+const MAX_FAILS_GLOBAL = 50;
+
+type Result = {
+	success: boolean;
+	user?: User;
+	errors?: string[];
+};
+
+export const load = (() => {
+	return { registrationOpen: !!env.SIGNUP_PASSWORD };
+}) satisfies PageServerLoad;
+
 export const actions = {
-	default: async ({
-		request,
-		cookies
-	}): Promise<{
-		success: boolean;
-		user?: User;
-		errors?: string[];
-	}> => {
+	default: async ({ request, cookies, getClientAddress }): Promise<Result> => {
+		if (!env.SIGNUP_PASSWORD) {
+			return { success: false, errors: ['Registration is closed.'] };
+		}
+
 		const data = await request.formData();
-		const email = data.get('email') as string | null;
-		const name = data.get('fullName') as string | null;
-		const username = data.get('username') as string | null;
-		const password = data.get('password') as string | null;
+		const field = (name: string) => {
+			const value = data.get(name);
+			return typeof value === 'string' ? value : '';
+		};
+		const signupPassword = field('signupPassword');
+		const email = field('email').trim();
+		const name = field('fullName').trim();
+		const username = field('username').trim().toLowerCase();
+		const password = field('password');
 
-		if (!email || !name || !username || !password) {
-			throw error(400, {
-				message: 'Please fill out all fields.'
-			});
+		if (!signupPassword || !email || !name || !username || !password) {
+			return { success: false, errors: ['Please fill out all fields.'] };
 		}
 
-		const errorMessages: string[] = [];
-
-		const emailCheck = await sql`
-			SELECT email FROM users WHERE email = ${email}
-		`;
-		if (emailCheck.length > 0) {
-			errorMessages.push('Email already in use.');
+		// checked before anything else so the form can't be used to probe for existing accounts
+		const ip = clientIp(getClientAddress);
+		const ipKey = ip ? `signup:ip:${ip}` : null;
+		if (
+			isLimited('signup:global', MAX_FAILS_GLOBAL) ||
+			(ipKey && isLimited(ipKey, MAX_FAILS_PER_IP))
+		) {
+			return { success: false, errors: ['Too many attempts, try again later.'] };
 		}
-		if(username.includes(' ')) errorMessages.push('Username cannot contain spaces.');
-		if(username.includes('@')) errorMessages.push('Username cannot contain @ symbol.');
-		if(username.includes('.')) errorMessages.push('Username cannot contain . symbol.');
-		if(username.includes('/')) errorMessages.push('Username cannot contain / symbol.');
-		const usernameCheck = await sql`
-			SELECT username FROM users WHERE username = ${username}
-		`;
-		if (usernameCheck.length > 0) {
-			errorMessages.push('Username already in use.');
+		if (!secretsEqual(signupPassword, env.SIGNUP_PASSWORD)) {
+			hit('signup:global', WINDOW_MS);
+			if (ipKey) hit(ipKey, WINDOW_MS);
+			return { success: false, errors: ['Wrong signup password.'] };
+		}
+
+		const errorMessages = [
+			validateEmail(email),
+			validateName(name),
+			validateUsername(username),
+			validatePassword(password)
+		].filter((e): e is string => e !== null);
+
+		if (errorMessages.length === 0) {
+			const taken = await sql`
+				SELECT username, email FROM users
+				WHERE username = ${username} OR lower(email) = lower(${email})
+			`;
+			if (taken.some((u) => u.email.toLowerCase() === email.toLowerCase()))
+				errorMessages.push('Email already in use.');
+			if (taken.some((u) => u.username === username))
+				errorMessages.push('Username already in use.');
 		}
 
 		if (errorMessages.length > 0) {
-			return {
-				success: false,
-				errors: errorMessages
-			};
+			return { success: false, errors: errorMessages };
 		}
 
-		const { salt, hash } = await hashPassword(password as string);
+		const { salt, hash } = await hashPassword(password);
 
-		const res = await sql`
-			INSERT INTO users (email, name, username, password, salt)
-			VALUES (${email}, ${name}, ${username.toLowerCase().replaceAll(' ', '')}, ${hash}, ${salt})
-			returning id, email, name, username, avatar, created_at
+		let res;
+		try {
+			res = await sql`
+				INSERT INTO users (email, name, username, password, salt)
+				VALUES (${email}, ${name}, ${username}, ${hash}, ${salt})
+				returning id, email, name, username, avatar, created_at
 			`;
+		} catch (e) {
+			// lost a race with a concurrent registration
+			if (isUniqueViolation(e))
+				return { success: false, errors: ['Username or email already in use.'] };
+			throw e;
+		}
 
 		const user: User = {
 			id: res[0].id,
@@ -68,13 +111,7 @@ export const actions = {
 			created_at: res[0].created_at
 		};
 
-		const sessions = await sql`
-				INSERT INTO SESSIONS (user_id) VALUES (${user.id})
-				RETURNING token
-			`;
-		cookies.set('social.giorgiovola.casa-token', sessions[0].token, {
-			maxAge: 60 * 60 * 24 * 30
-		});
+		await createSession(cookies, user.id);
 
 		return {
 			success: true,

@@ -2,6 +2,10 @@ import type { RequestHandler } from './$types';
 import { sql } from '$lib/server/db';
 import { createCanvas } from '@napi-rs/canvas';
 import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
+import { parseId } from '$lib/server/validation';
+import { LRU } from '$lib/server/cache';
+
+const cache = new LRU<Buffer>(200);
 
 // source: https://fjolt.com/article/html-canvas-how-to-wrap-text
 const wrapText = function (
@@ -43,17 +47,21 @@ type Post = {
 };
 
 export const GET: RequestHandler = async ({ params }) => {
+	const id = parseId(params.post);
+	if (id === null) return new Response('Not found', { status: 404 });
+
 	const res: Post[] = await sql`
 		SELECT posts.content, users.name, users.username FROM posts
 		INNER JOIN users ON posts.user_id = users.id
-		WHERE posts.id = ${params.post}
+		WHERE posts.id = ${id}
 	`;
+	if (res.length === 0) return new Response('Not found', { status: 404 });
+	const post = res[0];
 
-	const post: Post = res[0] || {
-		content: 'Post not found',
-		name: 'User not found',
-		username: 'usernotfound'
-	};
+	// keyed on the rendered text, so a renamed user or a deleted post never gets a stale card
+	const key = JSON.stringify([id, post.name, post.username, post.content]);
+	const cached = cache.get(key);
+	if (cached) return pngResponse(cached);
 
 	const width = 1200;
 	const height = 628;
@@ -90,11 +98,17 @@ export const GET: RequestHandler = async ({ params }) => {
 	});
 
 	const buffer = canvas.toBuffer('image/png');
+	cache.set(key, buffer);
+	return pngResponse(buffer);
+};
+
+function pngResponse(buffer: Buffer) {
 	return new Response(buffer, {
 		headers: {
 			'Content-Type': 'image/png',
 			'Content-length': buffer.length.toString(),
-			'Cache-Control': 'public, max-age=604800, immutable'
+			// not immutable: a deleted post's card shouldn't stay cached for a week
+			'Cache-Control': 'public, max-age=3600'
 		}
 	});
-};
+}

@@ -5,7 +5,7 @@ self-hosted social network
 docker compose up -d
 ```
 
-That's it: the database is created and the schema applied automatically. The app listens on port `7777` at http://localhost:7777.
+That's it: the database is created and the schema applied automatically. The app listens on port `7777` at http://localhost:7777 (only on localhost by default, see `BIND_ADDRESS`). Set `SIGNUP_PASSWORD` to allow registrations.
 
 To customize settings, copy `.env.example` to `.env` (docker compose picks it up automatically) and edit it:
 
@@ -15,6 +15,9 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 | `PUBLIC_URL`          | `http://localhost:PORT` | public URL of your instance (links, social cards, CSRF check) |
 | `DISCORD_WEBHOOK_URL` | empty                   | optional, new posts are announced to this webhook             |
 | `POSTGRES_PASSWORD`   | `postgres`              | only used the first time the database is created              |
+| `SIGNUP_PASSWORD`     | empty                   | password required to register; registration is closed if empty |
+| `ADDRESS_HEADER`      | empty                   | header with the client IP behind a proxy (enables per-IP rate limits) |
+| `BIND_ADDRESS`        | `127.0.0.1`             | interface the port is published on                            |
 
 Data lives in the `postgres-data` and `avatars` docker volumes. You should put the app behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression.
 

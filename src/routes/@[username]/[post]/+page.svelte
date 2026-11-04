@@ -39,11 +39,7 @@
 				replies = [...replies, post];
 				target.content.value = '';
 			} else {
-				if (res.status === 429) {
-					error = 'Slow down, you can only post once every 5 seconds';
-				} else {
-					error = 'Something went wrong.';
-				}
+				error = res.status === 400 ? await res.text() : 'Something went wrong.';
 				setTimeout(() => {
 					error = null;
 				}, 3000);
@@ -73,6 +69,7 @@
 				name="content"
 				required
 				placeholder="twitter sucks"
+				maxlength="2000"
 				autocomplete="off"
 			/>
 			<button type="submit" class="send"

@@ -1,8 +1,9 @@
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import { sql } from '$lib/server/db';
 import { error } from '@sveltejs/kit';
 import type { User } from '$lib/types';
 import { getPosts } from '$lib/server/posts';
+import { PAGE_SIZE, pageOffset } from '$lib/server/paging';
 
 export const load = (async ({ params, locals, depends }) => {
 	const username = params.username.toLowerCase();
@@ -40,10 +41,29 @@ export const load = (async ({ params, locals, depends }) => {
 		};
 	}
 
-	const posts = await getPosts({ loggedUser: locals.user, fromUser: user, order: 'DESC' });
+	const posts = await getPosts({
+		loggedUser: locals.user,
+		fromUser: user,
+		order: 'DESC',
+		limit: PAGE_SIZE
+	});
 	return {
 		user,
 		posts,
 		self: locals.user && locals.user.username === user.username
 	};
 }) satisfies PageServerLoad;
+
+export const actions = {
+	// infinite scroll of the profile's posts
+	async default({ params, locals, request }) {
+		const posts = await getPosts({
+			loggedUser: locals.user,
+			fromUser: { username: params.username.toLowerCase() },
+			order: 'DESC',
+			limit: PAGE_SIZE,
+			offset: await pageOffset(request)
+		});
+		return { posts };
+	}
+} satisfies Actions;
