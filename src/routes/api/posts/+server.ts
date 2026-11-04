@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { sql } from '#lib/server/db.js';
+import { and, eq } from 'drizzle-orm';
+import { db, posts, users } from '#lib/server/db/index.js';
 import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
 import { getAvatar } from '#lib/utils.js';
@@ -35,23 +36,33 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (json.reply_to != null) {
 		reply_to = parseId(json.reply_to);
 		if (reply_to === null) return new Response('Invalid reply_to', { status: 400 });
-		const parent = await sql`SELECT id FROM posts WHERE id = ${reply_to}`;
+		const parent = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, reply_to));
 		if (parent.length === 0) return new Response('Post not found', { status: 404 });
 	}
 
-	const posts = await sql`
-		INSERT INTO POSTS (user_id, content, reply_to) VALUES (${locals.user.id}, ${content}, ${reply_to})
-		RETURNING content, created_at, edited_at, id, (SELECT jsonb_build_object(
-            'id', p.id,
-            'username', u.username
-        ) FROM posts p INNER JOIN users u ON p.user_id = u.id WHERE p.id = posts.reply_to) AS reply_to, (SELECT jsonb_build_object(
-            'id', u.id,
-            'username', u.username,
-            'name', u.name,
-            'avatar', u.avatar
-        ) FROM users u WHERE u.id = user_id) AS user
-	`;
-	void publishPost(posts[0].id);
+	const [created] = await db
+		.insert(posts)
+		.values({ user_id: locals.user.id, content, reply_to })
+		.returning({
+			content: posts.content,
+			created_at: posts.created_at,
+			edited_at: posts.edited_at,
+			id: posts.id
+		});
+
+	let parentRef: { id: number; username: string } | null = null;
+	if (reply_to !== null) {
+		const [parent] = await db
+			.select({ id: posts.id, username: users.username })
+			.from(posts)
+			.innerJoin(users, eq(posts.user_id, users.id))
+			.where(eq(posts.id, reply_to));
+		parentRef = parent ?? null;
+	}
+	const { id, username, name, avatar } = locals.user;
+	const post = { ...created, reply_to: parentRef, user: { id, username, name, avatar } };
+
+	void publishPost(post.id);
 	if (!reply_to && DISCORD_WEBHOOK_URL) {
 		// a broken webhook shouldn't make posting fail
 		try {
@@ -61,16 +72,16 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					content: `${PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`,
-					username: posts[0].user.name,
-					avatar_url: getAvatar(posts[0].user, 512, true)
+					content: `${PUBLIC_URL}/@${post.user.username}/${post.id}`,
+					username: post.user.name,
+					avatar_url: getAvatar(post.user, 512, true)
 				})
 			});
 		} catch (e) {
 			console.error('Discord webhook failed', e);
 		}
 	}
-	return new Response(JSON.stringify(posts[0]), {
+	return new Response(JSON.stringify(post), {
 		headers: { 'Content-Type': 'application/json' }
 	});
 };
@@ -85,12 +96,12 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 		return new Response('Missing post id', { status: 400 });
 	}
 
-	const deleted = await sql`
-		DELETE FROM posts WHERE id = ${postId} AND user_id = ${locals.user.id}
-		RETURNING id, reply_to
-	`;
+	const deleted = await db
+		.delete(posts)
+		.where(and(eq(posts.id, postId), eq(posts.user_id, locals.user.id)))
+		.returning({ id: posts.id, reply_to: posts.reply_to });
 	if (deleted.length === 0) {
-		const exists = await sql`SELECT id FROM posts WHERE id = ${postId}`;
+		const exists = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, postId));
 		return exists.length === 0
 			? new Response('Post not found', { status: 404 })
 			: new Response('Forbidden', { status: 403 });

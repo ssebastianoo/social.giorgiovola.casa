@@ -17,7 +17,7 @@
 {/if}
 
 {#if form?.errors}
-	<div class="errors">
+	<div>
 		{#each form.errors as error}
 			<p>{error}</p>
 		{/each}
@@ -25,7 +25,7 @@
 {/if}
 
 {#if data.registrationOpen}
-	<form method="POST" class="register">
+	<form method="POST" class="flex flex-col gap-5">
 		<input
 			class="input"
 			type="password"
@@ -62,36 +62,12 @@
 			autocomplete="new-password"
 			required
 		/>
-		<input type="submit" value="Register" />
+		<input
+			class="mt-2.5 cursor-pointer rounded-[5px] border border-foreground p-2.5 text-center outline-none hover:bg-black/70"
+			type="submit"
+			value="Register"
+		/>
 	</form>
 {:else}
 	<p>Registration is currently closed.</p>
 {/if}
-
-<style lang="scss">
-	@import 'src/variables';
-
-	.register {
-		display: flex;
-		flex-direction: column;
-		gap: 20px;
-
-		input {
-			width: calc(100% - 20px);
-		}
-
-		input[type='submit'] {
-			all: unset;
-			border: 1px solid $color3;
-			padding: 10px;
-			border-radius: 5px;
-			cursor: pointer;
-			text-align: center;
-			margin-top: 10px;
-
-			&:hover {
-				background-color: $color5;
-			}
-		}
-	}
-</style>

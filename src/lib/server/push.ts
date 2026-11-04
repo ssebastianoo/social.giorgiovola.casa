@@ -1,5 +1,7 @@
 import webpush from 'web-push';
-import { sql } from './db';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { db, inbox, posts, push_subscriptions, sessions, settings, users } from './db/index.js';
 import { PUBLIC_URL } from '$app/env/public';
 
 /** Web push: sends a system notification to the browsers subscribed by the recipient's account. */
@@ -11,9 +13,11 @@ let vapid: Promise<Vapid> | null = null;
 
 async function loadVapid(): Promise<Vapid> {
 	const read = async () => {
-		const rows =
-			await sql`SELECT key, value FROM settings WHERE key IN ('vapid_public', 'vapid_private')`;
-		const map = Object.fromEntries(rows.map((r) => [r.key, r.value as string]));
+		const rows = await db
+			.select()
+			.from(settings)
+			.where(inArray(settings.key, ['vapid_public', 'vapid_private']));
+		const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 		return map.vapid_public && map.vapid_private
 			? { publicKey: map.vapid_public, privateKey: map.vapid_private }
 			: null;
@@ -22,11 +26,13 @@ async function loadVapid(): Promise<Vapid> {
 	if (existing) return existing;
 	const keys = webpush.generateVAPIDKeys();
 	// concurrent first uses: whoever inserts first wins, the others read it back
-	await sql`
-		INSERT INTO settings (key, value)
-		VALUES ('vapid_public', ${keys.publicKey}), ('vapid_private', ${keys.privateKey})
-		ON CONFLICT DO NOTHING
-	`;
+	await db
+		.insert(settings)
+		.values([
+			{ key: 'vapid_public', value: keys.publicKey },
+			{ key: 'vapid_private', value: keys.privateKey }
+		])
+		.onConflictDoNothing();
 	const stored = await read();
 	if (!stored) throw new Error('push: could not store the VAPID keys');
 	return stored;
@@ -110,26 +116,44 @@ function payloadFor(row: Row) {
 export async function sendPush(postId: number, type?: 'like') {
 	try {
 		const only = type ?? null;
-		const rows = await sql<Row[]>`
-			WITH claimed AS (
-				UPDATE inbox SET pushed_at = NOW()
-				WHERE post_id = ${postId}
-					AND pushed_at IS NULL
-					AND created_at > NOW() - INTERVAL '1 minute'
-					AND (${only}::text IS NULL OR type = ${only})
-				RETURNING id, user_id, sender_id, post_id, type
-			)
-			SELECT c.type, c.post_id, p.content,
-				s.name AS sender_name, s.username AS sender_username,
-				u.username AS recipient_username,
-				u.owner_id IS NOT NULL AS identity,
-				COALESCE(u.owner_id, u.id) AS account_id
-			FROM claimed c
-			INNER JOIN users u ON u.id = c.user_id
-			LEFT JOIN users s ON s.id = c.sender_id
-			LEFT JOIN posts p ON p.id = c.post_id
-			WHERE c.user_id IS DISTINCT FROM c.sender_id
-		`;
+		const sender = alias(users, 'sender');
+		const recipient = alias(users, 'recipient');
+		const claimed = db.$with('claimed').as(
+			db
+				.update(inbox)
+				.set({ pushed_at: sql`NOW()` })
+				.where(
+					and(
+						eq(inbox.post_id, postId),
+						isNull(inbox.pushed_at),
+						gt(inbox.created_at, sql`NOW() - INTERVAL '1 minute'`),
+						type ? eq(inbox.type, type) : undefined
+					)
+				)
+				.returning({
+					user_id: inbox.user_id,
+					sender_id: inbox.sender_id,
+					post_id: inbox.post_id,
+					type: inbox.type
+				})
+		);
+		const rows: Row[] = await db
+			.with(claimed)
+			.select({
+				type: claimed.type,
+				post_id: sql<number>`${claimed.post_id}`,
+				content: posts.content,
+				sender_name: sender.name,
+				sender_username: sender.username,
+				recipient_username: recipient.username,
+				identity: sql<boolean>`${recipient.owner_id} IS NOT NULL`,
+				account_id: sql<number>`COALESCE(${recipient.owner_id}, ${recipient.id})`
+			})
+			.from(claimed)
+			.innerJoin(recipient, eq(recipient.id, claimed.user_id))
+			.leftJoin(sender, eq(sender.id, claimed.sender_id))
+			.leftJoin(posts, eq(posts.id, claimed.post_id))
+			.where(sql`${claimed.user_id} IS DISTINCT FROM ${claimed.sender_id}`);
 		if (rows.length === 0) return;
 
 		const keys = await getVapid();
@@ -140,12 +164,15 @@ export async function sendPush(postId: number, type?: 'like') {
 		};
 
 		for (const row of rows) {
-			const subs = await sql<{ endpoint: string; p256dh: string; auth: string }[]>`
-				SELECT DISTINCT ON (ps.endpoint) ps.endpoint, ps.p256dh, ps.auth
-				FROM push_subscriptions ps
-				INNER JOIN sessions se ON se.token = ps.session_token
-				WHERE se.user_id = ${row.account_id}
-			`;
+			const subs = await db
+				.selectDistinctOn([push_subscriptions.endpoint], {
+					endpoint: push_subscriptions.endpoint,
+					p256dh: push_subscriptions.p256dh,
+					auth: push_subscriptions.auth
+				})
+				.from(push_subscriptions)
+				.innerJoin(sessions, eq(sessions.token, push_subscriptions.session_token))
+				.where(eq(sessions.user_id, row.account_id));
 			const message = JSON.stringify(payloadFor(row));
 			await Promise.all(
 				subs.map(async (sub) => {
@@ -159,7 +186,7 @@ export async function sendPush(postId: number, type?: 'like') {
 						const status = (e as { statusCode?: number }).statusCode;
 						// the browser dropped the subscription
 						if (status === 404 || status === 410)
-							await sql`DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}`;
+							await db.delete(push_subscriptions).where(eq(push_subscriptions.endpoint, sub.endpoint));
 						else console.error('push: send failed', status ?? e);
 					}
 				})

@@ -1,4 +1,5 @@
-import { sql } from './db';
+import { and, eq, isNull } from 'drizzle-orm';
+import { db, inbox, likes, posts } from './db/index.js';
 import { getPosts } from './posts';
 import { sendPush } from './push';
 
@@ -62,9 +63,7 @@ export function openStream(userId: number | null, signal: AbortSignal) {
 }
 
 async function unreadCount(userId: number): Promise<number> {
-	const res =
-		await sql`SELECT COUNT(*)::int AS count FROM inbox WHERE user_id = ${userId} AND read_at IS NULL`;
-	return res[0].count;
+	return db.$count(inbox, and(eq(inbox.user_id, userId), isNull(inbox.read_at)));
 }
 
 async function sendUnreadCount(client: Client) {
@@ -101,13 +100,15 @@ export async function publishPost(postId: number) {
 		if (!post) return;
 		broadcast('post', post);
 		if (post.reply_to) {
-			const parent =
-				await sql`SELECT COUNT(*)::int AS count FROM posts WHERE reply_to = ${post.reply_to.id}`;
-			broadcast('counts', { id: post.reply_to.id, replies_count: parent[0].count });
+			const replies_count = await db.$count(posts, eq(posts.reply_to, post.reply_to.id));
+			broadcast('counts', { id: post.reply_to.id, replies_count });
 		}
 		// the inbox triggers already ran: notify whoever received something from this post
-		const inbox = await sql`SELECT DISTINCT user_id FROM inbox WHERE post_id = ${postId}`;
-		await pushUnread(inbox.map((r) => r.user_id));
+		const received = await db
+			.selectDistinct({ user_id: inbox.user_id })
+			.from(inbox)
+			.where(eq(inbox.post_id, postId));
+		await pushUnread(received.map((r) => r.user_id));
 		await sendPush(postId);
 	} catch (e) {
 		console.error('realtime: publishPost failed', e);
@@ -117,16 +118,16 @@ export async function publishPost(postId: number) {
 export function publishDeleted(postId: number, replyTo: number | null) {
 	broadcast('post_deleted', { id: postId });
 	if (replyTo !== null) {
-		sql`SELECT COUNT(*)::int AS count FROM posts WHERE reply_to = ${replyTo}`
-			.then((r) => broadcast('counts', { id: replyTo, replies_count: r[0].count }))
+		db.$count(posts, eq(posts.reply_to, replyTo))
+			.then((replies_count) => broadcast('counts', { id: replyTo, replies_count }))
 			.catch((e) => console.error('realtime: publishDeleted failed', e));
 	}
 }
 
 export async function publishLikes(postId: number, ownerId: number | null) {
 	try {
-		const res = await sql`SELECT COUNT(*)::int AS count FROM likes WHERE post_id = ${postId}`;
-		broadcast('counts', { id: postId, likes: res[0].count });
+		const total = await db.$count(likes, eq(likes.post_id, postId));
+		broadcast('counts', { id: postId, likes: total });
 		await pushUnread([ownerId]);
 		await sendPush(postId, 'like');
 	} catch (e) {

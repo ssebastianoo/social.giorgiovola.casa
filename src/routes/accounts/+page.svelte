@@ -7,6 +7,11 @@
 	export let data: PageData;
 	export let form: ActionData;
 
+	const sectionClass = 'mb-10 flex flex-col gap-3';
+	const hintClass = 'text-[0.85em] text-muted';
+	const rowClass = 'flex items-center gap-2.5 rounded-md border p-2';
+	const badgeClass = 'rounded-full bg-accent px-2 text-[0.8em] font-bold text-background';
+
 	$: accounts = data.accounts as SwitcherAccount[];
 	// keeps what was typed when creating an identity fails
 	$: values = (form && 'values' in form ? form.values : null) as {
@@ -26,32 +31,36 @@
 </script>
 
 {#if form?.error}
-	<p class="error">{form.error}</p>
+	<p class="mb-5 rounded-[5px] bg-danger p-[5px]">{form.error}</p>
 {/if}
 
 {#if current}
-	<section>
+	<section class={sectionClass}>
 		<h2>Identities</h2>
-		<p class="hint">
+		<p class={hintClass}>
 			Identities are extra profiles of <b>@{current.username}</b>: they post, like and get
 			notifications on their own, but have no email or password. Nobody else can see they belong to
 			you.
 		</p>
 
-		<ul class="profiles">
+		<ul class="flex flex-col gap-2">
 			{#each [current, ...current.identities] as profile (profile.id)}
-				<li class:active={profile.active}>
+				<li class="{rowClass} {profile.active ? 'border-accent' : 'border-line'}">
 					<Avatar user={profile} size={40} />
-					<div class="names">
-						<a href={'/@' + profile.username}>{profile.name}</a>
-						<span>@{profile.username}{profile === current ? ' · account' : ''}</span>
+					<div class="flex min-w-0 flex-1 flex-col">
+						<a class="truncate font-bold text-foreground" href={'/@' + profile.username}
+							>{profile.name}</a
+						>
+						<span class="text-[0.8em] text-muted"
+							>@{profile.username}{profile === current ? ' · account' : ''}</span
+						>
 					</div>
 					{#if profile.unread > 0}
-						<span class="badge" title="Unread notifications">{profile.unread}</span>
+						<span class={badgeClass} title="Unread notifications">{profile.unread}</span>
 					{/if}
-					<div class="actions">
+					<div class="flex items-center gap-1.5">
 						{#if profile.active}
-							<span class="using">in use</span>
+							<span class="text-[0.8em] text-accent">in use</span>
 						{:else}
 							<form method="POST" action="?/switch">
 								<input type="hidden" name="id" value={profile.id} />
@@ -71,7 +80,7 @@
 		</ul>
 
 		{#if canCreate}
-			<form method="POST" action="?/create" class="create">
+			<form method="POST" action="?/create" class="mt-2.5 flex flex-col gap-3">
 				<h3>New identity</h3>
 				<input
 					class="input"
@@ -92,24 +101,26 @@
 					value={values?.username ?? ''}
 					required
 				/>
-				<button class="btn" type="submit">Create and switch</button>
+				<button class="btn self-start" type="submit">Create and switch</button>
 			</form>
 		{:else}
-			<p class="hint">You reached the limit of {data.maxIdentities} identities.</p>
+			<p class={hintClass}>You reached the limit of {data.maxIdentities} identities.</p>
 		{/if}
 	</section>
 {/if}
 
-<section>
+<section class={sectionClass}>
 	<h2>Other accounts</h2>
 	{#if others.length > 0}
-		<ul class="profiles">
+		<ul class="flex flex-col gap-2">
 			{#each others as account (account.id)}
-				<li>
+				<li class="{rowClass} border-line">
 					<Avatar user={account} size={40} />
-					<div class="names">
-						<a href={'/@' + account.username}>{account.name}</a>
-						<span>
+					<div class="flex min-w-0 flex-1 flex-col">
+						<a class="truncate font-bold text-foreground" href={'/@' + account.username}
+							>{account.name}</a
+						>
+						<span class="text-[0.8em] text-muted">
 							@{account.username}
 							{#if account.identities.length > 0}
 								· {account.identities.length}
@@ -118,11 +129,11 @@
 						</span>
 					</div>
 					{#if account.unread + account.identities.reduce((n, i) => n + i.unread, 0) > 0}
-						<span class="badge" title="Unread notifications">
+						<span class={badgeClass} title="Unread notifications">
 							{account.unread + account.identities.reduce((n, i) => n + i.unread, 0)}
 						</span>
 					{/if}
-					<div class="actions">
+					<div class="flex items-center gap-1.5">
 						<form method="POST" action="?/switch">
 							<input type="hidden" name="id" value={account.id} />
 							<input type="hidden" name="redirectTo" value="/accounts" />
@@ -133,116 +144,10 @@
 			{/each}
 		</ul>
 	{:else}
-		<p class="hint">No other accounts are signed in on this browser.</p>
+		<p class={hintClass}>No other accounts are signed in on this browser.</p>
 	{/if}
-	<div class="footer">
+	<div class="flex flex-wrap gap-2.5">
 		<a class="btn" href="/login">Sign in to another account</a>
 		<a class="btn btn-red" href="/logout">Log out</a>
 	</div>
 </section>
-
-<style lang="scss">
-	@import 'src/variables';
-
-	section {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 40px;
-	}
-
-	.hint {
-		font-size: 0.85em;
-		color: $color6;
-	}
-
-	.error {
-		background-color: $color4;
-		padding: 5px;
-		border-radius: 5px;
-		margin-bottom: 20px;
-	}
-
-	.profiles {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-
-		li {
-			display: flex;
-			align-items: center;
-			gap: 10px;
-			padding: 8px;
-			border: 1px solid $color7;
-			border-radius: 6px;
-
-			&.active {
-				border-color: $color1;
-			}
-		}
-
-		.names {
-			display: flex;
-			flex-direction: column;
-			min-width: 0;
-			flex: 1;
-
-			a {
-				color: $color3;
-				font-weight: 700;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				white-space: nowrap;
-			}
-
-			span {
-				font-size: 0.8em;
-				color: $color6;
-			}
-		}
-
-		.actions {
-			display: flex;
-			gap: 6px;
-			align-items: center;
-		}
-
-		.using {
-			font-size: 0.8em;
-			color: $color1;
-		}
-	}
-
-	.badge {
-		background-color: $color1;
-		color: $color2;
-		border-radius: 100px;
-		padding: 0 8px;
-		font-size: 0.8em;
-		font-weight: 700;
-	}
-
-	.create {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-top: 10px;
-
-		input {
-			width: calc(100% - 20px);
-		}
-
-		.btn {
-			align-self: flex-start;
-		}
-	}
-
-	.footer {
-		display: flex;
-		gap: 10px;
-		flex-wrap: wrap;
-	}
-</style>

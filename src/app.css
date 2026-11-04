@@ -1,0 +1,69 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-sans: 'Manrope Variable', sans-serif;
+
+	--color-accent: #799a74;
+	--color-background: #0c0b0b;
+	--color-foreground: #d9d9d9;
+	--color-danger: #bb5353;
+	--color-muted: #999999;
+	--color-line: #4e4e4e;
+}
+
+@layer base {
+	/* preflight sets line-height 1.5 and strips heading styles; the design relies on the defaults */
+	html {
+		line-height: normal;
+	}
+
+	body {
+		@apply bg-background font-medium text-foreground;
+	}
+
+	h1 {
+		@apply text-[2em] font-bold;
+	}
+
+	h2 {
+		@apply text-[1.5em] font-bold;
+	}
+
+	h3 {
+		@apply text-[1.17em] font-bold;
+	}
+
+	a {
+		@apply text-accent no-underline;
+
+		&:hover {
+			@apply underline;
+		}
+	}
+
+	::selection {
+		@apply bg-accent text-foreground;
+	}
+}
+
+@layer components {
+	.input {
+		@apply w-full border-b border-foreground p-2.5 outline-none;
+	}
+
+	.btn {
+		@apply cursor-pointer rounded-[5px] border border-accent bg-background p-[5px] text-center text-foreground outline-none;
+
+		&:hover {
+			@apply bg-accent text-background;
+		}
+	}
+
+	.btn-red {
+		@apply border-danger;
+
+		&:hover {
+			@apply bg-danger;
+		}
+	}
+}

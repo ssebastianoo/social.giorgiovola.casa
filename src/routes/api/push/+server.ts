@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { sql } from '#lib/server/db.js';
+import { and, desc, eq, notInArray } from 'drizzle-orm';
+import { db, push_subscriptions } from '#lib/server/db/index.js';
 import { getVapid, isPushEndpoint } from '#lib/server/push.js';
 import type { RequestHandler } from './$types';
 
@@ -30,20 +31,28 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!isPushEndpoint(endpoint) || !KEY.test(keys?.p256dh ?? '') || !KEY.test(keys?.auth ?? ''))
 		return new Response(null, { status: 400 });
 
-	await sql.begin(async (sql) => {
-		await sql`
-			INSERT INTO push_subscriptions (session_token, endpoint, p256dh, auth)
-			VALUES (${session.token}, ${endpoint}, ${keys.p256dh}, ${keys.auth})
-			ON CONFLICT (session_token, endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
-		`;
-		await sql`
-			DELETE FROM push_subscriptions
-			WHERE session_token = ${session.token}
-				AND endpoint NOT IN (
-					SELECT endpoint FROM push_subscriptions WHERE session_token = ${session.token}
-					ORDER BY created_at DESC LIMIT ${MAX_PER_SESSION}
+	await db.transaction(async (tx) => {
+		await tx
+			.insert(push_subscriptions)
+			.values({ session_token: session.token, endpoint, p256dh: keys.p256dh, auth: keys.auth })
+			.onConflictDoUpdate({
+				target: [push_subscriptions.session_token, push_subscriptions.endpoint],
+				set: { p256dh: keys.p256dh, auth: keys.auth }
+			});
+		const keep = tx
+			.select({ endpoint: push_subscriptions.endpoint })
+			.from(push_subscriptions)
+			.where(eq(push_subscriptions.session_token, session.token))
+			.orderBy(desc(push_subscriptions.created_at))
+			.limit(MAX_PER_SESSION);
+		await tx
+			.delete(push_subscriptions)
+			.where(
+				and(
+					eq(push_subscriptions.session_token, session.token),
+					notInArray(push_subscriptions.endpoint, keep)
 				)
-		`;
+			);
 	});
 	return new Response(null, { status: 204 });
 };
@@ -55,8 +64,10 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 
 	const endpoint = (await readBody(request))?.endpoint;
 	if (typeof endpoint !== 'string') return new Response(null, { status: 400 });
-	await sql`
-		DELETE FROM push_subscriptions WHERE session_token = ${session.token} AND endpoint = ${endpoint}
-	`;
+	await db
+		.delete(push_subscriptions)
+		.where(
+			and(eq(push_subscriptions.session_token, session.token), eq(push_subscriptions.endpoint, endpoint))
+		);
 	return new Response(null, { status: 204 });
 };

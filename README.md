@@ -5,7 +5,7 @@ self-hosted social network
 docker compose up -d
 ```
 
-That's it: the database is created and the schema applied automatically. The app listens on port `7777` at http://localhost:7777 (only on localhost by default, see `BIND_ADDRESS`). Set `SIGNUP_PASSWORD` to allow registrations.
+That's it: the database is created and migrated automatically on every start. The app listens on port `7777` at http://localhost:7777 (only on localhost by default, see `BIND_ADDRESS`). Set `SIGNUP_PASSWORD` to allow registrations.
 
 To customize settings, copy `.env.example` to `.env` (docker compose picks it up automatically) and edit it:
 
@@ -17,6 +17,8 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 | `SIGNUP_PASSWORD`     | empty                   | password required to register; registration is closed if empty |
 | `ADDRESS_HEADER`      | empty                   | header with the client IP behind a proxy (enables per-IP rate limits) |
 | `BIND_ADDRESS`        | `127.0.0.1`             | interface the port is published on                            |
+| `POSTGRES_PASSWORD`   | `postgres`              | database password (URL-safe characters only); only applied when the database volume is first created |
+| `POSTGRES_PORT`       | `5432`                  | host port of the database in `docker-compose.dev.yaml` (not published in the main compose file) |
 
 Data lives in the `postgres-data` and `avatars` docker volumes. You should put the app behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression.
 
@@ -28,6 +30,11 @@ Data lives in the `postgres-data` and `avatars` docker volumes. You should put t
 ```
 bun install
 cp .env.example .env # set DATABASE_URL to a postgres instance
-bun initdb.ts
+bun run db:migrate
 bun run dev
 ```
+
+## database
+The schema lives in `src/lib/server/db/schema.ts` and is managed with [drizzle](https://orm.drizzle.team) migrations (the generated SQL is in `drizzle/`). Pending migrations are applied every time the container starts, or by hand with `bun run db:migrate`. Databases created before migrations were introduced are detected and picked up automatically.
+
+To change the schema, edit `schema.ts`, then run `bun run db:generate` and commit the new files in `drizzle/`. For things drizzle can't model (triggers, functions, data fixes) use `bunx drizzle-kit generate --custom --name <name>` and write the SQL by hand, like `drizzle/0001_notification_triggers.sql`.

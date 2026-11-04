@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { sql } from '#lib/server/db.js';
+import { eq } from 'drizzle-orm';
+import { db, posts, users } from '#lib/server/db/index.js';
 import { createCanvas } from '@napi-rs/canvas';
 import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
 import { parseId } from '#lib/server/validation.js';
@@ -51,11 +52,11 @@ export const GET: RequestHandler = async ({ params }) => {
 	const id = parseId(params.post);
 	if (id === null) return new Response('Not found', { status: 404 });
 
-	const res: Post[] = await sql`
-		SELECT posts.content, users.name, users.username FROM posts
-		INNER JOIN users ON posts.user_id = users.id
-		WHERE posts.id = ${id}
-	`;
+	const res: Post[] = await db
+		.select({ content: posts.content, name: users.name, username: users.username })
+		.from(posts)
+		.innerJoin(users, eq(posts.user_id, users.id))
+		.where(eq(posts.id, id));
 	if (res.length === 0) return new Response('Not found', { status: 404 });
 	const post = res[0];
 
