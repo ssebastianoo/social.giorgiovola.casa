@@ -1,14 +1,15 @@
 # local development only: just postgres, run the app on the host with `bun run dev`
 # docker compose -f docker-compose.dev.yaml up -d
 # DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+# override with POSTGRES_PASSWORD / POSTGRES_PORT (and update DATABASE_URL to match)
 services:
   db:
     image: postgres:17-alpine
     ports:
-      - '127.0.0.1:5432:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: postgres
     volumes:
       - postgres-dev-data:/var/lib/postgresql/data

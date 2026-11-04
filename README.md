@@ -17,6 +17,8 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 | `SIGNUP_PASSWORD`     | empty                   | password required to register; registration is closed if empty |
 | `ADDRESS_HEADER`      | empty                   | header with the client IP behind a proxy (enables per-IP rate limits) |
 | `BIND_ADDRESS`        | `127.0.0.1`             | interface the port is published on                            |
+| `POSTGRES_PASSWORD`   | `postgres`              | database password (URL-safe characters only); only applied when the database volume is first created |
+| `POSTGRES_PORT`       | `5432`                  | host port of the database in `docker-compose.dev.yaml` (not published in the main compose file) |
 
 Data lives in the `postgres-data` and `avatars` docker volumes. You should put the app behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression.
 
