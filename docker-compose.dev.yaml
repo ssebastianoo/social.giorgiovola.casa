@@ -1,0 +1,22 @@
+# local development only: just postgres, run the app on the host with `bun run dev`
+# docker compose -f docker-compose.dev.yaml up -d
+# DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+services:
+  db:
+    image: postgres:17-alpine
+    ports:
+      - '127.0.0.1:5432:5432'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-dev-data:

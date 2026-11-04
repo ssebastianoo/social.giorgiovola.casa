@@ -13,7 +13,7 @@ services:
     environment:
       PORT: ${PORT:-7777}
       BODY_SIZE_LIMIT: 12582912
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
+      DATABASE_URL: postgres://postgres:postgres@db:5432/postgres
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       SIGNUP_PASSWORD: ${SIGNUP_PASSWORD:-}
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
