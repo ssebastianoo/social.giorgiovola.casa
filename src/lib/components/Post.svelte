@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { user, isMobile } from '$lib/store';
-	import type { Post } from '$lib/types';
+	import { user, isMobile } from '#lib/store.js';
+	import type { Post } from '#lib/types.js';
 	import Posts from './Posts.svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { createEventDispatcher } from 'svelte';
 	import Likes from './Likes.svelte';
@@ -70,7 +70,7 @@
 			})
 		});
 		if (res.ok) {
-			if ($page.route.id === '/@[username]/[post]') {
+			if (page.route.id === '/@[username]/[post]') {
 				return await goto('/');
 			}
 		}

@@ -1,4 +1,4 @@
-import { sql } from '$lib/server/db';
+import { sql } from '#lib/server/db.js';
 import type { LayoutServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {

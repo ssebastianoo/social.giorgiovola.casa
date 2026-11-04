@@ -1,5 +1,5 @@
-import { getPosts } from '$lib/server/posts';
-import { parseId } from '$lib/server/validation';
+import { getPosts } from '#lib/server/posts.js';
+import { parseId } from '#lib/server/validation.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals }) => {

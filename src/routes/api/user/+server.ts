@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/server/db';
+import { sql } from '#lib/server/db.js';
 import fs from 'fs';
-import { hashPassword } from '$lib/server/password';
-import { SESSION_COOKIE } from '$lib/server/session';
+import { hashPassword } from '#lib/server/password.js';
+import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
 	LIMITS,
 	isUniqueViolation,
@@ -10,7 +10,7 @@ import {
 	validateName,
 	validatePassword,
 	validateUsername
-} from '$lib/server/validation';
+} from '#lib/server/validation.js';
 
 const AVATAR_DIR = 'static/avatars';
 const AVATAR_EXTS = ['png', 'jpg', 'gif', 'webp'];

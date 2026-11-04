@@ -1,9 +1,9 @@
 import type { Actions, PageServerLoad } from './$types';
-import { sql } from '$lib/server/db';
+import { sql } from '#lib/server/db.js';
 import { error } from '@sveltejs/kit';
-import type { User } from '$lib/types';
-import { getPosts } from '$lib/server/posts';
-import { PAGE_SIZE, pageOffset } from '$lib/server/paging';
+import type { User } from '#lib/types.js';
+import { getPosts } from '#lib/server/posts.js';
+import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 
 export const load = (async ({ params, locals, depends }) => {
 	const username = params.username.toLowerCase();
@@ -16,7 +16,7 @@ export const load = (async ({ params, locals, depends }) => {
 	`;
 
 	if (users.length === 0) {
-		throw error(404, 'User not found');
+		error(404, 'User not found');
 	}
 
 	let user: User;

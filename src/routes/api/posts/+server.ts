@@ -1,9 +1,9 @@
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/server/db';
-import { env as privateEnv } from '$env/dynamic/private';
-import { env } from '$env/dynamic/public';
-import { getAvatar } from '$lib/utils';
-import { LIMITS, parseId } from '$lib/server/validation';
+import { sql } from '#lib/server/db.js';
+import { DISCORD_WEBHOOK_URL } from '$app/env/private';
+import { PUBLIC_URL } from '$app/env/public';
+import { getAvatar } from '#lib/utils.js';
+import { LIMITS, parseId } from '#lib/server/validation.js';
 
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
 	try {
@@ -50,16 +50,16 @@ export const POST: RequestHandler = async ({ locals, request }) => {
             'avatar', u.avatar
         ) FROM users u WHERE u.id = user_id) AS user
 	`;
-	if (!reply_to && privateEnv.DISCORD_WEBHOOK_URL) {
+	if (!reply_to && DISCORD_WEBHOOK_URL) {
 		// a broken webhook shouldn't make posting fail
 		try {
-			await fetch(privateEnv.DISCORD_WEBHOOK_URL + '?wait=false', {
+			await fetch(DISCORD_WEBHOOK_URL + '?wait=false', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					content: `${env.PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`,
+					content: `${PUBLIC_URL}/@${posts[0].user.username}/${posts[0].id}`,
 					username: posts[0].user.name,
 					avatar_url: getAvatar(posts[0].user, 512, true)
 				})

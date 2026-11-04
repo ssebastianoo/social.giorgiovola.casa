@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/server/db';
-import { parseId } from '$lib/server/validation';
+import { sql } from '#lib/server/db.js';
+import { parseId } from '#lib/server/validation.js';
 
 export const POST: RequestHandler = async ({ locals, params }) => {
 	if (!locals.user) return new Response(null, { status: 401 });

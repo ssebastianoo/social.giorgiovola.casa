@@ -1,11 +1,12 @@
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/server/db';
+import { sql } from '#lib/server/db.js';
 import { createCanvas } from '@napi-rs/canvas';
 import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
-import { parseId } from '$lib/server/validation';
-import { LRU } from '$lib/server/cache';
+import { parseId } from '#lib/server/validation.js';
+import { LRU } from '#lib/server/cache.js';
 
-const cache = new LRU<Buffer>(200);
+// Uint8Array<ArrayBuffer> rather than Buffer: Response only accepts ArrayBuffer-backed views
+const cache = new LRU<Uint8Array<ArrayBuffer>>(200);
 
 // source: https://fjolt.com/article/html-canvas-how-to-wrap-text
 const wrapText = function (
@@ -97,12 +98,12 @@ export const GET: RequestHandler = async ({ params }) => {
 		ctx.fillText(item[0], item[1], item[2]);
 	});
 
-	const buffer = canvas.toBuffer('image/png');
+	const buffer = new Uint8Array(canvas.toBuffer('image/png'));
 	cache.set(key, buffer);
 	return pngResponse(buffer);
 };
 
-function pngResponse(buffer: Buffer) {
+function pngResponse(buffer: Uint8Array<ArrayBuffer>) {
 	return new Response(buffer, {
 		headers: {
 			'Content-Type': 'image/png',

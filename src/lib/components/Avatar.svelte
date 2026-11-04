@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { User } from '$lib/types';
-	import { getAvatar } from '$lib/utils';
+	import type { User } from '#lib/types.js';
+	import { getAvatar } from '#lib/utils.js';
 
 	export let user: Pick<User, 'username' | 'name' | 'avatar'>;
 	export let size: number;

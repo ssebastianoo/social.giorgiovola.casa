@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { user } from '$lib/store';
-	import { version } from '$app/environment';
+	import { user } from '#lib/store.js';
+	import { version } from '$app/env';
 
-	import { notisCount } from '$lib/store';
-	import { getAvatar } from '$lib/utils';
+	import { notisCount } from '#lib/store.js';
+	import { getAvatar } from '#lib/utils.js';
 </script>
 
 <header>

@@ -7,6 +7,8 @@ RUN bun install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
+# the public origin is compiled in for the CSRF check (SvelteKit 3 removed the runtime ORIGIN)
+ARG PUBLIC_URL
 RUN bun run build
 
 FROM base AS prod-deps

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { User } from '$lib/types';
+	import type { User } from '#lib/types.js';
 	import { onMount } from 'svelte';
 	import Avatar from './Avatar.svelte';
 

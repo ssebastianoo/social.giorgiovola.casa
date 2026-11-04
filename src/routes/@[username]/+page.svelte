@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import Posts from '$lib/components/Posts.svelte';
-	import { user } from '$lib/store';
+	import Posts from '#lib/components/Posts.svelte';
+	import { user } from '#lib/store.js';
 	import { goto } from '$app/navigation';
-	import Avatar from '$lib/components/Avatar.svelte';
+	import Avatar from '#lib/components/Avatar.svelte';
 
 	export let data: PageData;
 	export let editing = false;

@@ -1,7 +1,7 @@
-import { sql } from '$lib/server/db';
-import { SESSION_COOKIE, SESSION_DAYS } from '$lib/server/session';
-import { env } from '$env/dynamic/public';
-import type { Handle } from '@sveltejs/kit';
+import type { Handle } from '@sveltejs/kit/hooks';
+import { sql } from '#lib/server/db.js';
+import { SESSION_COOKIE, SESSION_DAYS } from '#lib/server/session.js';
+import { PUBLIC_URL } from '$app/env/public';
 
 const securityHeaders: Record<string, string> = {
 	'X-Content-Type-Options': 'nosniff',
@@ -37,7 +37,8 @@ export const handle = (async ({ event, resolve }) => {
 	const response = await resolve(event);
 	try {
 		for (const [name, value] of Object.entries(securityHeaders)) response.headers.set(name, value);
-		if (env.PUBLIC_URL?.startsWith('https://'))
+
+		if (PUBLIC_URL?.startsWith('https://'))
 			response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 	} catch {
 		// some responses (e.g. Response.redirect) have immutable headers

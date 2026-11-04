@@ -1,6 +1,10 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        # compiled in as the CSRF origin: rebuild (up -d --build) after changing PUBLIC_URL
+        PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
     restart: unless-stopped
     ports:
       # only reachable from this machine by default: put a reverse proxy in front.
@@ -11,7 +15,6 @@ services:
       BODY_SIZE_LIMIT: 12582912
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
-      ORIGIN: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       SIGNUP_PASSWORD: ${SIGNUP_PASSWORD:-}
       ADDRESS_HEADER: ${ADDRESS_HEADER:-}

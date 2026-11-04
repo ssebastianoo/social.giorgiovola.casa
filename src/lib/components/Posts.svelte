@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Post from '$lib/components/Post.svelte';
-	import type { Post as PostType } from '$lib/types';
+	import Post from '#lib/components/Post.svelte';
+	import type { Post as PostType } from '#lib/types.js';
 	import { tick } from 'svelte';
 	import IntersectionObserver from './IntersectionObserver.svelte';
 	import { deserialize } from '$app/forms';

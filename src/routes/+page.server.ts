@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import { getPosts } from '$lib/server/posts';
-import { PAGE_SIZE, pageOffset } from '$lib/server/paging';
+import { getPosts } from '#lib/server/posts.js';
+import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 import type { Actions } from '@sveltejs/kit';
 
 const criteria = {

@@ -12,7 +12,7 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 | variable              | default                 | description                                                   |
 | --------------------- | ----------------------- | ------------------------------------------------------------- |
 | `PORT`                | `7777`                  | port the app listens on                                       |
-| `PUBLIC_URL`          | `http://localhost:PORT` | public URL of your instance (links, social cards, CSRF check) |
+| `PUBLIC_URL`          | `http://localhost:PORT` | public URL of your instance (links, social cards, CSRF check); baked into the image, so rebuild with `docker compose up -d --build` after changing it |
 | `DISCORD_WEBHOOK_URL` | empty                   | optional, new posts are announced to this webhook             |
 | `POSTGRES_PASSWORD`   | `postgres`              | only used the first time the database is created              |
 | `SIGNUP_PASSWORD`     | empty                   | password required to register; registration is closed if empty |

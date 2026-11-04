@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
-	import Posts from '$lib/components/Posts.svelte';
-	import { user } from '$lib/store';
+	import Posts from '#lib/components/Posts.svelte';
+	import { user } from '#lib/store.js';
 
 	export let data: PageServerData;
 	let error: string | null = null;

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { notisCount, user } from '$lib/store';
-	import type { Notification } from '$lib/types';
-	import Avatar from '$lib/components/Avatar.svelte';
+	import { notisCount, user } from '#lib/store.js';
+	import type { Notification } from '#lib/types.js';
+	import Avatar from '#lib/components/Avatar.svelte';
 	import { goto } from '$app/navigation';
 	export let data: PageData;
 

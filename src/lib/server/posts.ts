@@ -1,4 +1,4 @@
-import type { Post, User } from '$lib/types';
+import type { Post, User } from '#lib/types.js';
 import { sql } from './db';
 
 export type GetPostsOptions = {

@@ -1,11 +1,12 @@
 import type { RequestHandler } from './$types';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import { generateAvatar } from '$lib/server/avatar';
-import { avatarSize } from '$lib/server/avatarSize';
-import { LRU } from '$lib/server/cache';
-import { sql } from '$lib/server/db';
+import { generateAvatar } from '#lib/server/avatar.js';
+import { avatarSize } from '#lib/server/avatarSize.js';
+import { LRU } from '#lib/server/cache.js';
+import { sql } from '#lib/server/db.js';
 
-const cache = new LRU<Buffer>(300);
+// Uint8Array<ArrayBuffer> rather than Buffer: Response only accepts ArrayBuffer-backed views
+const cache = new LRU<Uint8Array<ArrayBuffer>>(300);
 
 // Discord and social cards don't accept SVGs, so render a PNG for those
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -21,7 +22,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		const img = await loadImage(Buffer.from(generateAvatar(params.username, size)));
 		const canvas = createCanvas(size, size);
 		canvas.getContext('2d').drawImage(img, 0, 0, size, size);
-		buffer = canvas.toBuffer('image/png');
+		buffer = new Uint8Array(canvas.toBuffer('image/png'));
 		cache.set(key, buffer);
 	}
 	return new Response(buffer, {

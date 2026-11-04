@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/private';
+import { ADDRESS_HEADER } from '$app/env/private';
 
 type Bucket = { count: number; reset: number };
 
@@ -32,7 +32,7 @@ export function clear(key: string) {
  * tells adapter-node which header carries the real client address.
  */
 export function clientIp(getClientAddress: () => string): string | null {
-	if (!env.ADDRESS_HEADER) return null;
+	if (!ADDRESS_HEADER) return null;
 	try {
 		return getClientAddress();
 	} catch {

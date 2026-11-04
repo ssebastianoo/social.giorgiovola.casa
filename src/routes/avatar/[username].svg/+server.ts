@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
-import { generateAvatar } from '$lib/server/avatar';
-import { avatarSize } from '$lib/server/avatarSize';
+import { generateAvatar } from '#lib/server/avatar.js';
+import { avatarSize } from '#lib/server/avatarSize.js';
 
 export const GET: RequestHandler = async ({ params, url }) => {
 	const size = avatarSize(url.searchParams.get('size'), 80);

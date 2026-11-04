@@ -1,9 +1,9 @@
 import type { Actions } from './$types';
-import { dummyVerify, hashPassword, verifyPassword } from '$lib/server/password';
-import { sql } from '$lib/server/db';
-import { createSession } from '$lib/server/session';
-import { clear, clientIp, hit, isLimited } from '$lib/server/ratelimit';
-import type { User } from '$lib/types';
+import { dummyVerify, hashPassword, verifyPassword } from '#lib/server/password.js';
+import { sql } from '#lib/server/db.js';
+import { createSession } from '#lib/server/session.js';
+import { clear, clientIp, hit, isLimited } from '#lib/server/ratelimit.js';
+import type { User } from '#lib/types.js';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILS_PER_ACCOUNT = 10;

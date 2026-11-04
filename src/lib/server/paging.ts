@@ -8,7 +8,7 @@ export async function pageOffset(request: Request) {
 	const formData = await request.formData();
 	const raw = formData.get('currentPage');
 	if (typeof raw !== 'string' || !/^\d{1,5}$/.test(raw) || Number(raw) > MAX_PAGE) {
-		throw error(400, 'Invalid currentPage');
+		error(400, 'Invalid currentPage');
 	}
 	return Number(raw) * PAGE_SIZE;
 }

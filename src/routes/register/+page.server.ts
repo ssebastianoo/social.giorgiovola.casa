@@ -1,17 +1,17 @@
 import type { Actions, PageServerLoad } from './$types';
-import { env } from '$env/dynamic/private';
-import { sql } from '$lib/server/db';
-import { hashPassword, secretsEqual } from '$lib/server/password';
-import { createSession } from '$lib/server/session';
-import { clientIp, hit, isLimited } from '$lib/server/ratelimit';
+import { SIGNUP_PASSWORD } from '$app/env/private';
+import { sql } from '#lib/server/db.js';
+import { hashPassword, secretsEqual } from '#lib/server/password.js';
+import { createSession } from '#lib/server/session.js';
+import { clientIp, hit, isLimited } from '#lib/server/ratelimit.js';
 import {
 	isUniqueViolation,
 	validateEmail,
 	validateName,
 	validatePassword,
 	validateUsername
-} from '$lib/server/validation';
-import type { User } from '$lib/types';
+} from '#lib/server/validation.js';
+import type { User } from '#lib/types.js';
 
 const WINDOW_MS = 15 * 60 * 1000;
 // wrong signup passwords allowed per IP, and across everyone (covers the no-ADDRESS_HEADER case)
@@ -25,12 +25,12 @@ type Result = {
 };
 
 export const load = (() => {
-	return { registrationOpen: !!env.SIGNUP_PASSWORD };
+	return { registrationOpen: !!SIGNUP_PASSWORD };
 }) satisfies PageServerLoad;
 
 export const actions = {
 	default: async ({ request, cookies, getClientAddress }): Promise<Result> => {
-		if (!env.SIGNUP_PASSWORD) {
+		if (!SIGNUP_PASSWORD) {
 			return { success: false, errors: ['Registration is closed.'] };
 		}
 
@@ -58,7 +58,7 @@ export const actions = {
 		) {
 			return { success: false, errors: ['Too many attempts, try again later.'] };
 		}
-		if (!secretsEqual(signupPassword, env.SIGNUP_PASSWORD)) {
+		if (!secretsEqual(signupPassword, SIGNUP_PASSWORD)) {
 			hit('signup:global', WINDOW_MS);
 			if (ipKey) hit(ipKey, WINDOW_MS);
 			return { success: false, errors: ['Wrong signup password.'] };

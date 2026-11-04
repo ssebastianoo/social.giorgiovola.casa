@@ -1,11 +1,11 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getPosts } from '$lib/server/posts';
-import { parseId } from '$lib/server/validation';
+import { getPosts } from '#lib/server/posts.js';
+import { parseId } from '#lib/server/validation.js';
 
 export const load = (async ({ params, locals }) => {
 	const postId = parseId(params.post);
-	if (postId === null) throw error(404, 'Post not found');
+	if (postId === null) error(404, 'Post not found');
 
 	const posts = await getPosts({
 		loggedUser: locals.user,
@@ -14,7 +14,7 @@ export const load = (async ({ params, locals }) => {
 	});
 
 	if (posts.length === 0) {
-		throw error(404, 'Post not found');
+		error(404, 'Post not found');
 	}
 
 	return {

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Post from '$lib/components/Post.svelte';
-	import type { Post as PostType } from '$lib/types';
+	import Post from '#lib/components/Post.svelte';
+	import type { Post as PostType } from '#lib/types.js';
 	import type { PageData } from './$types';
-	import Posts from '$lib/components/Posts.svelte';
-	import Loading from '$lib/components/Loading.svelte';
+	import Posts from '#lib/components/Posts.svelte';
+	import Loading from '#lib/components/Loading.svelte';
 
 	export let data: PageData;
 

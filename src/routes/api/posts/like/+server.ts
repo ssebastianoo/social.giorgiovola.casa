@@ -1,5 +1,5 @@
-import { sql } from '$lib/server/db';
-import { parseId } from '$lib/server/validation';
+import { sql } from '#lib/server/db.js';
+import { parseId } from '#lib/server/validation.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ locals, request }) => {

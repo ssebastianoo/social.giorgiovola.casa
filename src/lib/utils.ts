@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/public';
+import { PUBLIC_URL } from '$app/env/public';
 import type { User } from './types';
 
 export function getAvatar(
@@ -8,9 +8,9 @@ export function getAvatar(
 ) {
 	if (!user.avatar) {
 		// social cards and Discord don't accept SVGs
-		if (absolute) return `${env.PUBLIC_URL}/avatar/${user.username}.png?size=${size}`;
+		if (absolute) return `${PUBLIC_URL}/avatar/${user.username}.png?size=${size}`;
 		return `/avatar/${user.username}.svg?size=${size}`;
 	}
-	if (absolute) return `${env.PUBLIC_URL}${user.avatar}`;
+	if (absolute) return `${PUBLIC_URL}${user.avatar}`;
 	return user.avatar;
 }
