@@ -59,7 +59,13 @@ export const sessions = pgTable('sessions', {
 export const posts = pgTable('posts', {
 	id: serial('id').primaryKey(),
 	user_id: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+	// may be empty when the post has images
 	content: text('content').notNull(),
+	// URL paths of the attached uploads (see src/lib/server/images.ts)
+	images: text('images')
+		.array()
+		.notNull()
+		.default(sql`'{}'::text[]`),
 	created_at: timestamptz('created_at').notNull().defaultNow(),
 	edited_at: timestamptz('edited_at'),
 	reply_to: integer('reply_to').references((): AnyPgColumn => posts.id, { onDelete: 'cascade' })

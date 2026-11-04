@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { db, sessions, users } from '#lib/server/db/index.js';
 import fs from 'fs';
+import { sniffImage } from '#lib/server/images.js';
 import { hashPassword } from '#lib/server/password.js';
 import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
@@ -15,25 +16,6 @@ import {
 
 const AVATAR_DIR = 'static/avatars';
 const AVATAR_EXTS = ['png', 'jpg', 'gif', 'webp'];
-
-/** Detects the image type from the file's magic bytes; the client-declared MIME type is not trusted. */
-function sniffImage(buf: Buffer): string | null {
-	if (
-		buf.length >= 8 &&
-		buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-	)
-		return 'png';
-	if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
-	const head = buf.subarray(0, 6).toString('latin1');
-	if (head === 'GIF87a' || head === 'GIF89a') return 'gif';
-	if (
-		buf.length >= 12 &&
-		buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
-		buf.subarray(8, 12).toString('latin1') === 'WEBP'
-	)
-		return 'webp';
-	return null;
-}
 
 const bad = (message: string) => new Response(message, { status: 400 });
 
@@ -90,7 +72,7 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 		if (avatar.size > LIMITS.avatarBytes) return bad('Avatar too big, max size is 10mb');
 		const buffer = Buffer.from(await avatar.arrayBuffer());
 		const ext = sniffImage(buffer);
-		if (!ext) {
+		if (!ext || !AVATAR_EXTS.includes(ext)) {
 			return bad('Unsupported avatar type, use PNG, JPEG, GIF or WebP');
 		}
 		avatarPath = `/avatars/${me.id}.${ext}`;

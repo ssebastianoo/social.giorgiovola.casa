@@ -12,7 +12,7 @@ services:
       - '${BIND_ADDRESS:-127.0.0.1}:${PORT:-7777}:${PORT:-7777}'
     environment:
       PORT: ${PORT:-7777}
-      BODY_SIZE_LIMIT: 12582912
+      BODY_SIZE_LIMIT: 54525952
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${PORT:-7777}}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
@@ -20,6 +20,7 @@ services:
       ADDRESS_HEADER: ${ADDRESS_HEADER:-}
     volumes:
       - avatars:/app/static/avatars
+      - uploads:/app/static/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -42,3 +43,4 @@ services:
 volumes:
   postgres-data:
   avatars:
+  uploads:
