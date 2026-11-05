@@ -30,6 +30,8 @@ export type PublicUser = {
 /** The profile hover card (see src/lib/components/ProfileCard.svelte). */
 export type ProfileCard = Pick<User, 'username' | 'name' | 'avatar'> & {
 	bio: string;
+	/** an http(s) URL, may be empty */
+	website: string;
 	followers: number;
 	following: number;
 	/** the viewer follows this profile */
@@ -37,8 +39,20 @@ export type ProfileCard = Pick<User, 'username' | 'name' | 'avatar'> & {
 	/** this profile follows the viewer */
 	followsYou: boolean;
 	self: boolean;
-	/** profiles the viewer follows that follow this one: the first few, and how many in all */
-	followedBy: { users: Pick<User, 'username' | 'name' | 'avatar'>[]; total: number };
+	followedBy: FollowedBy;
+};
+
+/** Profiles the viewer follows that follow a profile: the first few, and how many in all. */
+export type FollowedBy = { users: Pick<User, 'username' | 'name' | 'avatar'>[]; total: number };
+
+/** An entry of a followers / following list. */
+export type FollowListEntry = Pick<User, 'username' | 'name' | 'avatar'> & {
+	bio: string;
+	/** the viewer follows this profile */
+	followed: boolean;
+	/** this profile follows the viewer */
+	followsYou: boolean;
+	self: boolean;
 };
 
 export type Post = {
@@ -60,13 +74,14 @@ export type Post = {
 	} | null;
 };
 
-export type NotificationType = 'like' | 'reply' | 'mention' | 'ratio' | 'ratioed_by_you';
+export type NotificationType = 'like' | 'reply' | 'mention' | 'ratio' | 'ratioed_by_you' | 'follow';
 
 export type Notification = {
 	id: number;
 	user_id: number;
 	sender: Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
-	post: Pick<Post, 'id' | 'content'>;
+	/** null for follows */
+	post: Pick<Post, 'id' | 'content'> | null;
 	type: NotificationType;
 	created_at: Date;
 	read_at: Date | null;

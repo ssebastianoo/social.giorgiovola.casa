@@ -2,7 +2,7 @@ import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db, inbox, likes, posts } from './db/index.js';
 import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
-import { sendMessagePush, sendPush } from './push';
+import { sendFollowPush, sendMessagePush, sendPush } from './push';
 import type { ChatMessage } from '#lib/types.js';
 
 /**
@@ -187,5 +187,15 @@ export async function publishLikes(postId: number, ownerId: number | null, total
 		await sendPush(postId, ['like', 'ratio', 'ratioed_by_you']);
 	} catch (e) {
 		console.error('realtime: publishLikes failed', e);
+	}
+}
+
+/** A profile got a new follower: update its badge and send the push. */
+export async function publishFollow(followerId: number, followedId: number) {
+	try {
+		await pushUnread([followedId]);
+		await sendFollowPush(followerId, followedId);
+	} catch (e) {
+		console.error('realtime: publishFollow failed', e);
 	}
 }

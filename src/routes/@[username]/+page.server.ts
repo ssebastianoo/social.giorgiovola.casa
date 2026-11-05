@@ -5,7 +5,7 @@ import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
 import { getPosts } from '#lib/server/posts.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
-import { getFollowStats } from '#lib/server/follows.js';
+import { getFollowedBy, getFollowStats } from '#lib/server/follows.js';
 import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
 
 export const load = (async ({ params, locals, depends }) => {
@@ -19,6 +19,7 @@ export const load = (async ({ params, locals, depends }) => {
 			username: usersTable.username,
 			avatar: usersTable.avatar,
 			bio: usersTable.bio,
+			website: usersTable.website,
 			created_at: usersTable.created_at,
 			email: usersTable.email,
 			owner_id: usersTable.owner_id
@@ -55,14 +56,17 @@ export const load = (async ({ params, locals, depends }) => {
 		};
 	}
 
-	const [posts, follow] = await Promise.all([
+	const viewerId = locals.user?.id;
+	const [posts, follow, followedBy] = await Promise.all([
 		getPosts({
 			loggedUser: locals.user,
 			fromUser: user,
 			order: 'DESC',
 			limit: PAGE_SIZE
 		}),
-		getFollowStats(users[0].id, locals.user?.id)
+		getFollowStats(users[0].id, viewerId),
+		// mutuals: profiles the viewer follows that follow this one
+		viewerId ? getFollowedBy(users[0].id, viewerId) : { users: [], total: 0 }
 	]);
 	// staff see the moderation controls on profiles they are allowed to act on
 	let moderation: {
@@ -88,8 +92,10 @@ export const load = (async ({ params, locals, depends }) => {
 	return {
 		user,
 		bio: users[0].bio,
+		website: users[0].website,
 		posts,
 		follow,
+		followedBy,
 		moderation,
 		self: locals.user && locals.user.username === user.username
 	};
