@@ -5,23 +5,23 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { disablePush, enablePush, getPushState, type PushState } from '#lib/push.js';
+	import { disablePush, enablePush, getPushState, PushError, type PushState } from '#lib/push.js';
 	let { data }: { data: PageData } = $props();
 
 	// reassignable so read state can be updated locally until the next load
 	let notifications = $derived(data.notifications);
 	let push: PushState | null = $state(null);
 	let pushBusy = $state(false);
-	let pushError = $state(false);
+	let pushError: 'unavailable' | 'failed' | null = $state(null);
 
 	const togglePush = async () => {
 		pushBusy = true;
-		pushError = false;
+		pushError = null;
 		try {
 			push = push === 'on' ? await disablePush() : await enablePush();
 		} catch (e) {
 			console.error(e);
-			pushError = true;
+			pushError = e instanceof PushError && e.reason === 'unavailable' ? 'unavailable' : 'failed';
 		}
 		pushBusy = false;
 	};
@@ -84,7 +84,15 @@
 			{push === 'on' ? 'Turn off' : 'Turn on'}
 		</button>
 	</div>
-	{#if pushError}<p class="mt-2.5 text-muted">Something went wrong, try again.</p>{/if}
+	{#if pushError === 'unavailable'}
+		<p class="mt-2.5 text-muted">
+			This browser has no push service, so it can't receive push notifications. Browsers without
+			Google services (like Helium or ungoogled-chromium) don't support them; in Brave, turn on "Use
+			Google services for push messaging". Chrome, Edge, Firefox and Safari work.
+		</p>
+	{:else if pushError === 'failed'}
+		<p class="mt-2.5 text-muted">Something went wrong, try again.</p>
+	{/if}
 {:else if push === 'denied'}
 	<p class="mt-2.5 text-muted">
 		Notifications are blocked for this site: allow them in your browser settings to turn them on.
