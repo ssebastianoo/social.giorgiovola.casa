@@ -7,6 +7,7 @@ export type RealtimeEvents = {
 	counts: { id: number; likes?: number; replies_count?: number };
 	notifications: { count: number };
 	message: ChatMessage;
+	message_deleted: { id: number };
 	messages_unread: { count: number };
 	/** the stream (re)connected: anything sent while it was down was missed */
 	open: undefined;
@@ -38,6 +39,7 @@ export function connectRealtime() {
 		'counts',
 		'notifications',
 		'message',
+		'message_deleted',
 		'messages_unread'
 	];
 	for (const event of events) {

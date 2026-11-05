@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
-import { findPeer, getBlock, sendMessage } from '#lib/server/messages.js';
-import { publishMessage } from '#lib/server/realtime.js';
+import { deleteMessage, findPeer, getBlock, sendMessage } from '#lib/server/messages.js';
+import { publishMessage, publishMessageDeleted } from '#lib/server/realtime.js';
 import { hit, isLimited } from '#lib/server/ratelimit.js';
-import { LIMITS } from '#lib/server/validation.js';
+import { LIMITS, parseId } from '#lib/server/validation.js';
 import {
 	ImageError,
 	POST_IMAGE_SIZE,
@@ -116,4 +116,20 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	}
 	void publishMessage(message, locals.user.id, peer.id, locals.user.name);
 	return Response.json(message);
+};
+
+/** Deletes one of your own messages, for both participants. */
+export const DELETE: RequestHandler = async ({ locals, request }) => {
+	if (!locals.user) return new Response('Unauthorized', { status: 401 });
+	const json = await request.json().catch(() => null);
+	const id = parseId(json?.id);
+	if (id === null) return new Response('Missing message id', { status: 400 });
+
+	const deleted = await deleteMessage(locals.user.id, id);
+	// someone else's message and a missing one look the same: ids of others' messages stay private
+	if (!deleted) return new Response('Message not found', { status: 404 });
+
+	await removeUploads(deleted.images);
+	void publishMessageDeleted(id, locals.user.id, deleted.recipient_id);
+	return new Response(null, { status: 204 });
 };

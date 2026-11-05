@@ -38,6 +38,7 @@
 	onMount(() => {
 		const refresh = () => invalidate('app:messages');
 		const offMessage = onRealtime('message', refresh);
+		const offDeleted = onRealtime('message_deleted', refresh);
 		const offOpen = onRealtime('open', refresh);
 		// the count also moves when a conversation is read in another tab
 		let last = $messagesCount;
@@ -47,6 +48,7 @@
 		});
 		return () => {
 			offMessage();
+			offDeleted();
 			offOpen();
 			offCount();
 			clearTimeout(timer);

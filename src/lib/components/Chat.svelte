@@ -84,12 +84,34 @@
 		}
 	}
 
+	async function deleteMessage(message: ChatMessage) {
+		if (!confirm('Delete this message? It will be removed for both of you.')) return;
+		try {
+			const res = await fetch('/api/messages', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ id: message.id })
+			});
+			// 404: already gone, e.g. deleted from another tab
+			if (res.ok || res.status === 404) remove(message.id);
+			else showError('Something went wrong.');
+		} catch {
+			showError('Could not reach the server, check your connection.');
+		}
+	}
+
+	const remove = (id: number) => (messages = messages.filter((m) => m.id !== id));
+
 	/** Catches up on what the stream can't have delivered: it drops while the app is in the background. */
 	async function sync() {
 		try {
 			const res = await fetch(threadUrl);
 			if (!res.ok) return;
 			const latest: { messages: ChatMessage[]; hasMore: boolean } = await res.json();
+			// drop what was deleted while the stream was down, within the span this page covers
+			const oldest = latest.hasMore ? latest.messages[0]?.id ?? 0 : 0;
+			const ids = new Set(latest.messages.map((m) => m.id));
+			messages = messages.filter((m) => m.id < oldest || ids.has(m.id));
 			const newest = messages.at(-1);
 			// more than a page arrived: there would be a hole between the two lists
 			if (newest && latest.messages.length > 0 && latest.messages[0].id > newest.id) {
@@ -253,6 +275,7 @@
 			await add([message]);
 			if (message.sender === peer.username) markRead();
 		});
+		const offDeleted = onRealtime('message_deleted', ({ id }) => remove(id));
 		const offOpen = onRealtime('open', sync);
 		const onVisibility = () => {
 			if (document.visibilityState === 'visible') sync();
@@ -260,6 +283,7 @@
 		document.addEventListener('visibilitychange', onVisibility);
 		return () => {
 			offMessage();
+			offDeleted();
 			offOpen();
 			window.removeEventListener('dragenter', onDragEnter);
 			window.removeEventListener('dragover', onDragOver);
@@ -347,9 +371,16 @@
 								>{:else}{part}{/if}{/each}
 					</p>
 				{/if}
-				<p class="text-right text-[0.7rem] opacity-60">
-					{new Date(message.created_at).toLocaleString()}
-				</p>
+				<div class="flex items-center justify-end gap-2 text-[0.7rem]">
+					{#if mine}
+						<button
+							type="button"
+							class="cursor-pointer opacity-60 outline-none hover:underline hover:opacity-100"
+							on:click={() => deleteMessage(message)}>Delete</button
+						>
+					{/if}
+					<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>
+				</div>
 			</div>
 		{:else}
 			<p class="m-auto text-center text-muted">Say hi to {peer.name}.</p>

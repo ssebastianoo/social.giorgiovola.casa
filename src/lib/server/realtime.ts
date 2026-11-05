@@ -123,6 +123,20 @@ export async function publishMessage(
 	}
 }
 
+/** A direct message was deleted: drop it from both participants' screens. */
+export async function publishMessageDeleted(id: number, senderId: number, recipientId: number) {
+	try {
+		const chunk = frame('message_deleted', { id });
+		for (const client of [...clients]) {
+			if (client.userId === senderId || client.userId === recipientId) client.send(chunk);
+		}
+		// it may have been unread
+		await pushUnreadMessages(recipientId);
+	} catch (e) {
+		console.error('realtime: publishMessageDeleted failed', e);
+	}
+}
+
 /** A post was created: tell everyone, and update the parent's reply count and the inbox. */
 export async function publishPost(postId: number) {
 	try {

@@ -99,6 +99,18 @@ export async function sendMessage(
 	return { ...row, sender: me.username, recipient: peer.username, content, images };
 }
 
+/**
+ * Deletes a message, only if `senderId` sent it. Returns the recipient and the images to remove
+ * from disk, or null when there was nothing of theirs to delete.
+ */
+export async function deleteMessage(senderId: number, id: number) {
+	const [row] = await db
+		.delete(messages)
+		.where(and(eq(messages.id, id), eq(messages.sender_id, senderId)))
+		.returning({ recipient_id: messages.recipient_id, images: messages.images });
+	return row ?? null;
+}
+
 /** Marks what `peerId` sent to `userId` as read; returns whether anything changed. */
 export async function markThreadRead(userId: number, peerId: number) {
 	const updated = await db
