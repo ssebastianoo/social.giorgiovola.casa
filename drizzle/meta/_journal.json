@@ -78,6 +78,13 @@
       "when": 1793895022028,
       "tag": "0010_mute_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793906633274,
+      "tag": "0011_no_self_notifications",
+      "breakpoints": true
     }
   ]
 }
