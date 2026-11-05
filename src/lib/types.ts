@@ -60,6 +60,8 @@ export type ChatMessage = {
 	sender: string;
 	recipient: string;
 	content: string;
+	/** URL paths of uploaded images */
+	images: string[];
 	created_at: Date;
 };
 

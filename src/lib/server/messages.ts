@@ -32,6 +32,7 @@ export async function getThread(me: Party, peer: Party, before?: number | null) 
 			id: messages.id,
 			sender_id: messages.sender_id,
 			content: messages.content,
+			images: messages.images,
 			created_at: messages.created_at
 		})
 		.from(messages)
@@ -50,18 +51,24 @@ export async function getThread(me: Party, peer: Party, before?: number | null) 
 					sender: row.sender_id === me.id ? me.username : peer.username,
 					recipient: row.sender_id === me.id ? peer.username : me.username,
 					content: row.content,
+					images: row.images,
 					created_at: row.created_at
 				})
 			)
 	};
 }
 
-export async function sendMessage(me: Party, peer: Party, content: string): Promise<ChatMessage> {
+export async function sendMessage(
+	me: Party,
+	peer: Party,
+	content: string,
+	images: string[] = []
+): Promise<ChatMessage> {
 	const [row] = await db
 		.insert(messages)
-		.values({ sender_id: me.id, recipient_id: peer.id, content })
+		.values({ sender_id: me.id, recipient_id: peer.id, content, images })
 		.returning({ id: messages.id, created_at: messages.created_at });
-	return { ...row, sender: me.username, recipient: peer.username, content };
+	return { ...row, sender: me.username, recipient: peer.username, content, images };
 }
 
 /** Marks what `peerId` sent to `userId` as read; returns whether anything changed. */
@@ -91,6 +98,7 @@ export async function getConversations(userId: number): Promise<Conversation[]> 
 			sender_id: messages.sender_id,
 			recipient_id: messages.recipient_id,
 			content: sql<string>`LEFT(${messages.content}, ${PREVIEW_LENGTH})`,
+			images: sql<number>`CARDINALITY(${messages.images})`,
 			created_at: messages.created_at
 		})
 		.from(messages)
@@ -122,7 +130,7 @@ export async function getConversations(userId: number): Promise<Conversation[]> 
 			return [
 				{
 					peer: { username, name, avatar },
-					preview: row.content,
+					preview: row.content || (row.images > 0 ? '📷 Photo' : ''),
 					mine: row.sender_id === userId,
 					created_at: row.created_at,
 					unread: unread.find((u) => u.sender_id === peer.id)?.count ?? 0

@@ -159,14 +159,16 @@ export async function sendMessagePush(
 			.from(users)
 			.where(eq(users.id, recipientId));
 		if (!recipient) return;
-		let body = clip(message.content);
+		let body = message.content ? clip(message.content) : '📷 Photo';
 		// identities share the owner's devices: say which profile it is for
 		if (recipient.owner_id !== null) body += ` (@${message.recipient})`;
 		await deliver(recipient.owner_id ?? recipient.id, {
 			title: senderName,
 			body,
 			url: `/messages/${message.sender}`,
-			tag: `message:${message.sender}:${message.recipient}`
+			tag: `message:${message.sender}:${message.recipient}`,
+			// shown as a large picture where the platform supports it
+			image: message.images[0]
 		});
 	} catch (e) {
 		console.error('push: sendMessagePush failed', e);

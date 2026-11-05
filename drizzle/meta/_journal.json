@@ -43,6 +43,13 @@
       "when": 1793892211877,
       "tag": "0005_direct_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793892476914,
+      "tag": "0006_dm_images",
+      "breakpoints": true
     }
   ]
 }

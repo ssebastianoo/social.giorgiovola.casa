@@ -59,7 +59,7 @@ self.addEventListener('fetch', (event) => {
 	}
 });
 
-type PushPayload = { title: string; body: string; url: string; tag?: string };
+type PushPayload = { title: string; body: string; url: string; tag?: string; image?: string };
 
 self.addEventListener('push', (event) => {
 	let data: PushPayload;
@@ -79,8 +79,8 @@ self.addEventListener('push', (event) => {
 				body: data.body,
 				icon: '/icons/icon-192.png',
 				tag: data.tag,
-				// `renotify` is missing from the bundled lib types
-				...({ renotify: !!data.tag } as object),
+				// `image` and `renotify` are missing from the bundled lib types
+				...({ renotify: !!data.tag, image: data.image } as object),
 				data: { url: data.url }
 			});
 		})()

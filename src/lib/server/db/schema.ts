@@ -118,6 +118,11 @@ export const messages = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		content: text('content').notNull(),
+		// URL paths of uploaded images; a message may have images and no text
+		images: text('images')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		read_at: timestamptz('read_at')
 	},
