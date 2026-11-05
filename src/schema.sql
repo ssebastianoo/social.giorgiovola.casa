@@ -46,13 +46,12 @@ CREATE TABLE IF NOT EXISTS inbox(
 
 CREATE OR REPLACE FUNCTION notify_like() RETURNS TRIGGER AS $notify_like$
     BEGIN
+        -- liking your own post doesn't notify you
         INSERT INTO inbox(user_id, sender_id, post_id, type)
-        VALUES (
-            (SELECT posts.user_id FROM posts WHERE id = NEW.post_id),
-            NEW.user_id,
-            NEW.post_id,
-            'like'
-        ) ON CONFLICT DO NOTHING;
+        SELECT posts.user_id, NEW.user_id, NEW.post_id, 'like'
+        FROM posts
+        WHERE posts.id = NEW.post_id AND posts.user_id <> NEW.user_id
+        ON CONFLICT DO NOTHING;
     RETURN NULL;
     END;
 $notify_like$ LANGUAGE plpgsql;
@@ -69,23 +68,21 @@ CREATE OR REPLACE FUNCTION notify_posts() RETURNS TRIGGER AS $notify_posts$
     BEGIN
         matches = (select regexp_matches(NEW.content, '@([a-zA-Z0-9_]+)(?:\s|$)', 'g'));
         IF NEW.reply_to IS NOT NULL then
+            -- replying to your own post doesn't notify you
             INSERT INTO inbox(user_id, sender_id, post_id, type)
-            VALUES (
-                    (SELECT posts.user_id FROM posts WHERE id=NEW.reply_to),
-                    NEW.user_id,
-                    NEW.id,
-                    'reply'
-                   ) ON CONFLICT DO NOTHING;
+            SELECT posts.user_id, NEW.user_id, NEW.id, 'reply'
+            FROM posts
+            WHERE posts.id = NEW.reply_to AND posts.user_id <> NEW.user_id
+            ON CONFLICT DO NOTHING;
         ELSIF matches IS NOT NULL THEN
         FOREACH match in ARRAY matches
             LOOP
+                -- mentioning yourself doesn't notify you
                 INSERT INTO inbox(user_id, sender_id, post_id, type)
-                VALUES (
-                (SELECT users.id FROM users where username = match),
-                NEW.user_id,
-                NEW.id,
-                'mention'
-                ) ON CONFLICT DO NOTHING ;
+                SELECT users.id, NEW.user_id, NEW.id, 'mention'
+                FROM users
+                WHERE users.username = match AND users.id <> NEW.user_id
+                ON CONFLICT DO NOTHING;
             end loop;
         end if;
     RETURN NULL;
