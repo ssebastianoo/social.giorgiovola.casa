@@ -117,11 +117,8 @@
 		if (res.status === 200) {
 			const data = await res.json();
 			post.liked = data.liked;
-			if (post.liked) {
-				post.likes++;
-			} else {
-				post.likes--;
-			}
+			// absolute count, so it doesn't double up with the realtime `counts` event
+			post.likes = data.likes;
 		}
 	}
 

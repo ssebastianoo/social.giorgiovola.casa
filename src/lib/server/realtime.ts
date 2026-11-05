@@ -124,9 +124,9 @@ export function publishDeleted(postId: number, replyTo: number | null) {
 	}
 }
 
-export async function publishLikes(postId: number, ownerId: number | null) {
+export async function publishLikes(postId: number, ownerId: number | null, total?: number) {
 	try {
-		const total = await db.$count(likes, eq(likes.post_id, postId));
+		total ??= await db.$count(likes, eq(likes.post_id, postId));
 		broadcast('counts', { id: postId, likes: total });
 		await pushUnread([ownerId]);
 		await sendPush(postId, 'like');
