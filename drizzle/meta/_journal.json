@@ -85,6 +85,13 @@
       "when": 1793906633274,
       "tag": "0011_no_self_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793907715472,
+      "tag": "0012_passkeys",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
+	bigint,
+	boolean,
 	check,
 	index,
 	integer,
@@ -195,4 +197,31 @@ export const push_subscriptions = pgTable(
 		primaryKey({ columns: [t.session_token, t.endpoint] }),
 		index('push_subscriptions_endpoint').on(t.endpoint)
 	]
+);
+
+// WebAuthn credentials, an optional way to sign in to an account next to its password.
+// Identities have no passkeys of their own, like they have no password.
+export const passkeys = pgTable(
+	'passkeys',
+	{
+		// base64url credential id, as the browser reports it
+		id: text('id').primaryKey(),
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		// base64url COSE public key
+		public_key: text('public_key').notNull(),
+		// the signature counter is a uint32, too big for int4
+		counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+		transports: text('transports')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		name: text('name').notNull(),
+		// synced passkeys (multiDevice + backed up) survive losing the device
+		backed_up: boolean('backed_up').notNull().default(false),
+		created_at: timestamptz('created_at').notNull().defaultNow(),
+		last_used_at: timestamptz('last_used_at')
+	},
+	(t) => [index('passkeys_user_id').on(t.user_id)]
 );
