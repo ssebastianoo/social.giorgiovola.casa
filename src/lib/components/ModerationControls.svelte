@@ -28,8 +28,10 @@
 			await event.update();
 		};
 
-	const confirmBan = (e: SubmitEvent) => {
-		if (!confirm(`Ban @${username}? They will be signed out everywhere.`)) e.preventDefault();
+	// enhance submits even when onsubmit calls preventDefault, so the confirm goes through cancel()
+	const confirmBan = ({ cancel }: { cancel: () => void }) => {
+		if (!confirm(`Ban @${username}? They will be signed out everywhere.`)) return cancel();
+		return submit();
 	};
 </script>
 
@@ -66,8 +68,7 @@
 				class="flex flex-wrap items-center gap-2"
 				method="POST"
 				action="/admin?/ban"
-				onsubmit={confirmBan}
-				use:enhance={submit}
+				use:enhance={confirmBan}
 			>
 				<input type="hidden" name="username" value={username} />
 				<input
