@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import { page } from '$app/state';
 	import type { SwitcherAccount } from '#lib/types.js';
 
@@ -14,11 +15,11 @@
 		</p>
 		<div class="flex flex-wrap gap-2.5">
 			<form method="POST" action="?/current">
-				<button class="btn" type="submit">Log out @{account.username}</button>
+				<Button type="submit">Log out @{account.username}</Button>
 			</form>
 			{#if accounts().length > 1}
 				<form method="POST" action="?/all">
-					<button class="btn btn-red" type="submit">Log out of all accounts</button>
+					<Button variant="danger" type="submit">Log out of all accounts</Button>
 				</form>
 			{/if}
 		</div>

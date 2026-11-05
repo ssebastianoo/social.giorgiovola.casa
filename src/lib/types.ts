@@ -27,6 +27,20 @@ export type PublicUser = {
 	created_at: Date;
 };
 
+/** The profile hover card (see src/lib/components/ProfileCard.svelte). */
+export type ProfileCard = Pick<User, 'username' | 'name' | 'avatar'> & {
+	bio: string;
+	followers: number;
+	following: number;
+	/** the viewer follows this profile */
+	followed: boolean;
+	/** this profile follows the viewer */
+	followsYou: boolean;
+	self: boolean;
+	/** profiles the viewer follows that follow this one: the first few, and how many in all */
+	followedBy: { users: Pick<User, 'username' | 'name' | 'avatar'>[]; total: number };
+};
+
 export type Post = {
 	id: number;
 	user: User | PublicUser;

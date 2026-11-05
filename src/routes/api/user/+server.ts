@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
 	LIMITS,
 	isUniqueViolation,
+	validateBio,
 	validateEmail,
 	validateName,
 	validatePassword,
@@ -36,6 +37,13 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	const username = field('username').trim().toLowerCase();
 	const password = identity ? '' : field('password');
 	const avatar = data.get('avatar');
+	// collapse runs of blank lines so a bio can't push the profile down the page
+	const bio = data.has('bio')
+		? field('bio')
+				.replace(/\r\n?/g, '\n')
+				.replace(/\n{3,}/g, '\n\n')
+				.trim()
+		: null;
 
 	if (!name || !username || email === '') {
 		return bad('Missing fields');
@@ -44,6 +52,7 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	// usernames created before validation existed are kept as long as they don't change
 	const validationError =
 		validateName(name) ??
+		(bio !== null ? validateBio(bio) : null) ??
 		(email !== null ? validateEmail(email) : null) ??
 		(username !== me.username ? validateUsername(username) : null) ??
 		(password ? validatePassword(password) : null);
@@ -95,6 +104,7 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 			.set({
 				name,
 				username,
+				...(bio !== null ? { bio } : {}),
 				...(avatarPath ? { avatar: avatarPath + '?hash=' + Date.now() } : {}),
 				...(crypt ? { password: crypt.hash, salt: crypt.salt } : {}),
 				...(email !== null ? { email } : {})

@@ -51,19 +51,5 @@
 		@apply w-full border-b border-foreground p-2.5 outline-none;
 	}
 
-	.btn {
-		@apply cursor-pointer rounded-[5px] border border-accent bg-background p-[5px] text-center text-foreground outline-none;
-
-		&:hover {
-			@apply bg-accent text-background;
-		}
-	}
-
-	.btn-red {
-		@apply border-danger;
-
-		&:hover {
-			@apply bg-danger;
-		}
-	}
+	/* buttons: use src/lib/components/Button.svelte */
 }

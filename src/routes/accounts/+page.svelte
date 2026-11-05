@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import type { ActionData, PageData } from './$types';
 	import type { SwitcherAccount, SwitcherProfile } from '#lib/types.js';
 	import Avatar from '#lib/components/Avatar.svelte';
@@ -65,13 +66,13 @@
 							<form method="POST" action="?/switch">
 								<input type="hidden" name="id" value={profile.id} />
 								<input type="hidden" name="redirectTo" value={page.url.pathname} />
-								<button class="btn" type="submit">Switch</button>
+								<Button type="submit">Switch</Button>
 							</form>
 						{/if}
 						{#if profile !== current}
 							<form method="POST" action="?/delete" on:submit={confirmDelete(profile)}>
 								<input type="hidden" name="id" value={profile.id} />
-								<button class="btn btn-red" type="submit">Delete</button>
+								<Button variant="danger" type="submit">Delete</Button>
 							</form>
 						{/if}
 					</div>
@@ -101,7 +102,7 @@
 					value={values?.username ?? ''}
 					required
 				/>
-				<button class="btn self-start" type="submit">Create and switch</button>
+				<Button class="self-start" type="submit">Create and switch</Button>
 			</form>
 		{:else}
 			<p class={hintClass}>You reached the limit of {data.maxIdentities} identities.</p>
@@ -137,7 +138,7 @@
 						<form method="POST" action="?/switch">
 							<input type="hidden" name="id" value={account.id} />
 							<input type="hidden" name="redirectTo" value="/accounts" />
-							<button class="btn" type="submit">Switch</button>
+							<Button type="submit">Switch</Button>
 						</form>
 					</div>
 				</li>
@@ -147,7 +148,7 @@
 		<p class={hintClass}>No other accounts are signed in on this browser.</p>
 	{/if}
 	<div class="flex flex-wrap gap-2.5">
-		<a class="btn" href="/login">Sign in to another account</a>
-		<a class="btn btn-red" href="/logout">Log out</a>
+		<Button href="/login">Sign in to another account</Button>
+		<Button variant="danger" href="/logout">Log out</Button>
 	</div>
 </section>

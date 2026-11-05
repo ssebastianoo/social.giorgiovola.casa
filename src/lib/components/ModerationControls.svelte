@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import { enhance } from '$app/forms';
 
 	type Props = {
@@ -61,7 +62,7 @@
 		{#if banned}
 			<form method="POST" action="/admin?/unban" use:enhance={submit}>
 				<input type="hidden" name="username" value={username} />
-				<button class="btn" type="submit">Unban</button>
+				<Button type="submit">Unban</Button>
 			</form>
 		{:else}
 			<form
@@ -78,13 +79,13 @@
 					placeholder="Ban reason (optional)"
 					maxlength="200"
 				/>
-				<button class="btn btn-red" type="submit">Ban</button>
+				<Button variant="danger" type="submit">Ban</Button>
 			</form>
 		{/if}
 		{#if muted}
 			<form method="POST" action="/admin?/unmute" use:enhance={submit}>
 				<input type="hidden" name="username" value={username} />
-				<button class="btn" type="submit">Unmute</button>
+				<Button type="submit">Unmute</Button>
 			</form>
 		{:else}
 			<form
@@ -101,7 +102,7 @@
 					placeholder="Mute reason (optional)"
 					maxlength="200"
 				/>
-				<button class="btn" type="submit">Mute</button>
+				<Button type="submit">Mute</Button>
 			</form>
 		{/if}
 	</div>

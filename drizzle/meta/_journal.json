@@ -92,6 +92,20 @@
       "when": 1793907715472,
       "tag": "0012_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793917218414,
+      "tag": "0013_follows",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793917657468,
+      "tag": "0014_user_bio",
+      "breakpoints": true
     }
   ]
 }

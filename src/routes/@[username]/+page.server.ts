@@ -5,6 +5,7 @@ import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
 import { getPosts } from '#lib/server/posts.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
+import { getFollowStats } from '#lib/server/follows.js';
 import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
 
 export const load = (async ({ params, locals, depends }) => {
@@ -17,6 +18,7 @@ export const load = (async ({ params, locals, depends }) => {
 			name: usersTable.name,
 			username: usersTable.username,
 			avatar: usersTable.avatar,
+			bio: usersTable.bio,
 			created_at: usersTable.created_at,
 			email: usersTable.email,
 			owner_id: usersTable.owner_id
@@ -53,12 +55,15 @@ export const load = (async ({ params, locals, depends }) => {
 		};
 	}
 
-	const posts = await getPosts({
-		loggedUser: locals.user,
-		fromUser: user,
-		order: 'DESC',
-		limit: PAGE_SIZE
-	});
+	const [posts, follow] = await Promise.all([
+		getPosts({
+			loggedUser: locals.user,
+			fromUser: user,
+			order: 'DESC',
+			limit: PAGE_SIZE
+		}),
+		getFollowStats(users[0].id, locals.user?.id)
+	]);
 	// staff see the moderation controls on profiles they are allowed to act on
 	let moderation: {
 		banned: boolean;
@@ -82,7 +87,9 @@ export const load = (async ({ params, locals, depends }) => {
 
 	return {
 		user,
+		bio: users[0].bio,
 		posts,
+		follow,
 		moderation,
 		self: locals.user && locals.user.username === user.username
 	};

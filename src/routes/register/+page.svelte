@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import type { ActionData, PageData } from './$types';
 	import { onMount } from 'svelte';
 
@@ -62,11 +63,7 @@
 			autocomplete="new-password"
 			required
 		/>
-		<input
-			class="mt-2.5 cursor-pointer rounded-[5px] border border-foreground p-2.5 text-center outline-none hover:bg-black/70"
-			type="submit"
-			value="Register"
-		/>
+		<Button class="mt-2.5" size="lg" type="submit">Register</Button>
 	</form>
 {:else}
 	<p>Registration is currently closed.</p>
