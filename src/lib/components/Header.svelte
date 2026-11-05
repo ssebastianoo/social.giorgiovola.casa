@@ -22,7 +22,7 @@
 			<a
 				class="flex items-center text-inherit"
 				target="_blank"
-				href="https://github.com/ssebastianoo/social.giorgiovola.casa/"
+				href="https://github.com/toastenergy/social.giorgiovola.casa/"
 				title={`GitHub - ${version}`}
 				><svg
 					class="fill-accent hover:fill-foreground"
