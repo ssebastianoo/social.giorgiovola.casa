@@ -1,5 +1,6 @@
 export const LIMITS = {
 	postContent: 2000,
+	messageContent: 2000,
 	name: 64,
 	username: 32,
 	email: 254,
@@ -7,6 +8,7 @@ export const LIMITS = {
 	passwordMax: 256,
 	avatarBytes: 10 * 1024 * 1024,
 	postImages: 5,
+	messageImages: 5,
 	imageBytes: 10 * 1024 * 1024
 } as const;
 

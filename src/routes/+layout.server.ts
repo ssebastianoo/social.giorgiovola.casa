@@ -1,11 +1,14 @@
 import { db, inbox } from '#lib/server/db/index.js';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getSwitcher } from '#lib/server/accounts.js';
+import { unreadMessageCount } from '#lib/server/messages.js';
 import type { LayoutServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {
 	let notisCount = 0;
+	let messagesCount = 0;
 	if (locals.user) {
+		messagesCount = await unreadMessageCount(locals.user.id);
 		notisCount = await db.$count(
 			inbox,
 			and(eq(inbox.user_id, locals.user.id), isNull(inbox.read_at))
@@ -15,6 +18,7 @@ export const load = (async ({ locals }) => {
 	return {
 		user: locals.user,
 		notisCount,
+		messagesCount,
 		accounts: await getSwitcher(locals)
 	};
 }) satisfies LayoutServerLoad;

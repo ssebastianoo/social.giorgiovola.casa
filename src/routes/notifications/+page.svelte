@@ -67,7 +67,7 @@
 		<p>
 			{push === 'on'
 				? 'Push notifications are on for this browser.'
-				: 'Get a notification on this device when someone likes, replies or mentions you.'}
+				: 'Get a notification on this device when someone likes, replies, mentions or messages you.'}
 		</p>
 		<button class="btn" disabled={pushBusy} on:click={togglePush}>
 			{push === 'on' ? 'Turn off' : 'Turn on'}

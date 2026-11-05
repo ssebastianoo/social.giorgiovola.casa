@@ -53,7 +53,7 @@
 				width="50"
 			/>
 			{#if otherUnread() > 0}
-				<span class={dotClass} title="Unread notifications on your other profiles"></span>
+				<span class={dotClass} title="Unread notifications or messages on your other profiles"></span>
 			{/if}
 		</button>
 

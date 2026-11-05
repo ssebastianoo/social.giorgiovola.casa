@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "images" text[] DEFAULT '{}'::text[] NOT NULL;

@@ -1,7 +1,9 @@
 import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db, inbox, likes, posts } from './db/index.js';
+import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
-import { sendPush } from './push';
+import { sendMessagePush, sendPush } from './push';
+import type { ChatMessage } from '#lib/types.js';
 
 /**
  * In-process hub for server-sent events. One instance per server process, so this assumes a
@@ -70,6 +72,7 @@ async function sendUnreadCount(client: Client) {
 	if (client.userId === null) return;
 	try {
 		client.send(frame('notifications', { count: await unreadCount(client.userId) }));
+		client.send(frame('messages_unread', { count: await unreadMessageCount(client.userId) }));
 	} catch (e) {
 		console.error('realtime: unread count failed', e);
 	}
@@ -90,6 +93,33 @@ export async function pushUnread(userIds: Iterable<number | null>) {
 		if (watching.length === 0) continue;
 		const chunk = frame('notifications', { count: await unreadCount(id) });
 		for (const client of watching) client.send(chunk);
+	}
+}
+
+/** Pushes the fresh unread message count to the connected streams of this user. */
+export async function pushUnreadMessages(userId: number) {
+	const watching = [...clients].filter((c) => c.userId === userId);
+	if (watching.length === 0) return;
+	const chunk = frame('messages_unread', { count: await unreadMessageCount(userId) });
+	for (const client of watching) client.send(chunk);
+}
+
+/** A direct message was sent: only its two participants may ever receive it. */
+export async function publishMessage(
+	message: ChatMessage,
+	senderId: number,
+	recipientId: number,
+	senderName: string
+) {
+	try {
+		const chunk = frame('message', message);
+		for (const client of [...clients]) {
+			if (client.userId === senderId || client.userId === recipientId) client.send(chunk);
+		}
+		await pushUnreadMessages(recipientId);
+		await sendMessagePush(recipientId, message, senderName);
+	} catch (e) {
+		console.error('realtime: publishMessage failed', e);
 	}
 }
 

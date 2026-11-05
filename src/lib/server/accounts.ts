@@ -21,7 +21,10 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
 			avatar: users.avatar,
 			owner_id: users.owner_id,
 			// correlated subquery: the table names are written out so they can't be mis-qualified
-			unread: sql<number>`(SELECT COUNT(*) FROM inbox WHERE inbox.user_id = users.id AND inbox.read_at IS NULL)::int`
+			unread: sql<number>`(
+				(SELECT COUNT(*) FROM inbox WHERE inbox.user_id = users.id AND inbox.read_at IS NULL)
+				+ (SELECT COUNT(*) FROM messages WHERE messages.recipient_id = users.id AND messages.read_at IS NULL)
+			)::int`
 		})
 		.from(users)
 		.where(or(inArray(users.id, accountIds), inArray(users.owner_id, accountIds)))

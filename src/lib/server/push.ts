@@ -3,7 +3,7 @@ import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db, inbox, posts, push_subscriptions, sessions, settings, users } from './db/index.js';
 import { PUBLIC_URL } from '$app/env/public';
-import type { NotificationType } from '#lib/types.js';
+import type { ChatMessage, NotificationType } from '#lib/types.js';
 
 /** Web push: sends a system notification to the browsers subscribed by the recipient's account. */
 
@@ -116,6 +116,71 @@ function payloadFor(row: Row) {
 	};
 }
 
+/** Sends a notification to every browser subscribed by this account. */
+async function deliver(accountId: number, payload: object) {
+	const keys = await getVapid();
+	const options = {
+		vapidDetails: { subject: subject(), ...keys },
+		TTL: 60 * 60 * 24,
+		urgency: 'normal' as const
+	};
+	const subs = await db
+		.selectDistinctOn([push_subscriptions.endpoint], {
+			endpoint: push_subscriptions.endpoint,
+			p256dh: push_subscriptions.p256dh,
+			auth: push_subscriptions.auth
+		})
+		.from(push_subscriptions)
+		.innerJoin(sessions, eq(sessions.token, push_subscriptions.session_token))
+		.where(eq(sessions.user_id, accountId));
+	const message = JSON.stringify(payload);
+	await Promise.all(
+		subs.map(async (sub) => {
+			try {
+				await webpush.sendNotification(
+					{ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+					message,
+					options
+				);
+			} catch (e) {
+				const status = (e as { statusCode?: number }).statusCode;
+				// the browser dropped the subscription
+				if (status === 404 || status === 410)
+					await db.delete(push_subscriptions).where(eq(push_subscriptions.endpoint, sub.endpoint));
+				else console.error('push: send failed', status ?? e);
+			}
+		})
+	);
+}
+
+/** Notifies the recipient of a direct message. */
+export async function sendMessagePush(
+	recipientId: number,
+	message: ChatMessage,
+	senderName: string
+) {
+	try {
+		const [recipient] = await db
+			.select({ id: users.id, owner_id: users.owner_id })
+			.from(users)
+			.where(eq(users.id, recipientId));
+		if (!recipient) return;
+		let body = message.content ? clip(message.content) : '📷 Photo';
+		// identities share the owner's devices: say which profile it is for
+		if (recipient.owner_id !== null) body += ` (@${message.recipient})`;
+		await deliver(recipient.owner_id ?? recipient.id, {
+			title: senderName,
+			body,
+			url: `/messages/${message.sender}`,
+			tag: `message:${message.sender}:${message.recipient}`,
+			// shown as a large picture where the platform supports it
+			image: message.images[0]
+		});
+	} catch (e) {
+		console.error('push: sendMessagePush failed', e);
+	}
+}
+
 /**
  * Sends a push for the inbox rows `postId` just created. Rows are claimed (pushed_at) before
  * sending, so a like that is toggled off and on, or a retry, never notifies twice.
@@ -162,44 +227,7 @@ export async function sendPush(postId: number, types?: NotificationType[]) {
 			.where(sql`${claimed.user_id} IS DISTINCT FROM ${claimed.sender_id}`);
 		if (rows.length === 0) return;
 
-		const keys = await getVapid();
-		const options = {
-			vapidDetails: { subject: subject(), ...keys },
-			TTL: 60 * 60 * 24,
-			urgency: 'normal' as const
-		};
-
-		for (const row of rows) {
-			const subs = await db
-				.selectDistinctOn([push_subscriptions.endpoint], {
-					endpoint: push_subscriptions.endpoint,
-					p256dh: push_subscriptions.p256dh,
-					auth: push_subscriptions.auth
-				})
-				.from(push_subscriptions)
-				.innerJoin(sessions, eq(sessions.token, push_subscriptions.session_token))
-				.where(eq(sessions.user_id, row.account_id));
-			const message = JSON.stringify(payloadFor(row));
-			await Promise.all(
-				subs.map(async (sub) => {
-					try {
-						await webpush.sendNotification(
-							{ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-							message,
-							options
-						);
-					} catch (e) {
-						const status = (e as { statusCode?: number }).statusCode;
-						// the browser dropped the subscription
-						if (status === 404 || status === 410)
-							await db
-								.delete(push_subscriptions)
-								.where(eq(push_subscriptions.endpoint, sub.endpoint));
-						else console.error('push: send failed', status ?? e);
-					}
-				})
-			);
-		}
+		for (const row of rows) await deliver(row.account_id, payloadFor(row));
 	} catch (e) {
 		console.error('push: sendPush failed', e);
 	}
