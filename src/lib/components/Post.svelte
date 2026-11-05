@@ -10,7 +10,7 @@
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
 	import { markMentionSeen } from '#lib/mentions.js';
-	import { isHttpLink, isRatio } from '#lib/utils.js';
+	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -32,6 +32,7 @@
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
 	$: ratio = isRatio(post);
+	$: percent = ratioPercent(post);
 
 	// images linked with markdown syntax in the content
 	let images: string[] = [];
@@ -337,7 +338,8 @@
 					{#if ratio}
 						<span
 							class="rounded-[5px] border border-[#bb5353] px-1.5 text-[0.7rem] font-extrabold tracking-wider text-[#bb5353]"
-							title="This reply has more likes than @{post.reply_to?.username}'s post">RATIO</span
+							title="This reply has {percent}% of the likes between it and @{post.reply_to
+								?.username}'s post ({post.likes} vs {post.reply_to?.likes})">RATIO {percent}%</span
 						>
 					{/if}
 					<svg

@@ -10,6 +10,16 @@ export function isRatio(post: Pick<Post, 'likes' | 'reply_to' | 'user'>) {
 	);
 }
 
+/**
+ * The reply's share of the likes it and its parent have together, as a whole percent:
+ * 2 likes against the parent's 1 is 67%, 1 against 0 is 100%. Above 50 means it ratios.
+ */
+export function ratioPercent(post: Pick<Post, 'likes' | 'reply_to'>) {
+	const parent = post.reply_to?.likes ?? 0;
+	const total = post.likes + parent;
+	return total === 0 ? 0 : Math.round((post.likes / total) * 100);
+}
+
 export function getAvatar(
 	user: Pick<User, 'avatar'> & Pick<User, 'username'>,
 	size: number,
