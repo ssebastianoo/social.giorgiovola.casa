@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db, inbox, likes, posts } from './db/index.js';
 import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
@@ -158,8 +158,19 @@ export async function publishLikes(postId: number, ownerId: number | null, total
 	try {
 		total ??= await db.$count(likes, eq(likes.post_id, postId));
 		broadcast('counts', { id: postId, likes: total });
-		await pushUnread([ownerId]);
-		await sendPush(postId, 'like');
+		// the like may also have made this reply ratio its parent (see the notify_like trigger)
+		const ratios = await db
+			.selectDistinct({ user_id: inbox.user_id })
+			.from(inbox)
+			.where(
+				and(
+					eq(inbox.post_id, postId),
+					inArray(inbox.type, ['ratio', 'ratioed_by_you']),
+					gt(inbox.created_at, sql`NOW() - INTERVAL '1 minute'`)
+				)
+			);
+		await pushUnread([ownerId, ...ratios.map((r) => r.user_id)]);
+		await sendPush(postId, ['like', 'ratio', 'ratioed_by_you']);
 	} catch (e) {
 		console.error('realtime: publishLikes failed', e);
 	}
