@@ -17,6 +17,7 @@ export const {
 	messages,
 	blocks,
 	follows,
+	identity_members,
 	settings,
 	push_subscriptions,
 	passkeys

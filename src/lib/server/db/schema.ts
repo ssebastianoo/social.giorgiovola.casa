@@ -195,6 +195,26 @@ export const follows = pgTable(
 	]
 );
 
+// Accounts an identity is shared with: they can switch to it and use it like the owner does,
+// but only the owner (users.owner_id) can delete it or change who it is shared with.
+export const identity_members = pgTable(
+	'identity_members',
+	{
+		identity_id: integer('identity_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		account_id: integer('account_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.identity_id, t.account_id] }),
+		index('identity_members_account_id').on(t.account_id),
+		check('identity_members_not_self', sql`${t.identity_id} != ${t.account_id}`)
+	]
+);
+
 // key/value settings (the web push VAPID key pair is generated on first use)
 export const settings = pgTable('settings', {
 	key: text('key').primaryKey(),

@@ -1,7 +1,7 @@
 import type { Handle } from '@sveltejs/kit/hooks';
-import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, exists, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { db, sessions, users } from '#lib/server/db/index.js';
+import { db, identity_members, sessions, users } from '#lib/server/db/index.js';
 import { SESSION_DAYS, cookieTokens, setSessionCookies } from '#lib/server/session.js';
 import { PUBLIC_URL } from '$app/env/public';
 
@@ -23,31 +23,59 @@ export const handle = (async ({ event, resolve }) => {
 	if (tokens.length > 0) {
 		// role, ban and mute belong to the account, whichever of its profiles is in use
 		const account = alias(users, 'account');
-		// one row per valid session, with the profile it is currently acting as
+		// the identity the session is acting as, if the account owns it or it is shared with it
+		const profile = alias(users, 'profile');
+		const owner = alias(users, 'owner');
 		const rows = await db
 			.select({
 				token: sessions.token,
-				account_id: sessions.user_id,
-				id: users.id,
-				email: users.email,
-				name: users.name,
-				username: users.username,
-				avatar: users.avatar,
-				created_at: users.created_at,
-				owner_id: users.owner_id,
-				role: account.role,
-				muted_at: account.muted_at,
-				mute_reason: account.mute_reason
+				account: {
+					id: account.id,
+					email: account.email,
+					name: account.name,
+					username: account.username,
+					avatar: account.avatar,
+					created_at: account.created_at,
+					role: account.role,
+					muted_at: account.muted_at,
+					mute_reason: account.mute_reason
+				},
+				profile: {
+					id: profile.id,
+					email: profile.email,
+					name: profile.name,
+					username: profile.username,
+					avatar: profile.avatar,
+					created_at: profile.created_at,
+					owner_id: profile.owner_id
+				},
+				owner_banned_at: owner.banned_at,
+				owner_muted_at: owner.muted_at,
+				owner_mute_reason: owner.mute_reason
 			})
 			.from(sessions)
-			.innerJoin(
-				users,
+			.innerJoin(account, eq(account.id, sessions.user_id))
+			.leftJoin(
+				profile,
 				and(
-					eq(users.id, sql`COALESCE(${sessions.acting_id}, ${sessions.user_id})`),
-					or(eq(users.id, sessions.user_id), eq(users.owner_id, sessions.user_id))
+					eq(profile.id, sessions.acting_id),
+					or(
+						eq(profile.owner_id, sessions.user_id),
+						exists(
+							db
+								.select({ one: sql`1` })
+								.from(identity_members)
+								.where(
+									and(
+										eq(identity_members.identity_id, profile.id),
+										eq(identity_members.account_id, sessions.user_id)
+									)
+								)
+						)
+					)
 				)
 			)
-			.innerJoin(account, eq(account.id, sessions.user_id))
+			.leftJoin(owner, eq(owner.id, profile.owner_id))
 			.where(
 				and(
 					inArray(sessions.token, tokens),
@@ -67,21 +95,30 @@ export const handle = (async ({ event, resolve }) => {
 				valid.map((r) => r.token)
 			);
 
-		event.locals.sessions = valid.map((r) => ({ token: r.token, accountId: r.account_id ?? r.id }));
+		event.locals.sessions = valid.map((r) => ({ token: r.token, accountId: r.account.id }));
 		if (valid.length > 0) {
-			const u = valid[0];
-			event.locals.accountId = u.account_id;
-			event.locals.role = u.role;
-			event.locals.muted = u.muted_at !== null;
-			event.locals.muteReason = u.mute_reason;
-			event.locals.user = {
-				id: u.id,
-				email: u.email,
-				name: u.name,
-				username: u.username,
-				avatar: u.avatar,
-				created_at: u.created_at,
-				owner_id: u.owner_id
+			const { account: a, profile: p, ...o } = valid[0];
+			// an identity that is no longer shared with the account, or whose owner was banned,
+			// falls back to the account itself
+			const acting = p && !o.owner_banned_at ? p : null;
+			// a shared identity is muted when its owner is, so sharing it can't dodge a mute
+			const mute = a.muted_at
+				? a.mute_reason
+				: acting && o.owner_muted_at
+				? o.owner_mute_reason
+				: undefined;
+			event.locals.accountId = a.id;
+			event.locals.role = a.role;
+			event.locals.muted = mute !== undefined;
+			event.locals.muteReason = mute ?? null;
+			event.locals.user = acting ?? {
+				id: a.id,
+				email: a.email,
+				name: a.name,
+				username: a.username,
+				avatar: a.avatar,
+				created_at: a.created_at,
+				owner_id: null
 			};
 		}
 	}

@@ -108,7 +108,9 @@
 											/>
 											<span class="flex min-w-0 flex-1 flex-col text-left">
 												<span class="truncate text-[0.9em] text-foreground">{profile.name}</span>
-												<span class="truncate text-[0.8em] text-muted">@{profile.username}</span>
+												<span class="truncate text-[0.8em] text-muted"
+													>@{profile.username}{profile.sharedBy ? ' · shared' : ''}</span
+												>
 											</span>
 											{#if profile.unread > 0}
 												<span
