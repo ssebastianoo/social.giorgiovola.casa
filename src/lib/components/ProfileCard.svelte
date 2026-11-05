@@ -5,6 +5,7 @@
 	import { closeCard, holdCard, hoverCard, releaseCard, setCard } from '#lib/profileCard.svelte.js';
 	import Avatar from './Avatar.svelte';
 	import Button from './Button.svelte';
+	import { websiteLabel } from '#lib/utils.js';
 
 	const WIDTH = 300;
 	const GAP = 8;
@@ -123,6 +124,14 @@
 		{#if card.bio}
 			<p class="break-words whitespace-pre-line">{card.bio}</p>
 		{/if}
+		{#if card.website}
+			<a
+				class="-mt-1.5 truncate"
+				href={card.website}
+				target="_blank"
+				rel="noopener noreferrer nofollow ugc">{websiteLabel(card.website)}</a
+			>
+		{/if}
 
 		<p class="flex gap-4 text-[0.9em] text-muted">
 			<span><b class="text-foreground">{nf.format(card.following)}</b> Following</span>
@@ -141,7 +150,7 @@
 						</div>
 					{/each}
 				</div>
-				<p>Followed by {followedByText} you follow</p>
+				<p>Followed by {followedByText}</p>
 			</div>
 		{/if}
 

@@ -11,6 +11,7 @@ import {
 	text,
 	timestamp,
 	unique,
+	uniqueIndex,
 	type AnyPgColumn
 } from 'drizzle-orm/pg-core';
 
@@ -33,6 +34,8 @@ export const users = pgTable(
 		avatar: text('avatar'),
 		// shown on the profile, may be empty
 		bio: text('bio').notNull().default(''),
+		// an http(s) URL shown on the profile, may be empty
+		website: text('website').notNull().default(''),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		// identities: extra profiles owned by an account, usable only by switching to them
 		// from the owning account (see src/routes/accounts)
@@ -110,8 +113,9 @@ export const inbox = pgTable(
 		post_id: integer('post_id').references(() => posts.id, { onDelete: 'cascade' }),
 		// ratio: sender's reply (post_id) got more likes than the recipient's post
 		// ratioed_by_you: the recipient's reply (post_id) got more likes than the sender's post
+		// follow: the sender followed the recipient, post_id is null
 		type: text('type', {
-			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you']
+			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow']
 		}).notNull(),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		read_at: timestamptz('read_at'),
@@ -120,9 +124,14 @@ export const inbox = pgTable(
 	},
 	(t) => [
 		unique().on(t.user_id, t.sender_id, t.post_id, t.type),
+		// follows have no post, and nulls never conflict in the key above: one per follower, so
+		// unfollowing and following again doesn't notify twice
+		uniqueIndex('inbox_follow_unique')
+			.on(t.user_id, t.sender_id)
+			.where(sql`${t.type} = 'follow'`),
 		check(
 			'inbox_type_check',
-			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you')`
+			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow')`
 		)
 	]
 );
