@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import type { PageProps } from './$types';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import Avatar from '#lib/components/Avatar.svelte';
@@ -77,16 +78,15 @@
 		{#if data.filter !== 'all'}
 			<input type="hidden" name="filter" value={data.filter} />
 		{/if}
-		<button class="btn" type="submit">Search</button>
+		<Button type="submit">Search</Button>
 	</form>
 
 	<nav class="flex flex-wrap gap-2.5">
 		{#each filters as filter (filter.value)}
-			<a
-				class="btn hover:no-underline {data.filter === filter.value
-					? 'bg-accent text-background'
-					: ''}"
-				href={href(0, filter.value)}>{filter.label}</a
+			<Button
+				variant={data.filter === filter.value ? 'primary' : 'default'}
+				aria-current={data.filter === filter.value ? 'page' : undefined}
+				href={href(0, filter.value)}>{filter.label}</Button
 			>
 		{/each}
 	</nav>
@@ -125,7 +125,7 @@
 						{#if u.banned_at}
 							<form method="POST" action="?/unban" use:enhance>
 								<input type="hidden" name="username" value={u.username} />
-								<button class="btn" type="submit">Unban</button>
+								<Button type="submit">Unban</Button>
 							</form>
 						{:else}
 							<form
@@ -142,13 +142,13 @@
 									placeholder="Reason (optional)"
 									maxlength="200"
 								/>
-								<button class="btn btn-red" type="submit">Ban</button>
+								<Button variant="danger" type="submit">Ban</Button>
 							</form>
 						{/if}
 						{#if u.muted_at}
 							<form method="POST" action="?/unmute" use:enhance>
 								<input type="hidden" name="username" value={u.username} />
-								<button class="btn" type="submit">Unmute</button>
+								<Button type="submit">Unmute</Button>
 							</form>
 						{:else}
 							<form
@@ -165,7 +165,7 @@
 									placeholder="Reason (optional)"
 									maxlength="200"
 								/>
-								<button class="btn" type="submit">Mute</button>
+								<Button type="submit">Mute</Button>
 							</form>
 						{/if}
 					</div>
@@ -180,9 +180,7 @@
 							<form method="POST" action="?/role" use:enhance>
 								<input type="hidden" name="username" value={u.username} />
 								<input type="hidden" name="role" value={u.role === 'mod' ? 'user' : 'mod'} />
-								<button class="btn" type="submit"
-									>{u.role === 'mod' ? 'Remove mod' : 'Make mod'}</button
-								>
+								<Button type="submit">{u.role === 'mod' ? 'Remove mod' : 'Make mod'}</Button>
 							</form>
 							<form
 								class="flex flex-wrap items-center gap-2"
@@ -201,7 +199,7 @@
 									maxlength="256"
 									required
 								/>
-								<button class="btn btn-red" type="submit">Reset password</button>
+								<Button variant="danger" type="submit">Reset password</Button>
 							</form>
 						</div>
 					</details>
@@ -215,10 +213,10 @@
 	{#if data.page > 0 || data.hasMore}
 		<div class="flex gap-2.5">
 			{#if data.page > 0}
-				<a class="btn hover:no-underline" href={href(data.page - 1)}>Previous</a>
+				<Button href={href(data.page - 1)}>Previous</Button>
 			{/if}
 			{#if data.hasMore}
-				<a class="btn hover:no-underline" href={href(data.page + 1)}>Next</a>
+				<Button href={href(data.page + 1)}>Next</Button>
 			{/if}
 		</div>
 	{/if}

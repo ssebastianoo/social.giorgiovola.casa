@@ -8,6 +8,7 @@
 	import { navigating, page } from '$app/state';
 	import Loading from '#lib/components/Loading.svelte';
 	import ImageViewer from '#lib/components/ImageViewer.svelte';
+	import ProfileCard from '#lib/components/ProfileCard.svelte';
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
 	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
@@ -74,6 +75,7 @@
 
 <Header />
 <ImageViewer />
+<ProfileCard />
 <svelte:head>
 	{#if page.route.id === '/@[username]/[post]' && !page.error}
 		<!-- Primary Meta Tags -->
@@ -111,7 +113,7 @@
 		/>
 		<meta
 			name="description"
-			content={`Follow @${page.data.user.username} on social.giorgiovola.casa`}
+			content={page.data.bio || `Follow @${page.data.user.username} on social.giorgiovola.casa`}
 		/>
 
 		<!-- Open Graph / Facebook -->
@@ -123,7 +125,7 @@
 		/>
 		<meta
 			property="og:description"
-			content={`Follow @${page.data.user.username} on social.giorgiovola.casa`}
+			content={page.data.bio || `Follow @${page.data.user.username} on social.giorgiovola.casa`}
 		/>
 		<meta property="og:image" content={getAvatar(page.data.user, 500, true)} />
 		<meta property="og:profile:username" content={page.data.user.username} />
@@ -137,7 +139,7 @@
 		/>
 		<meta
 			property="twitter:description"
-			content={`Follow @${page.data.user.username} on social.giorgiovola.casa`}
+			content={page.data.bio || `Follow @${page.data.user.username} on social.giorgiovola.casa`}
 		/>
 		<meta property="twitter:image" content={`${getAvatar(page.data.user, 500, true)}`} />
 	{:else}

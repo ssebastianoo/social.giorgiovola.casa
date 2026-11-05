@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { Post, User } from '#lib/types.js';
-import { db, likes, posts, users } from './db/index.js';
+import { db, follows, likes, posts, users } from './db/index.js';
 
 export type GetPostsOptions = {
 	loggedUser?: User | null;
@@ -8,6 +8,8 @@ export type GetPostsOptions = {
 	postId?: number | null;
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
 	excludeReplies?: boolean;
+	/** only posts by profiles this user follows, and their own */
+	followedBy?: number | null;
 	order?: 'ASC' | 'DESC';
 	/** replies that ratio their parent come first (then `order`) */
 	ratioFirst?: boolean;
@@ -21,6 +23,7 @@ export async function getPosts({
 	postId,
 	fromUser,
 	excludeReplies,
+	followedBy,
 	order,
 	ratioFirst,
 	limit,
@@ -34,7 +37,12 @@ export async function getPosts({
 			: fromUser?.username
 			? eq(users.username, fromUser.username)
 			: undefined,
-		excludeReplies ? sql`${posts.reply_to} IS NULL` : undefined
+		excludeReplies ? sql`${posts.reply_to} IS NULL` : undefined,
+		followedBy != null
+			? sql`(${posts.user_id} = ${followedBy} OR ${posts.user_id} IN (
+					SELECT ${follows.followed_id} FROM ${follows} WHERE ${follows.follower_id} = ${followedBy}
+				))`
+			: undefined
 	];
 
 	const query = db

@@ -31,6 +31,8 @@ export const users = pgTable(
 		password: text('password'),
 		salt: text('salt'),
 		avatar: text('avatar'),
+		// shown on the profile, may be empty
+		bio: text('bio').notNull().default(''),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		// identities: extra profiles owned by an account, usable only by switching to them
 		// from the owning account (see src/routes/accounts)
@@ -171,6 +173,25 @@ export const blocks = pgTable(
 		primaryKey({ columns: [t.blocker_id, t.blocked_id] }),
 		index('blocks_blocked_id').on(t.blocked_id),
 		check('blocks_not_self', sql`${t.blocker_id} != ${t.blocked_id}`)
+	]
+);
+
+// Follows are between profiles: an identity follows and is followed on its own.
+export const follows = pgTable(
+	'follows',
+	{
+		follower_id: integer('follower_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		followed_id: integer('followed_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.follower_id, t.followed_id] }),
+		index('follows_followed_id').on(t.followed_id),
+		check('follows_not_self', sql`${t.follower_id} != ${t.followed_id}`)
 	]
 );
 

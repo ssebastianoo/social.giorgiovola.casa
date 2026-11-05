@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import type { ActionData } from './$types';
 	import { onMount } from 'svelte';
 	import {
@@ -105,19 +106,10 @@
 		autocomplete="current-password"
 		required
 	/>
-	<input
-		class="mt-2.5 cursor-pointer rounded-[5px] border border-foreground p-2.5 text-center outline-none hover:bg-black/70"
-		type="submit"
-		value="Login"
-	/>
+	<Button class="mt-2.5" size="lg" type="submit">Login</Button>
 </form>
 {#if passkeys}
-	<button
-		class="mt-5 w-full cursor-pointer rounded-[5px] border border-foreground p-2.5 text-center outline-none hover:bg-black/70"
-		type="button"
-		disabled={passkeyBusy}
-		onclick={() => signInWithPasskey()}
-	>
+	<Button class="mt-5 w-full" size="lg" disabled={passkeyBusy} onclick={() => signInWithPasskey()}>
 		{passkeyBusy ? 'Waiting for your passkey…' : 'Sign in with a passkey'}
-	</button>
+	</Button>
 {/if}

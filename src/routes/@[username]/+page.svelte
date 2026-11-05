@@ -1,20 +1,44 @@
 <script lang="ts">
-	import type { PageData } from './$types';
+	import Button from '#lib/components/Button.svelte';
+	import type { PageProps } from './$types';
 	import Posts from '#lib/components/Posts.svelte';
 	import { user } from '#lib/store.js';
 	import { goto } from '$app/navigation';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ModerationControls from '#lib/components/ModerationControls.svelte';
 
-	export let data: PageData;
-	export let editing = false;
+	let { data }: PageProps = $props();
 
-	let error: string | null = null;
+	let editing = $state(false);
+	let error: string | null = $state(null);
+	let profile = $derived(data.user);
+	// writable derived: reset on navigation, updated by the follow button
+	let follow = $derived(data.follow);
+	let bio = $derived(data.bio);
+	let followBusy = $state(false);
 
 	// identities have no email or password of their own
-	$: identity = data.user.owner_id !== null;
+	let identity = $derived(profile.owner_id !== null);
 
-	async function updateUser(e: Event) {
+	async function toggleFollow() {
+		followBusy = true;
+		try {
+			const res = await fetch(`/api/users/${profile.username}/follow`, {
+				method: follow.followed ? 'DELETE' : 'POST'
+			});
+			if (!res.ok) {
+				error = (await res.text()) || 'Could not update follow';
+				return;
+			}
+			follow = await res.json();
+			error = null;
+		} finally {
+			followBusy = false;
+		}
+	}
+
+	async function updateUser(e: SubmitEvent) {
+		e.preventDefault();
 		const target = e.target as HTMLFormElement;
 
 		const form = new FormData(target);
@@ -50,11 +74,11 @@
 		const newUser = await res.json();
 		let redirect = false;
 
-		if (data.user.username !== newUser.username) {
+		if (profile.username !== newUser.username) {
 			redirect = true;
 		}
 
-		data.user = newUser;
+		profile = newUser;
 		$user = newUser;
 
 		editing = false;
@@ -72,32 +96,47 @@
 	<p class="mb-5 rounded-[5px] bg-danger p-[5px]">{error}</p>
 {/if}
 <div class="mb-5 flex gap-2.5">
-	<Avatar size={60} user={data.user} clickable={false} />
+	<Avatar size={60} user={profile} clickable={false} />
 
 	{#if !editing}
 		<div class="flex w-full justify-between">
 			<div>
-				<h2>{data.user.name}</h2>
-				<p>@{data.user.username}</p>
+				<h2>{profile.name}</h2>
+				<p>@{profile.username}</p>
+				{#if bio}
+					<p class="mt-2 break-words whitespace-pre-line">{bio}</p>
+				{/if}
+				<p class="mt-1 flex gap-3 text-[0.9em] text-muted">
+					<span><b class="text-foreground">{follow.followers}</b> followers</span>
+					<span><b class="text-foreground">{follow.following}</b> following</span>
+				</p>
 			</div>
-			{#if $user && $user.id === data.user.id}
+			{#if $user && $user.id === profile.id}
 				<div class="flex gap-2.5">
-					<button
-						class="btn h-8"
-						on:click={() => {
+					<Button
+						size="sm"
+						onclick={() => {
 							editing = true;
-						}}>Edit</button
+						}}>Edit</Button
 					>
 					<form method="POST" action="/logout?/current">
-						<button type="submit" class="btn btn-red h-8">Logout</button>
+						<Button type="submit" variant="danger" size="sm">Logout</Button>
 					</form>
 				</div>
 			{:else if $user}
-				<a class="btn h-8 hover:no-underline" href={`/messages/${data.user.username}`}>Message</a>
+				<div class="flex gap-2.5">
+					<Button
+						size="sm"
+						variant={follow.followed ? 'default' : 'primary'}
+						disabled={followBusy}
+						onclick={toggleFollow}>{follow.followed ? 'Unfollow' : 'Follow'}</Button
+					>
+					<Button size="sm" href={`/messages/${profile.username}`}>Message</Button>
+				</div>
 			{/if}
 		</div>
 	{:else}
-		<form class="flex flex-col gap-3.75" on:submit|preventDefault={updateUser}>
+		<form class="flex flex-col gap-3.75" onsubmit={updateUser}>
 			<div class="flex flex-col">
 				<label class="text-[0.8em] opacity-80" for="avatar">Avatar</label>
 				<input
@@ -116,7 +155,7 @@
 					placeholder="Giorgio"
 					name="fullName"
 					type="text"
-					value={data.user.name}
+					value={profile.name}
 					required
 				/>
 			</div>
@@ -128,9 +167,23 @@
 					placeholder="Infinit7Even"
 					name="username"
 					type="text"
-					value={data.user.username}
+					value={profile.username}
 					required
 				/>
+			</div>
+			<div class="flex flex-col">
+				<label class="text-[0.8em] opacity-80" for="bio">Bio</label>
+				<!-- same limit as LIMITS.bio, enforced on the server; prettier 2 would self-close it -->
+				<!-- prettier-ignore -->
+				<textarea
+					class="resize-none border-b border-[#ccc] outline-none"
+					id="bio"
+					name="bio"
+					rows="3"
+					maxlength="160"
+					placeholder="A few words about you"
+					value={bio}
+				></textarea>
 			</div>
 			{#if !identity}
 				<div class="flex flex-col">
@@ -141,7 +194,7 @@
 						placeholder="social@giorgiovola.casa"
 						name="email"
 						type="email"
-						value={data.user.email}
+						value={profile.email}
 						required
 					/>
 				</div>
@@ -165,12 +218,13 @@
 				</div>
 			{/if}
 			<div>
-				<button class="btn" type="submit">Save</button>
-				<button
-					class="btn btn-red"
-					on:click={() => {
+				<Button type="submit">Save</Button>
+				<Button
+					variant="danger"
+					type="button"
+					onclick={() => {
 						editing = false;
-					}}>Cancel</button
+					}}>Cancel</Button
 				>
 			</div>
 		</form>
@@ -179,7 +233,7 @@
 
 {#if data.moderation}
 	<ModerationControls
-		username={data.user.username}
+		username={profile.username}
 		banned={data.moderation.banned}
 		muted={data.moderation.muted}
 		banReason={data.moderation.ban_reason}
@@ -188,6 +242,6 @@
 	/>
 {/if}
 
-{#key data.user}
+{#key profile}
 	<Posts shouldLoadMore posts={data.posts} />
 {/key}

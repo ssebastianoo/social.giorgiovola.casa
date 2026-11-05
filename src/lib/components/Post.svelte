@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import { user, isMobile } from '#lib/store.js';
 	import type { Post } from '#lib/types.js';
 	import Posts from './Posts.svelte';
@@ -12,6 +13,7 @@
 	import { markMentionSeen } from '#lib/mentions.js';
 	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
+	import { profileHover } from '#lib/profileCard.svelte.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -171,12 +173,20 @@
 					: ''}?
 			</p>
 			<div class="flex gap-2.5">
-				<button class="btn w-full" on:click|stopPropagation={deletePost}>Yes</button>
-				<button
-					class="btn btn-red w-full"
-					on:click|stopPropagation={() => {
+				<Button
+					class="w-full"
+					onclick={(e) => {
+						e.stopPropagation();
+						deletePost(e);
+					}}>Yes</Button
+				>
+				<Button
+					variant="danger"
+					class="w-full"
+					onclick={(e) => {
+						e.stopPropagation();
 						isModalOpen = false;
-					}}>No</button
+					}}>No</Button
 				>
 			</div>
 		</div>
@@ -237,11 +247,16 @@
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
 		>
-			<Avatar size={45} user={post.user} />
+			<div class="flex self-start" use:profileHover={post.user.username}>
+				<Avatar size={45} user={post.user} />
+			</div>
 			<div class="flex w-full flex-col gap-0.75">
 				<div class="flex flex-wrap items-center justify-between gap-[5px]">
 					<p class="font-extrabold">
-						<a class="text-inherit" href={'/@' + post.user.username}
+						<a
+							class="text-inherit"
+							href={'/@' + post.user.username}
+							use:profileHover={post.user.username}
 							>{post.user.name}
 							<span class="font-medium opacity-80">@{post.user.username}</span></a
 						>
@@ -262,7 +277,11 @@
 										rel="noopener noreferrer nofollow">{part}</a
 									>
 								{:else if mentionRegex.test(part)}
-									<a on:click|stopPropagation href={`/${part}`}>{part}</a>
+									<a
+										on:click|stopPropagation
+										href={`/${part}`}
+										use:profileHover={part.slice(1).toLowerCase()}>{part}</a
+									>
 								{:else}
 									{part}
 								{/if}

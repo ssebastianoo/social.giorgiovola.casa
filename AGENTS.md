@@ -27,6 +27,61 @@ Write all new and modified Svelte code with Svelte 5 runes. Do not introduce leg
 
 SvelteKit conventions: `+page.server.ts` / `+server.ts` for server logic, form actions and `load` functions for data; types come from `./$types`.
 
+## Design guide
+
+The look is flat, dark and minimal: a near-black page, light grey text and one green accent. Match it in any new UI instead of bringing in new styles.
+
+**No glows, gradients or drop shadows.** Separate surfaces with a 1px border or a translucent black fill, not with shadow.
+
+### Tokens
+
+Colors are Tailwind theme tokens in `src/app.css` (`@theme`). Use them by name (`text-muted`, `border-accent`, …), not as hex values.
+
+| token        | value     | use                                                        |
+| ------------ | --------- | ---------------------------------------------------------- |
+| `background` | `#0c0b0b` | page and popover backgrounds                               |
+| `foreground` | `#d9d9d9` | text, icon fills (`fill="#d9d9d9"` on inline SVGs)         |
+| `accent`     | `#799a74` | links, button and popover borders, active states, focus    |
+| `danger`     | `#bb5353` | destructive actions, error banners                         |
+| `muted`      | `#999999` | hints, counts, secondary text                              |
+| `line`       | `#4e4e4e` | quiet dividers and list rows, never the frame of a popover |
+
+- **Font:** Manrope Variable (`font-sans`, loaded in `+layout.svelte`), medium weight by default. Use `font-bold` / `font-extrabold` for names and headings.
+- **Text sizes** are relative (`em`) so they follow their context: `text-[0.9em]` for secondary lines, `text-[0.85em]` for hints (`text-muted`), `text-[0.8em]` for form labels and timestamps, `text-[0.75em]` for badges. Use `opacity-80` / `opacity-70` for a dimmed part of a line (such as `@username` next to a name).
+- **Corners:** `rounded-[5px]` for buttons, popovers, error banners and images. `rounded-md` for dialogs and list rows, `rounded-[10px]` for info panels, `rounded-full` only for avatars and pills.
+- **Spacing:** the scale is 5px / 10px / 20px: `[5px]`, `2.5` and `5` in Tailwind (`p-[5px]`, `gap-2.5`, `mb-5`). Most stacks are `flex flex-col gap-2.5`. Sections on settings-like pages are `mb-10 flex flex-col gap-3`.
+- **Layout:** content sits in a single centered column (`max-w-160 p-5`, in `+layout.svelte`) under the fixed, translucent header. Pages don't add their own outer width or padding.
+
+### Components and patterns
+
+- **Buttons: always use `src/lib/components/Button.svelte`.** Don't add a raw `<button>` or `<a>` styled as a button, and don't restyle one. The old `.btn` classes are gone.
+  - `variant`:
+    - `default`: green outline that fills on hover.
+    - `primary`: filled green, for the one main action (Follow, the active filter tab).
+    - `danger`: red outline, for delete, ban and log out.
+    - `danger-on-hover`: an "on" toggle that turns red on hover because clicking it undoes something (Following → Unfollow).
+  - `size`:
+    - `sm` (32px high): for buttons in a row next to a name or heading.
+    - `md` (the default).
+    - `lg`: for auth forms.
+  - Passing `href` renders a link with the same look. `type` defaults to `button`, so write `type="submit"` explicitly in forms.
+  - `class` is for layout only (`w-full`, `self-start`, margins, `size-8` for an icon button). Colors, border and radius come from `variant`, so don't override them.
+  - Handlers are callback props (`onclick`), including from legacy components. Write `on:click|stopPropagation` as `onclick={(e) => { e.stopPropagation(); … }}`.
+  - Icon-only controls (the composer, chat input, image viewer and like buttons) are plain unbordered buttons and stay that way. Give them an `aria-label` or `title`.
+- **Inputs:** the `.input` class (bottom border only, `p-2.5`) for standalone fields. Labelled form fields are a `flex flex-col` with a `text-[0.8em] opacity-80` label above an input that has only `border-b`.
+- **Popovers and dialogs:** `rounded-[5px] border border-accent bg-background p-2.5` (dialogs: `rounded-md … p-5`). For one shared overlay (image viewer, profile hover card), mount a single instance in `+layout.svelte`, drive it from a `.svelte.ts` state module and close it on `afterNavigate` and Escape.
+- **Info panels:** `rounded-[10px] bg-black/70 p-2.5`.
+- **Errors:** `rounded-[5px] bg-danger p-[5px]` above the thing that failed.
+- **Tabs and filters:** an underline tab row (`border-b-2`, `border-accent` when active, `opacity-60` otherwise) or `Button`s with the active one `primary`. Mark the active one with `aria-current="page"`.
+- **Hover states:** rows and posts darken (`hover:bg-black`, or `hover:bg-white/5` on small menu links). Links underline on hover (base style). Turn that off with `hover:no-underline` when a link isn't text.
+- **Avatars:** always `src/lib/components/Avatar.svelte` (round). Common sizes are 24 (inline stacks), 45 (posts), 50 (header), 60–64 (profile and card).
+- **Numbers:** show large counts compactly with `Intl.NumberFormat(undefined, { notation: 'compact' })` (`49.4K`).
+- **Touch:** hover-only UI (such as the profile card) must only open for `pointerType === 'mouse'`, and tapping must still work without it.
+
+### Prettier caveat
+
+The project is on Prettier 2 and `prettier-plugin-svelte` 2, which can't print Svelte 5 `{@render}` / snippet markup. Components that use it, such as `Button.svelte`, are listed in `.prettierignore`, so format them by hand. Prettier 2 also turns an empty `<textarea></textarea>` into a self-closing tag that Svelte 5 rejects, so put `<!-- prettier-ignore -->` before it.
+
 ## Project layout
 
 - `src/routes/` — pages and API endpoints (`api/**/+server.ts`).

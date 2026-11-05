@@ -16,6 +16,7 @@ export const {
 	inbox,
 	messages,
 	blocks,
+	follows,
 	settings,
 	push_subscriptions,
 	passkeys

@@ -2,6 +2,7 @@ export const LIMITS = {
 	postContent: 2000,
 	messageContent: 2000,
 	name: 64,
+	bio: 160,
 	username: 32,
 	email: 254,
 	passwordMin: 8,
@@ -33,6 +34,11 @@ export function validateUsername(username: string): string | null {
 export function validateName(name: string): string | null {
 	if (!name.trim() || name.length > LIMITS.name)
 		return `Name must be between 1 and ${LIMITS.name} characters.`;
+	return null;
+}
+
+export function validateBio(bio: string): string | null {
+	if (bio.length > LIMITS.bio) return `Bio must be at most ${LIMITS.bio} characters.`;
 	return null;
 }
 

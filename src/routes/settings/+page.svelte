@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import type { ActionData, PageData } from './$types';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -133,8 +134,8 @@
 								aria-label="Passkey name"
 								autofocus
 							/>
-							<button class="btn" type="submit">Save</button>
-							<button class="btn" type="button" onclick={() => (renaming = null)}>Cancel</button>
+							<Button type="submit">Save</Button>
+							<Button type="button" onclick={() => (renaming = null)}>Cancel</Button>
 						</form>
 					{:else}
 						<div class="flex min-w-0 flex-1 flex-col">
@@ -146,16 +147,14 @@
 							</span>
 						</div>
 						<div class="flex items-center gap-1.5">
-							<button class="btn" type="button" onclick={() => (renaming = passkey.id)}>
-								Rename
-							</button>
+							<Button type="button" onclick={() => (renaming = passkey.id)}>Rename</Button>
 							<form
 								method="POST"
 								action="?/deletePasskey"
 								use:enhance={confirmDelete(passkey.name)}
 							>
 								<input type="hidden" name="id" value={passkey.id} />
-								<button class="btn btn-red" type="submit">Delete</button>
+								<Button variant="danger" type="submit">Delete</Button>
 							</form>
 						</div>
 					{/if}
@@ -179,9 +178,9 @@
 				maxlength="64"
 				aria-label="Passkey name"
 			/>
-			<button class="btn self-start" type="submit" disabled={busy}>
+			<Button class="self-start" type="submit" disabled={busy}>
 				{busy ? 'Waiting for your device…' : 'Add passkey'}
-			</button>
+			</Button>
 		</form>
 	{:else}
 		<p class={hintClass}>You reached the limit of {data.maxPasskeys} passkeys.</p>

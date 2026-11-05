@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import type { PageData } from './$types';
 	import { notisCount, user } from '#lib/store.js';
 	import type { Notification } from '#lib/types.js';
@@ -70,7 +71,7 @@
 <div class="flex items-center justify-between gap-2.5">
 	<h1>Notifications</h1>
 	{#if notifications.some((n) => !n.read_at)}
-		<button class="btn" onclick={readAll}>Mark all as read</button>
+		<Button onclick={readAll}>Mark all as read</Button>
 	{/if}
 </div>
 {#if push === 'on' || push === 'off'}
@@ -80,9 +81,9 @@
 				? 'Push notifications are on for this browser.'
 				: 'Get a notification on this device when someone likes, replies, mentions or messages you.'}
 		</p>
-		<button class="btn" disabled={pushBusy} onclick={togglePush}>
+		<Button disabled={pushBusy} onclick={togglePush}>
 			{push === 'on' ? 'Turn off' : 'Turn on'}
-		</button>
+		</Button>
 	</div>
 	{#if pushError === 'unavailable'}
 		<p class="mt-2.5 text-muted">
@@ -156,8 +157,9 @@
 				</div>
 			</div>
 			{#if !notification.read_at}
-				<button
-					class="btn flex size-8 items-center justify-center"
+				<Button
+					class="size-8"
+					aria-label="Mark as read"
 					onkeypress={async (e) => {
 						e.stopPropagation();
 						e.preventDefault();
@@ -172,7 +174,7 @@
 						><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
 							d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"
 						/></svg
-					></button
+					></Button
 				>
 			{/if}
 			<!-- {#if notification.read_at === null}
