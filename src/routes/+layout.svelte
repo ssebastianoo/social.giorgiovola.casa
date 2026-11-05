@@ -1,18 +1,30 @@
 <script lang="ts">
-	import '../style.scss';
+	import '@fontsource-variable/manrope';
+	import '../app.css';
 	import { onMount } from 'svelte';
 	import Header from '#lib/components/Header.svelte';
 	import type { LayoutData } from './$types';
-	import { user, isMobile, notisCount } from '#lib/store.js';
+	import { user, isMobile, notisCount, messagesCount } from '#lib/store.js';
 	import { navigating, page } from '$app/state';
 	import Loading from '#lib/components/Loading.svelte';
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
 	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
+	import { syncPush } from '#lib/push.js';
 
 	export let data: LayoutData;
 	$user = data.user;
 	$notisCount = data.notisCount;
+	$messagesCount = data.messagesCount;
+
+	// social cards can't show SVGs: use the first other image of a post, else the generated card
+	const postCard = (post: { images?: string[] }) => {
+		const image = post.images?.find((i) => !i.endsWith('.svg'));
+		return image ? (PUBLIC_URL || page.url.origin) + image : publicUrl() + '/image.png';
+	};
+	// image-only posts have no text to quote
+	const postText = (post: { content: string; images?: string[] }) =>
+		post.content || (post.images?.length ? '[image]' : '');
 
 	// adapter-node no longer rewrites the request URL to the public origin (SvelteKit 3 dropped
 	// ORIGIN), so build absolute share URLs from PUBLIC_URL like the canonical link does
@@ -26,20 +38,28 @@
 		connectRealtime();
 	}
 
+	// push subscriptions belong to a session: bind this browser's one to the profile now in use
+	$: if (mounted && userId !== null) syncPush().catch(() => {});
+
+	// unread count on the installed app's icon
+	$: if (mounted && 'setAppBadge' in navigator) {
+		if ($notisCount + $messagesCount > 0)
+			navigator.setAppBadge($notisCount + $messagesCount).catch(() => {});
+		else navigator.clearAppBadge().catch(() => {});
+	}
+
 	onMount(() => {
 		mounted = true;
-		const off = onRealtime('notifications', ({ count }) => ($notisCount = count));
+		const offNotifications = onRealtime('notifications', ({ count }) => ($notisCount = count));
+		const offMessages = onRealtime('messages_unread', ({ count }) => ($messagesCount = count));
 		return () => {
-			off();
+			offNotifications();
+			offMessages();
 			disconnectRealtime();
 		};
 	});
 
 	onMount(async () => {
-		if ('serviceWorker' in navigator) {
-			navigator.serviceWorker.register('/sw.js');
-		}
-
 		if ('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0) {
 			$isMobile = true;
 		}
@@ -55,19 +75,19 @@
 <svelte:head>
 	{#if page.route.id === '/@[username]/[post]' && !page.error}
 		<!-- Primary Meta Tags -->
-		<title>{`${page.data.post.user.name} : "${page.data.post.content}"`}</title>
+		<title>{`${page.data.post.user.name} : "${postText(page.data.post)}"`}</title>
 		<meta name="title" content={`${page.data.post.user.name} on social.giorgiovola.casa`} />
-		<meta name="description" content={page.data.post.content} />
+		<meta name="description" content={postText(page.data.post)} />
 
 		<!-- Open Graph / Facebook -->
 		<meta property="og:type" content="article" />
 		<meta property="og:url" content={publicUrl()} />
 		<meta
 			property="og:title"
-			content={`${page.data.post.user.name} : "${page.data.post.content}"`}
+			content={`${page.data.post.user.name} : "${postText(page.data.post)}"`}
 		/>
-		<meta property="og:description" content={page.data.post.content} />
-		<meta property="og:image" content={publicUrl() + '/image.png'} />
+		<meta property="og:description" content={postText(page.data.post)} />
+		<meta property="og:image" content={postCard(page.data.post)} />
 		<meta property="og:profile:username" content={page.data.post.user.username} />
 		<meta property="og:article:published_time" content={page.data.post.created_at.toISOString()} />
 
@@ -78,8 +98,8 @@
 			property="twitter:title"
 			content={`${page.data.post.user.name} on social.giorgiovola.casa`}
 		/>
-		<meta property="twitter:description" content={page.data.post.content} />
-		<meta property="twitter:image" content={publicUrl() + '/image.png'} />
+		<meta property="twitter:description" content={postText(page.data.post)} />
+		<meta property="twitter:image" content={postCard(page.data.post)} />
 	{:else if page.route.id === '/@[username]' && !page.error}
 		<!-- Primary Meta Tags -->
 		<title>{page.data.user.name} (@{page.data.user.username}) / social.giorgiovola.casa</title>
@@ -147,32 +167,11 @@
 	{/if}
 	<link rel="canonical" href={`${PUBLIC_URL}${page.url.pathname}`} />
 </svelte:head>
-<main>
-	<div class="container">
+<main class="relative mt-20 flex justify-center">
+	<div class="w-full max-w-160 p-5">
 		<slot />
 	</div>
 	{#if navigating.to}
-		<div class="footer"><Loading /></div>
+		<div class="fixed right-0 bottom-0"><Loading /></div>
 	{/if}
 </main>
-
-<style>
-	main {
-		display: flex;
-		justify-content: center;
-		margin-top: 80px;
-		position: relative;
-	}
-
-	.footer {
-		position: fixed;
-		bottom: 0;
-		right: 0;
-	}
-
-	.container {
-		padding: 20px;
-		width: 100%;
-		max-width: 600px;
-	}
-</style>

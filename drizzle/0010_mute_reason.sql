@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "mute_reason" text;

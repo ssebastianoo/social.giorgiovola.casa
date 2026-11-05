@@ -1,6 +1,7 @@
 import type { Actions } from './$types';
 import { dummyVerify, hashPassword, verifyPassword } from '#lib/server/password.js';
-import { sql } from '#lib/server/db.js';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { db, users } from '#lib/server/db/index.js';
 import { createSession } from '#lib/server/session.js';
 import { clear, clientIp, hit, isLimited } from '#lib/server/ratelimit.js';
 import type { User } from '#lib/types.js';
@@ -38,21 +39,31 @@ export const actions = {
 		}
 
 		const res = login.includes('@')
-			? await sql`
-					SELECT * FROM users WHERE lower(email) = ${login} AND owner_id IS NULL
-					ORDER BY (email = ${username.trim()}) DESC LIMIT 1
-				`
+			? await db
+					.select()
+					.from(users)
+					.where(and(sql`lower(${users.email}) = ${login}`, isNull(users.owner_id)))
+					.orderBy(desc(sql`(${users.email} = ${username.trim()})`))
+					.limit(1)
 			: // identities have no password and can't be logged into directly
-			  await sql`SELECT * FROM users WHERE username = ${login} AND owner_id IS NULL`;
+			  await db
+					.select()
+					.from(users)
+					.where(and(eq(users.username, login), isNull(users.owner_id)));
 
 		let ok = false;
 		if (res.length > 0) {
-			const { valid, needsRehash } = await verifyPassword(password, res[0].salt, res[0].password);
+			// accounts (owner_id IS NULL) always have a password and salt, see users_identity_check
+			const { valid, needsRehash } = await verifyPassword(
+				password,
+				res[0].salt ?? '',
+				res[0].password ?? ''
+			);
 			ok = valid;
 			if (valid && needsRehash) {
 				// upgrade legacy PBKDF2 hashes now that we know the plaintext
 				const { salt, hash } = await hashPassword(password);
-				await sql`UPDATE users SET password = ${hash}, salt = ${salt} WHERE id = ${res[0].id}`;
+				await db.update(users).set({ password: hash, salt }).where(eq(users.id, res[0].id));
 			}
 		} else {
 			await dummyVerify(password);
@@ -66,6 +77,12 @@ export const actions = {
 			};
 		}
 		clear(accountKey);
+
+		// only said after the password checked out, so it can't be used to probe for accounts
+		if (res[0].banned_at) {
+			const reason = res[0].ban_reason ? ` Reason: ${res[0].ban_reason}` : '';
+			return { error: `This account has been banned.${reason}` };
+		}
 
 		const user: User = {
 			email: res[0].email,

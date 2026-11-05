@@ -1,19 +1,28 @@
 import type { Actions, PageServerLoad } from './$types';
-import { sql } from '#lib/server/db.js';
+import { eq } from 'drizzle-orm';
+import { db, users as usersTable } from '#lib/server/db/index.js';
 import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
 import { getPosts } from '#lib/server/posts.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
+import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
 
 export const load = (async ({ params, locals, depends }) => {
 	const username = params.username.toLowerCase();
 	depends('app:posts');
 
-	const users = await sql`
-		SELECT id, name, username, avatar, created_at, email, owner_id
-		FROM users
-		WHERE username = ${username}
-	`;
+	const users = await db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+			username: usersTable.username,
+			avatar: usersTable.avatar,
+			created_at: usersTable.created_at,
+			email: usersTable.email,
+			owner_id: usersTable.owner_id
+		})
+		.from(usersTable)
+		.where(eq(usersTable.username, username));
 
 	if (users.length === 0) {
 		error(404, 'User not found');
@@ -50,9 +59,31 @@ export const load = (async ({ params, locals, depends }) => {
 		order: 'DESC',
 		limit: PAGE_SIZE
 	});
+	// staff see the moderation controls on profiles they are allowed to act on
+	let moderation: {
+		banned: boolean;
+		muted: boolean;
+		ban_reason: string | null;
+		mute_reason: string | null;
+		identity: boolean;
+	} | null = null;
+	if (isStaff(locals.role)) {
+		const target = await findTarget(username);
+		if (target && canModerate(locals, target)) {
+			moderation = {
+				banned: target.banned_at !== null,
+				muted: target.muted_at !== null,
+				ban_reason: target.ban_reason,
+				mute_reason: target.mute_reason,
+				identity: target.username !== username
+			};
+		}
+	}
+
 	return {
 		user,
 		posts,
+		moderation,
 		self: locals.user && locals.user.username === user.username
 	};
 }) satisfies PageServerLoad;

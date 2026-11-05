@@ -1,6 +1,9 @@
 import type { RequestHandler } from './$types';
-import { sql } from '#lib/server/db.js';
+import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { db, sessions, users } from '#lib/server/db/index.js';
 import fs from 'fs';
+import { AVATAR_SIZE, ImageError, sniffImage, toWebp } from '#lib/server/images.js';
+import { removeAvatarFiles } from '#lib/server/accounts.js';
 import { hashPassword } from '#lib/server/password.js';
 import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
@@ -11,28 +14,6 @@ import {
 	validatePassword,
 	validateUsername
 } from '#lib/server/validation.js';
-
-const AVATAR_DIR = 'static/avatars';
-const AVATAR_EXTS = ['png', 'jpg', 'gif', 'webp'];
-
-/** Detects the image type from the file's magic bytes; the client-declared MIME type is not trusted. */
-function sniffImage(buf: Buffer): string | null {
-	if (
-		buf.length >= 8 &&
-		buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-	)
-		return 'png';
-	if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
-	const head = buf.subarray(0, 6).toString('latin1');
-	if (head === 'GIF87a' || head === 'GIF89a') return 'gif';
-	if (
-		buf.length >= 12 &&
-		buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
-		buf.subarray(8, 12).toString('latin1') === 'WEBP'
-	)
-		return 'webp';
-	return null;
-}
 
 const bad = (message: string) => new Response(message, { status: 400 });
 
@@ -68,11 +49,18 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 		(password ? validatePassword(password) : null);
 	if (validationError) return bad(validationError);
 
-	const taken = await sql`
-		SELECT username, email FROM users
-		WHERE (username = ${username} ${email !== null ? sql`OR lower(email) = lower(${email})` : sql``})
-		AND id != ${me.id}
-	`;
+	const taken = await db
+		.select({ username: users.username, email: users.email })
+		.from(users)
+		.where(
+			and(
+				or(
+					eq(users.username, username),
+					email !== null ? sql`lower(${users.email}) = lower(${email})` : undefined
+				),
+				ne(users.id, me.id)
+			)
+		);
 	if (taken.some((u) => u.username === username)) return bad('Username already in use.');
 	if (taken.length > 0) return bad('Email already in use.');
 
@@ -83,31 +71,44 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 		const buffer = Buffer.from(await avatar.arrayBuffer());
 		const ext = sniffImage(buffer);
 		if (!ext) {
-			return bad('Unsupported avatar type, use PNG, JPEG, GIF or WebP');
+			return bad('Unsupported avatar type, use PNG, JPEG, GIF, WebP, AVIF, BMP, ICO or SVG');
 		}
-		avatarPath = `/avatars/${me.id}.${ext}`;
-		await fs.promises.writeFile(`static${avatarPath}`, buffer);
-		// drop a previous avatar saved with a different extension
-		for (const other of AVATAR_EXTS.filter((e) => e !== ext)) {
-			await fs.promises.rm(`${AVATAR_DIR}/${me.id}.${other}`, { force: true });
+		let webp: Buffer;
+		try {
+			webp = await toWebp(buffer, ext, { size: AVATAR_SIZE, square: true });
+		} catch (e) {
+			if (e instanceof ImageError) return bad(e.message);
+			throw e;
 		}
+		// avatars used to keep their uploaded format: drop any older file first
+		await removeAvatarFiles(me.id);
+		avatarPath = `/avatars/${me.id}.webp`;
+		await fs.promises.writeFile(`static${avatarPath}`, webp);
 	}
 
 	const crypt = password ? await hashPassword(password) : null;
 
-	let users;
+	let updated;
 	try {
-		users = await sql`
-			UPDATE users
-			SET
-				name = ${name},
-				${avatarPath ? sql`avatar = ${avatarPath + '?hash=' + Date.now()},` : sql``}
-				${crypt ? sql`password = ${crypt.hash}, salt = ${crypt.salt},` : sql``}
-				${email !== null ? sql`email = ${email},` : sql``}
-				username = ${username}
-			WHERE id = ${me.id}
-			RETURNING id, name, username, email, avatar, created_at, owner_id
-		`;
+		[updated] = await db
+			.update(users)
+			.set({
+				name,
+				username,
+				...(avatarPath ? { avatar: avatarPath + '?hash=' + Date.now() } : {}),
+				...(crypt ? { password: crypt.hash, salt: crypt.salt } : {}),
+				...(email !== null ? { email } : {})
+			})
+			.where(eq(users.id, me.id))
+			.returning({
+				id: users.id,
+				name: users.name,
+				username: users.username,
+				email: users.email,
+				avatar: users.avatar,
+				created_at: users.created_at,
+				owner_id: users.owner_id
+			});
 	} catch (e) {
 		if (isUniqueViolation(e)) return bad('Username or email already in use.');
 		throw e;
@@ -116,14 +117,12 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	if (crypt) {
 		// log out every other session after a password change
 		const token = cookies.get(SESSION_COOKIE);
-		await sql`
-			DELETE FROM sessions
-			WHERE user_id = ${me.id}
-			${token ? sql`AND token != ${token}` : sql``}
-		`;
+		await db
+			.delete(sessions)
+			.where(and(eq(sessions.user_id, me.id), token ? ne(sessions.token, token) : undefined));
 	}
 
-	return new Response(JSON.stringify(users[0]), {
+	return new Response(JSON.stringify(updated), {
 		headers: { 'Content-Type': 'application/json' }
 	});
 };

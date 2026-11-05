@@ -9,6 +9,8 @@
 	import Avatar from './Avatar.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
+	import { markMentionSeen } from '#lib/mentions.js';
+	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -17,39 +19,63 @@
 	export let showThread = false;
 
 	const dispatch = createEventDispatcher();
+	const dialogClass =
+		'fixed top-0 left-0 z-999 m-0 h-full w-screen border-none bg-background/20 p-0 text-foreground backdrop-blur-[2px]';
+	const dialogContentClass =
+		'flex w-[calc(85%+2px)] max-w-[392px] flex-col gap-2.5 rounded-md border border-accent bg-background/80 p-5';
 	let showingLikes = false;
 	let isModalOpen = false;
 	let popup: HTMLDivElement;
 
-	// anchored, so things like `javascript:alert(1)//https://x` never become links
-	const urlRegex = /^https?:\/\/\S+$/;
 	const mentionRegex = /^@[a-zA-Z0-9_]+$/;
 
-	function isHttpUrl(value: string) {
-		try {
-			const { protocol } = new URL(value);
-			return protocol === 'https:' || protocol === 'http:';
-		} catch {
-			return false;
-		}
-	}
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
+	$: ratio = isRatio(post);
+	$: percent = ratioPercent(post);
 
+	// images linked with markdown syntax in the content
 	let images: string[] = [];
+	// uploaded images first, then linked ones
+	$: gallery = [...(post.images ?? []), ...images];
+
+	// a mention notification is read as soon as the post it points at is actually on screen
+	let postElement: HTMLDivElement;
+	let onScreen = false;
+	let visibilityState: DocumentVisibilityState;
+	$: if (
+		$user &&
+		onScreen &&
+		visibilityState === 'visible' &&
+		contentParts.includes(`@${$user.username}`)
+	)
+		markMentionSeen($user.id, post.id);
+
+	onMount(() => {
+		if (!$user) return;
+		// below the fixed header, and past the very bottom edge of the screen
+		const observer = new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting), {
+			rootMargin: '-80px 0px -10% 0px'
+		});
+		observer.observe(postElement);
+		return () => observer.disconnect();
+	});
 
 	onMount(() => {
 		const matchImage = post.content.match(imageRegex);
 		if (matchImage) {
 			// only absolute https images: no same-origin URLs that could trigger actions
 			const src = matchImage[1].trim();
-			if (src.startsWith('https://') && isHttpUrl(src)) images = [...images, src];
+			if (src.startsWith('https://') && isHttpLink(src)) images = [...images, src];
 			post.content = post.content.replace(imageRegex, '');
 		}
 	});
 
 	onMount(() => {
 		const offCounts = onRealtime('counts', (c) => {
+			// the parent's likes decide whether this reply ratios it
+			if (post.reply_to && c.id === post.reply_to.id && c.likes !== undefined)
+				post.reply_to.likes = c.likes;
 			if (c.id !== post.id) return;
 			if (c.likes !== undefined) post.likes = c.likes;
 			if (c.replies_count !== undefined) post.replies_count = c.replies_count;
@@ -86,10 +112,10 @@
 				id: post.id
 			})
 		});
-		if (res.ok) {
-			if (page.route.id === '/@[username]/[post]') {
-				return await goto('/');
-			}
+		// staff can try to delete any post, the server refuses the ones they can't (a missing one is gone anyway)
+		if (!res.ok && res.status !== 404) return alert(await res.text());
+		if (page.route.id === '/@[username]/[post]') {
+			return await goto('/');
 		}
 		dispatch('postDeleted', {
 			id: post.id
@@ -110,11 +136,8 @@
 		if (res.status === 200) {
 			const data = await res.json();
 			post.liked = data.liked;
-			if (post.liked) {
-				post.likes++;
-			} else {
-				post.likes--;
-			}
+			// absolute count, so it doesn't double up with the realtime `counts` event
+			post.likes = data.likes;
 		}
 	}
 
@@ -129,18 +152,27 @@
 	}
 </script>
 
-<div class="popup" bind:this={popup}>
+<svelte:document bind:visibilityState />
+
+<div
+	class="invisible fixed top-[-100px] left-1/2 z-999 w-[calc(80%+42px)] max-w-[442px] -translate-x-1/2 rounded-[5px] border border-accent bg-black/10 p-5 text-center backdrop-blur-[2px] transition-all duration-400 ease-[cubic-bezier(0.86,0,0.07,1)]"
+	bind:this={popup}
+>
 	<p>Link copied!</p>
 </div>
 
-<dialog open={isModalOpen}>
-	<div class="modal">
-		<div class="dialog-content">
-			<p>Are you sure you want to delete this post?</p>
-			<div class="buttons">
-				<button class="btn" on:click|stopPropagation={deletePost}>Yes</button>
+<dialog class={dialogClass} open={isModalOpen}>
+	<div class="flex h-full items-center justify-center">
+		<div class={dialogContentClass}>
+			<p>
+				Are you sure you want to delete this post{$user && $user.username !== post.user.username
+					? ' as a moderator'
+					: ''}?
+			</p>
+			<div class="flex gap-2.5">
+				<button class="btn w-full" on:click|stopPropagation={deletePost}>Yes</button>
 				<button
-					class="btn btn-red"
+					class="btn btn-red w-full"
 					on:click|stopPropagation={() => {
 						isModalOpen = false;
 					}}>No</button
@@ -149,13 +181,16 @@
 		</div>
 	</div>
 </dialog>
-<dialog open={showingLikes}>
+<dialog class={dialogClass} open={showingLikes}>
 	{#if showingLikes}<!--  we don't want to render the component until the dialog is open -->
-		<div class="modal">
-			<div class="dialog-content">
-				<div class="top">
+		<div class="flex h-full items-center justify-center">
+			<div class={dialogContentClass}>
+				<div class="flex items-center justify-between">
 					<h3>Users who liked</h3>
-					<button class="btn" on:click|stopPropagation={() => (showingLikes = false)}>
+					<button
+						class="flex cursor-pointer outline-none"
+						on:click|stopPropagation={() => (showingLikes = false)}
+					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							height="1.6em"
@@ -167,25 +202,25 @@
 						>
 					</button>
 				</div>
-				<div class="likes">
+				<div class="max-h-[calc(var(--fh)-160px)] cursor-pointer overflow-auto hover:underline">
 					<Likes postId={post.id} />
 				</div>
 			</div>
 		</div>
 	{/if}
 </dialog>
-<div class="posts">
-	<div class="post-parent">
+<div class="flex flex-col gap-2.5">
+	<div class="flex flex-col gap-2.5">
 		{#if post.reply_to && showReplyTo}
-			<a class="reply_to" href={'/@' + post.reply_to.username + '/' + post.reply_to.id}
+			<a class="ml-0.75" href={'/@' + post.reply_to.username + '/' + post.reply_to.id}
 				>Replying to @{post.reply_to.username}</a
 			>
 		{/if}
 		<div
-			class="post"
-			data-post-open={isPostOpen}
-			data-mobile={$isMobile}
-			data-thread={showThread}
+			bind:this={postElement}
+			class="relative flex cursor-pointer gap-2.5 rounded-[5px] p-2.5 [-webkit-tap-highlight-color:transparent] {showThread
+				? 'before:absolute before:top-[27.5px] before:-left-5 before:block before:h-1.5 before:w-[21px] before:rounded-bl-[10px] before:border-b before:border-l before:border-accent'
+				: ''} {!isPostOpen && !$isMobile ? 'hover:bg-black' : ''}"
 			tabindex="0"
 			role="button"
 			aria-pressed="false"
@@ -202,39 +237,62 @@
 			}}
 		>
 			<Avatar size={45} user={post.user} />
-			<div class="text">
-				<div class="post-info">
-					<p class="name">
-						<a href={'/@' + post.user.username}
-							>{post.user.name} <span class="username">@{post.user.username}</span></a
+			<div class="flex w-full flex-col gap-0.75">
+				<div class="flex flex-wrap items-center justify-between gap-[5px]">
+					<p class="font-extrabold">
+						<a class="text-inherit" href={'/@' + post.user.username}
+							>{post.user.name}
+							<span class="font-medium opacity-80">@{post.user.username}</span></a
 						>
 					</p>
-					<p class="date">
+					<p class="text-[0.8rem] opacity-70">
 						{new Date(post.created_at).toLocaleString()}
 					</p>
 				</div>
-				<div class="content">
-					<p>
-						{#each contentParts as part}
-							{#if urlRegex.test(part) && isHttpUrl(part)}
+				<div class="flex flex-col gap-2.5">
+					{#if post.content.trim()}
+						<p class="cursor-text wrap-anywhere">
+							{#each contentParts as part}
+								{#if isHttpLink(part)}
+									<a
+										on:click|stopPropagation
+										href={part}
+										target="_blank"
+										rel="noopener noreferrer nofollow">{part}</a
+									>
+								{:else if mentionRegex.test(part)}
+									<a on:click|stopPropagation href={`/${part}`}>{part}</a>
+								{:else}
+									{part}
+								{/if}
+							{/each}
+						</p>
+					{/if}
+					{#if gallery.length > 0}
+						<div class="grid gap-1.5 {gallery.length > 1 ? 'grid-cols-2' : ''}">
+							{#each gallery as image}
 								<a
-									on:click|stopPropagation
-									href={part}
+									class="flex justify-center overflow-hidden rounded-[5px] bg-black/40"
+									href={image}
 									target="_blank"
-									rel="noopener noreferrer nofollow">{part}</a
+									rel="noopener noreferrer"
+									on:click|stopPropagation
 								>
-							{:else if mentionRegex.test(part)}
-								<a on:click|stopPropagation href={`/${part}`}>{part}</a>
-							{:else}
-								{part}
-							{/if}
-						{/each}
-					</p>
-					{#each images as image}
-						<img width="100%" src={image} alt="" referrerpolicy="no-referrer" loading="lazy" />
-					{/each}
+									<img
+										class={gallery.length > 1
+											? 'aspect-square w-full object-cover'
+											: 'max-h-[500px] max-w-full object-contain'}
+										src={image}
+										alt=""
+										referrerpolicy="no-referrer"
+										loading="lazy"
+									/>
+								</a>
+							{/each}
+						</div>
+					{/if}
 				</div>
-				<div class="actions">
+				<div class="mt-2.5 flex w-full items-center gap-2.5">
 					<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 0 512 512"
 						><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
 							fill="#d9d9d9"
@@ -245,9 +303,7 @@
 					<p>{post.replies_count ? post.replies_count : '0'}</p>
 					<button
 						on:click|preventDefault|stopPropagation={toggleLike}
-						class="like"
-						data-liked={post.liked}
-						data-logged={$user ? 'true' : 'false'}
+						class="group flex cursor-pointer items-center outline-none"
 						title="like"
 					>
 						<svg height="20px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
@@ -257,6 +313,11 @@
 								stroke-linejoin="round"
 							/><g id="SVGRepo_iconCarrier">
 								<path
+									class={$isMobile
+										? ''
+										: `transition-[fill,stroke] duration-100 ease-in-out ${
+												!post.liked && $user ? 'group-hover:fill-foreground' : ''
+										  }`}
 									d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z"
 									fill={post.liked ? '#bb5353' : 'transparent'}
 									stroke={post.liked ? '#bb5353' : '#d9d9d9'}
@@ -264,7 +325,7 @@
 							</g></svg
 						>
 					</button>
-					<div class="likes">
+					<div class="cursor-pointer hover:underline">
 						<div
 							role="button"
 							tabindex="0"
@@ -278,6 +339,13 @@
 							{post.likes ? post.likes : '0'}
 						</div>
 					</div>
+					{#if ratio}
+						<span
+							class="rounded-[5px] border border-[#bb5353] px-1.5 text-[0.7rem] font-extrabold tracking-wider text-[#bb5353]"
+							title="This reply has {percent}% of the likes between it and @{post.reply_to
+								?.username}'s post ({post.likes} vs {post.reply_to?.likes})">RATIO {percent}%</span
+						>
+					{/if}
 					<svg
 						on:click|preventDefault|stopPropagation={() => {
 							sharePost(post);
@@ -285,7 +353,7 @@
 						on:keypress|preventDefault|stopPropagation={() => {
 							sharePost(post);
 						}}
-						class="share"
+						class="group outline-none select-none [-webkit-tap-highlight-color:transparent]"
 						role="button"
 						tabindex="0"
 						height="28px"
@@ -294,6 +362,7 @@
 						xmlns="http://www.w3.org/2000/svg"
 					>
 						<path
+							class={$isMobile ? '' : 'group-hover:fill-foreground'}
 							fill-rule="evenodd"
 							clip-rule="evenodd"
 							d="M14.734 15.8974L19.22 12.1374C19.3971 11.9927 19.4998 11.7761 19.4998 11.5474C19.4998 11.3187 19.3971 11.1022 19.22 10.9574L14.734 7.19743C14.4947 6.9929 14.1598 6.94275 13.8711 7.06826C13.5824 7.19377 13.3906 7.47295 13.377 7.78743V9.27043C7.079 8.17943 5.5 13.8154 5.5 16.9974C6.961 14.5734 10.747 10.1794 13.377 13.8154V15.3024C13.3888 15.6178 13.5799 15.8987 13.8689 16.0254C14.158 16.1521 14.494 16.1024 14.734 15.8974Z"
@@ -303,13 +372,18 @@
 							stroke-linejoin="round"
 						/>
 					</svg>
-					{#if $user && $user.username === post.user.username}
+					{#if $user && ($user.username === post.user.username || page.data.role !== 'user')}
 						<button
-							class="trash"
+							class="group flex cursor-pointer items-center outline-none"
 							on:click|preventDefault|stopPropagation={() => (isModalOpen = true)}
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" height="15px" viewBox="0 0 448 512"
+							<svg
+								class="fill-foreground"
+								xmlns="http://www.w3.org/2000/svg"
+								height="15px"
+								viewBox="0 0 448 512"
 								><path
+									class={$isMobile ? '' : 'group-hover:[fill-opacity:0.8]'}
 									fill-opacity=".4"
 									d="M135.2 17.7L128 32H32C14.3 32 0 46.3 0 64S14.3 96 32 96H416c17.7 0 32-14.3 32-32s-14.3-32-32-32H320l-7.2-14.3C307.4 6.8 296.3 0 284.2 0H163.8c-12.1 0-23.2 6.8-28.6 17.7zM416 128H32L53.2 467c1.6 25.3 22.6 45 47.9 45H346.9c25.3 0 46.3-19.7 47.9-45L416 128z"
 								/>
@@ -321,8 +395,10 @@
 		</div>
 	</div>
 	{#if post.replies_count > 0 && loadReplies}
-		<div class="replies-parent">
-			<div class="replies">
+		<div class="flex justify-end">
+			<div
+				class="relative w-[90.5%] before:absolute before:top-0 before:-left-5 before:block before:h-[calc(100%-74px)] before:w-px before:bg-accent"
+			>
 				{#await fetchRepliesPromise()}
 					Loading replies...
 				{:then replies}
@@ -332,232 +408,3 @@
 		</div>
 	{/if}
 </div>
-
-<style lang="scss">
-	@import 'src/variables.scss';
-
-	dialog .dialog-content {
-		.top {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-
-			button {
-				all: unset;
-				cursor: pointer;
-				display: flex;
-			}
-		}
-
-		.likes {
-			max-height: calc(var(--fh) - 160px);
-			overflow: auto;
-		}
-	}
-
-	.popup {
-		visibility: hidden;
-		position: fixed;
-		background-color: rgba(0, 0, 0, 0.1);
-		backdrop-filter: blur(2px);
-		padding: 20px;
-		border: 1px solid $color1;
-		border-radius: 5px;
-		width: 80%;
-		max-width: 400px;
-		text-align: center;
-		left: 50%;
-		top: -100px;
-		transform: translateX(-50%);
-		z-index: 999;
-		transition: all 0.4s cubic-bezier(0.86, 0, 0.07, 1);
-	}
-
-	.replies-parent {
-		display: flex;
-		justify-content: flex-end;
-
-		.replies {
-			width: 90.5%;
-			position: relative;
-
-			&::before {
-				content: '';
-				display: block;
-				width: 1px;
-				height: calc(100% - 74px);
-				background-color: $color1;
-				position: absolute;
-				left: -20px;
-				top: 0;
-			}
-		}
-	}
-
-	.posts {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.likes {
-		cursor: pointer;
-
-		&:hover {
-			text-decoration: underline;
-		}
-	}
-
-	.post-parent {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-
-		.reply_to {
-			margin-left: 3px;
-		}
-	}
-
-	.post {
-		display: flex;
-		gap: 10px;
-		color: unset;
-		text-decoration: none;
-		border-radius: 5px;
-		cursor: pointer;
-		padding: 10px;
-		-webkit-tap-highlight-color: transparent;
-		position: relative;
-
-		.share {
-			user-select: none;
-			-webkit-tap-highlight-color: transparent;
-			outline: none;
-
-			&:active {
-				outline: none;
-			}
-		}
-
-		button {
-			all: unset;
-			display: flex;
-			align-items: center;
-			cursor: pointer;
-
-			svg {
-				fill: $color3;
-			}
-		}
-
-		.text {
-			display: flex;
-			flex-direction: column;
-			width: 100%;
-			gap: 3px;
-
-			.content {
-				display: flex;
-				flex-direction: column;
-				gap: 10px;
-
-				p {
-					cursor: text;
-					overflow-wrap: anywhere;
-				}
-
-				img {
-					border-radius: 5px;
-				}
-			}
-
-			.actions {
-				margin-top: 10px;
-				display: flex;
-				align-items: center;
-				width: 100%;
-				gap: 10px;
-
-				.like:hover {
-					svg {
-						fill: rgb(245, 129, 129);
-					}
-				}
-			}
-
-			.post-info {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				flex-wrap: wrap;
-				gap: 5px;
-
-				a {
-					color: unset;
-					text-decoration: unset;
-
-					&:hover {
-						text-decoration: underline;
-					}
-				}
-
-				.name {
-					font-weight: 800;
-
-					.username {
-						font-weight: 500;
-						opacity: 0.8;
-					}
-				}
-
-				.date {
-					font-size: 0.8rem;
-					opacity: 0.7;
-				}
-			}
-		}
-
-		&[data-thread='true']::before {
-			content: '';
-			display: block;
-			width: 20px;
-			height: 5px;
-			border-bottom: 1px solid $color1;
-			border-left: 1px solid $color1;
-			border-bottom-left-radius: 10px;
-			position: absolute;
-			top: 27.5px;
-			left: -20px;
-		}
-
-		&[data-mobile='false'] {
-			.like svg path {
-				transition: fill 0.1s ease-in-out, stroke 0.1s ease-in-out;
-			}
-
-			.like:not([data-liked='true']):not([data-logged='false']):hover {
-				svg path {
-					fill: $color3;
-				}
-			}
-
-			.share:hover {
-				path {
-					fill: $color3;
-				}
-			}
-
-			.trash:hover {
-				svg path {
-					fill-opacity: 0.8;
-				}
-			}
-		}
-
-		&[data-post-open='false'][data-mobile='false'] {
-			&:hover {
-				background-color: black;
-			}
-		}
-	}
-</style>

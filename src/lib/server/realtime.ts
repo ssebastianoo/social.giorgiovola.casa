@@ -1,5 +1,9 @@
-import { sql } from './db';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { db, inbox, likes, posts } from './db/index.js';
+import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
+import { sendMessagePush, sendPush } from './push';
+import type { ChatMessage } from '#lib/types.js';
 
 /**
  * In-process hub for server-sent events. One instance per server process, so this assumes a
@@ -16,7 +20,8 @@ const clients = new Set<Client>();
 const encoder = new TextEncoder();
 const HEARTBEAT_MS = 8000;
 
-const frame = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+const frame = (event: string, data: unknown) =>
+	`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
 /** Registers a client; returns the stream body and a cleanup. */
 export function openStream(userId: number | null, signal: AbortSignal) {
@@ -60,14 +65,14 @@ export function openStream(userId: number | null, signal: AbortSignal) {
 }
 
 async function unreadCount(userId: number): Promise<number> {
-	const res = await sql`SELECT COUNT(*)::int AS count FROM inbox WHERE user_id = ${userId} AND read_at IS NULL`;
-	return res[0].count;
+	return db.$count(inbox, and(eq(inbox.user_id, userId), isNull(inbox.read_at)));
 }
 
 async function sendUnreadCount(client: Client) {
 	if (client.userId === null) return;
 	try {
 		client.send(frame('notifications', { count: await unreadCount(client.userId) }));
+		client.send(frame('messages_unread', { count: await unreadMessageCount(client.userId) }));
 	} catch (e) {
 		console.error('realtime: unread count failed', e);
 	}
@@ -91,6 +96,47 @@ export async function pushUnread(userIds: Iterable<number | null>) {
 	}
 }
 
+/** Pushes the fresh unread message count to the connected streams of this user. */
+export async function pushUnreadMessages(userId: number) {
+	const watching = [...clients].filter((c) => c.userId === userId);
+	if (watching.length === 0) return;
+	const chunk = frame('messages_unread', { count: await unreadMessageCount(userId) });
+	for (const client of watching) client.send(chunk);
+}
+
+/** A direct message was sent: only its two participants may ever receive it. */
+export async function publishMessage(
+	message: ChatMessage,
+	senderId: number,
+	recipientId: number,
+	senderName: string
+) {
+	try {
+		const chunk = frame('message', message);
+		for (const client of [...clients]) {
+			if (client.userId === senderId || client.userId === recipientId) client.send(chunk);
+		}
+		await pushUnreadMessages(recipientId);
+		await sendMessagePush(recipientId, message, senderName);
+	} catch (e) {
+		console.error('realtime: publishMessage failed', e);
+	}
+}
+
+/** A direct message was deleted: drop it from both participants' screens. */
+export async function publishMessageDeleted(id: number, senderId: number, recipientId: number) {
+	try {
+		const chunk = frame('message_deleted', { id });
+		for (const client of [...clients]) {
+			if (client.userId === senderId || client.userId === recipientId) client.send(chunk);
+		}
+		// it may have been unread
+		await pushUnreadMessages(recipientId);
+	} catch (e) {
+		console.error('realtime: publishMessageDeleted failed', e);
+	}
+}
+
 /** A post was created: tell everyone, and update the parent's reply count and the inbox. */
 export async function publishPost(postId: number) {
 	try {
@@ -98,12 +144,16 @@ export async function publishPost(postId: number) {
 		if (!post) return;
 		broadcast('post', post);
 		if (post.reply_to) {
-			const parent = await sql`SELECT COUNT(*)::int AS count FROM posts WHERE reply_to = ${post.reply_to.id}`;
-			broadcast('counts', { id: post.reply_to.id, replies_count: parent[0].count });
+			const replies_count = await db.$count(posts, eq(posts.reply_to, post.reply_to.id));
+			broadcast('counts', { id: post.reply_to.id, replies_count });
 		}
 		// the inbox triggers already ran: notify whoever received something from this post
-		const inbox = await sql`SELECT DISTINCT user_id FROM inbox WHERE post_id = ${postId}`;
-		await pushUnread(inbox.map((r) => r.user_id));
+		const received = await db
+			.selectDistinct({ user_id: inbox.user_id })
+			.from(inbox)
+			.where(eq(inbox.post_id, postId));
+		await pushUnread(received.map((r) => r.user_id));
+		await sendPush(postId);
 	} catch (e) {
 		console.error('realtime: publishPost failed', e);
 	}
@@ -112,17 +162,29 @@ export async function publishPost(postId: number) {
 export function publishDeleted(postId: number, replyTo: number | null) {
 	broadcast('post_deleted', { id: postId });
 	if (replyTo !== null) {
-		sql`SELECT COUNT(*)::int AS count FROM posts WHERE reply_to = ${replyTo}`
-			.then((r) => broadcast('counts', { id: replyTo, replies_count: r[0].count }))
+		db.$count(posts, eq(posts.reply_to, replyTo))
+			.then((replies_count) => broadcast('counts', { id: replyTo, replies_count }))
 			.catch((e) => console.error('realtime: publishDeleted failed', e));
 	}
 }
 
-export async function publishLikes(postId: number, ownerId: number | null) {
+export async function publishLikes(postId: number, ownerId: number | null, total?: number) {
 	try {
-		const res = await sql`SELECT COUNT(*)::int AS count FROM likes WHERE post_id = ${postId}`;
-		broadcast('counts', { id: postId, likes: res[0].count });
-		await pushUnread([ownerId]);
+		total ??= await db.$count(likes, eq(likes.post_id, postId));
+		broadcast('counts', { id: postId, likes: total });
+		// the like may also have made this reply ratio its parent (see the notify_like trigger)
+		const ratios = await db
+			.selectDistinct({ user_id: inbox.user_id })
+			.from(inbox)
+			.where(
+				and(
+					eq(inbox.post_id, postId),
+					inArray(inbox.type, ['ratio', 'ratioed_by_you']),
+					gt(inbox.created_at, sql`NOW() - INTERVAL '1 minute'`)
+				)
+			);
+		await pushUnread([ownerId, ...ratios.map((r) => r.user_id)]);
+		await sendPush(postId, ['like', 'ratio', 'ratioed_by_you']);
 	} catch (e) {
 		console.error('realtime: publishLikes failed', e);
 	}

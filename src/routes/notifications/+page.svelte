@@ -5,10 +5,30 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
-	export let data: PageData;
+	import { disablePush, enablePush, getPushState, PushError, type PushState } from '#lib/push.js';
+	let { data }: { data: PageData } = $props();
+
+	// reassignable so read state can be updated locally until the next load
+	let notifications = $derived(data.notifications);
+	let push: PushState | null = $state(null);
+	let pushBusy = $state(false);
+	let pushError: 'unavailable' | 'failed' | null = $state(null);
+
+	const togglePush = async () => {
+		pushBusy = true;
+		pushError = null;
+		try {
+			push = push === 'on' ? await disablePush() : await enablePush();
+		} catch (e) {
+			console.error(e);
+			pushError = e instanceof PushError && e.reason === 'unavailable' ? 'unavailable' : 'failed';
+		}
+		pushBusy = false;
+	};
 
 	// the unread count is pushed by the layout; reload the list when it grows
 	onMount(() => {
+		getPushState().then((state) => (push = state));
 		let last = $notisCount;
 		return notisCount.subscribe((count) => {
 			if (count > last) invalidateAll();
@@ -24,43 +44,78 @@
 			$notisCount -= 1;
 
 			if (!redirect) {
-				for (const not of data.notifications) {
-					if (not.id === notification.id) {
-						not.read_at = new Date();
-						data.notifications = data.notifications;
-						break;
-					}
-				}
+				notifications = notifications.map((not) =>
+					not.id === notification.id ? { ...not, read_at: new Date() } : not
+				);
 			}
 		}
 		if (redirect) {
-			if (notification.type === 'like') {
+			if (notification.type === 'like' || notification.type === 'ratioed_by_you') {
 				goto(`/@${$user?.username}/${notification.post.id}`);
 			} else {
 				goto(`/@${notification.sender.username}/${notification.post.id}`);
 			}
 		}
 	};
+
+	const readAll = async () => {
+		const res = await fetch('/api/notifications/read', { method: 'POST' });
+		if (!res.ok) return;
+		$notisCount = 0;
+		const now = new Date();
+		notifications = notifications.map((not) => (not.read_at ? not : { ...not, read_at: now }));
+	};
 </script>
 
-<h1>Notifications</h1>
-<div class="notifications">
-	{#each data.notifications as notification}
+<div class="flex items-center justify-between gap-2.5">
+	<h1>Notifications</h1>
+	{#if notifications.some((n) => !n.read_at)}
+		<button class="btn" onclick={readAll}>Mark all as read</button>
+	{/if}
+</div>
+{#if push === 'on' || push === 'off'}
+	<div class="mt-2.5 flex items-center justify-between gap-2.5 rounded-[10px] bg-black/70 p-2.5">
+		<p>
+			{push === 'on'
+				? 'Push notifications are on for this browser.'
+				: 'Get a notification on this device when someone likes, replies, mentions or messages you.'}
+		</p>
+		<button class="btn" disabled={pushBusy} onclick={togglePush}>
+			{push === 'on' ? 'Turn off' : 'Turn on'}
+		</button>
+	</div>
+	{#if pushError === 'unavailable'}
+		<p class="mt-2.5 text-muted">
+			This browser has no push service, so it can't receive push notifications. Browsers without
+			Google services (like Helium or ungoogled-chromium) don't support them; in Brave, turn on "Use
+			Google services for push messaging". Chrome, Edge, Firefox and Safari work.
+		</p>
+	{:else if pushError === 'failed'}
+		<p class="mt-2.5 text-muted">Something went wrong, try again.</p>
+	{/if}
+{:else if push === 'denied'}
+	<p class="mt-2.5 text-muted">
+		Notifications are blocked for this site: allow them in your browser settings to turn them on.
+	</p>
+{/if}
+<div class="mt-2.5 flex flex-col gap-3.75">
+	{#each notifications as notification (notification.id)}
 		<div
-			class="notification"
-			data-unread={!Boolean(notification.read_at)}
+			class="flex cursor-pointer items-center justify-between rounded-[10px] bg-black/70 p-2.5 {notification.read_at
+				? ''
+				: 'border border-accent'}"
 			role="button"
 			tabindex="0"
-			on:keypress={async () => {
+			onkeypress={async () => {
 				await readNotification(notification);
 			}}
-			on:click={async () => {
+			onclick={async () => {
 				await readNotification(notification);
 			}}
 		>
-			<div class="notification-content">
+			<div class="flex gap-2.5">
 				<Avatar user={notification.sender} size={50} />
-				<div class="notification-text">
+				<div class="flex flex-col justify-center">
 					{#if notification.type === 'like'}
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
@@ -73,13 +128,25 @@
 							mentioned you in
 							<a href={`/@${notification.sender.username}/${notification.post.id}`}>a post</a>
 						</p>
+					{:else if notification.type === 'ratio'}
+						<p>
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							ratioed
+							<a href={`/@${notification.sender.username}/${notification.post.id}`}>your post</a>
+						</p>
+					{:else if notification.type === 'ratioed_by_you'}
+						<p>
+							You ratioed
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							with <a href={`/@${$user?.username}/${notification.post.id}`}>your reply</a>
+						</p>
 					{:else if notification.type === 'reply'}
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
 							replied to
 							<a href={`/@${notification.sender.username}/${notification.post.id}`}>your post</a>
 						</p>
-						<p class="content">
+						<p class="text-muted">
 							{notification.post.content.slice(
 								0,
 								100
@@ -90,11 +157,15 @@
 			</div>
 			{#if !notification.read_at}
 				<button
-					class="btn"
-					on:keypress|stopPropagation|preventDefault={async () => {
+					class="btn flex size-8 items-center justify-center"
+					onkeypress={async (e) => {
+						e.stopPropagation();
+						e.preventDefault();
 						await readNotification(notification, false);
 					}}
-					on:click|stopPropagation|preventDefault={async () => {
+					onclick={async (e) => {
+						e.stopPropagation();
+						e.preventDefault();
 						await readNotification(notification, false);
 					}}
 					><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 0 448 512"
@@ -113,50 +184,3 @@
 		</div>
 	{/each}
 </div>
-
-<style lang="scss">
-	@import 'src/variables.scss';
-	.notifications {
-		display: flex;
-		flex-direction: column;
-		gap: 15px;
-		margin-top: 10px;
-	}
-
-	.notification {
-		cursor: pointer;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		background-color: $color5;
-		padding: 10px;
-		border-radius: 10px;
-
-		.notification-content {
-			display: flex;
-			gap: 10px;
-
-			.notification-text {
-				display: flex;
-				flex-direction: column;
-				justify-content: center;
-			}
-		}
-
-		.btn {
-			width: 20px;
-			height: 20px;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-		}
-
-		.content {
-			color: $color6;
-		}
-
-		&[data-unread='true'] {
-			border: 1px solid $color1;
-		}
-	}
-</style>

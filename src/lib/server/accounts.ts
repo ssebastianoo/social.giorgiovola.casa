@@ -1,5 +1,6 @@
 import fs from 'fs';
-import { sql } from './db';
+import { asc, eq, inArray, or, sql } from 'drizzle-orm';
+import { db, users } from './db/index.js';
 import type { SwitcherAccount, SwitcherProfile } from '#lib/types.js';
 
 /** How many identities a single account can own. */
@@ -12,13 +13,22 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
 	if (!locals.user || locals.sessions.length === 0) return [];
 	const accountIds = locals.sessions.map((s) => s.accountId);
 
-	const rows = await sql`
-		SELECT users.id, users.name, users.username, users.avatar, users.owner_id,
-			(SELECT COUNT(*) FROM inbox WHERE inbox.user_id = users.id AND inbox.read_at IS NULL)::int AS unread
-		FROM users
-		WHERE users.id IN ${sql(accountIds)} OR users.owner_id IN ${sql(accountIds)}
-		ORDER BY users.created_at ASC, users.id ASC
-	`;
+	const rows = await db
+		.select({
+			id: users.id,
+			name: users.name,
+			username: users.username,
+			avatar: users.avatar,
+			owner_id: users.owner_id,
+			// correlated subquery: the table names are written out so they can't be mis-qualified
+			unread: sql<number>`(
+				(SELECT COUNT(*) FROM inbox WHERE inbox.user_id = users.id AND inbox.read_at IS NULL)
+				+ (SELECT COUNT(*) FROM messages WHERE messages.recipient_id = users.id AND messages.read_at IS NULL)
+			)::int`
+		})
+		.from(users)
+		.where(or(inArray(users.id, accountIds), inArray(users.owner_id, accountIds)))
+		.orderBy(asc(users.created_at), asc(users.id));
 
 	const profile = (r: (typeof rows)[number]): SwitcherProfile => ({
 		id: r.id,
@@ -46,12 +56,15 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
  * the identity). Returns null when nobody signed in on this browser owns that profile.
  */
 export async function findSessionFor(locals: App.Locals, userId: number) {
-	const users = await sql`SELECT id, owner_id FROM users WHERE id = ${userId}`;
-	if (users.length === 0) return null;
-	const accountId: number = users[0].owner_id ?? users[0].id;
+	const [target] = await db
+		.select({ id: users.id, owner_id: users.owner_id })
+		.from(users)
+		.where(eq(users.id, userId));
+	if (!target) return null;
+	const accountId = target.owner_id ?? target.id;
 	const session = locals.sessions.find((s) => s.accountId === accountId);
 	if (!session) return null;
-	return { session, actingId: users[0].owner_id === null ? null : (users[0].id as number) };
+	return { session, actingId: target.owner_id === null ? null : target.id };
 }
 
 export async function removeAvatarFiles(userId: number) {

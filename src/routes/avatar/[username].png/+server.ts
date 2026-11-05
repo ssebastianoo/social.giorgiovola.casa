@@ -3,7 +3,8 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { generateAvatar } from '#lib/server/avatar.js';
 import { avatarSize } from '#lib/server/avatarSize.js';
 import { LRU } from '#lib/server/cache.js';
-import { sql } from '#lib/server/db.js';
+import { eq } from 'drizzle-orm';
+import { db, users } from '#lib/server/db/index.js';
 
 // Uint8Array<ArrayBuffer> rather than Buffer: Response only accepts ArrayBuffer-backed views
 const cache = new LRU<Uint8Array<ArrayBuffer>>(300);
@@ -16,8 +17,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	let buffer = cache.get(key);
 	if (!buffer) {
 		// only render for real users, otherwise random names make every request a cache miss
-		const users = await sql`SELECT 1 FROM users WHERE username = ${params.username}`;
-		if (users.length === 0) return new Response('Not found', { status: 404 });
+		const found = await db
+			.select({ id: users.id })
+			.from(users)
+			.where(eq(users.username, params.username));
+		if (found.length === 0) return new Response('Not found', { status: 404 });
 
 		const img = await loadImage(Buffer.from(generateAvatar(params.username, size)));
 		const canvas = createCanvas(size, size);

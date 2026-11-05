@@ -2,6 +2,7 @@ import adapter from '@sveltejs/adapter-node';
 import * as child_process from 'node:child_process';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
 
 // there is no .git directory inside the docker build
@@ -26,6 +27,7 @@ function publicOrigin(mode: string) {
 
 export default defineConfig(({ mode }) => ({
 	plugins: [
+		tailwindcss(),
 		sveltekit({
 			preprocess: vitePreprocess(),
 			adapter: adapter(),
@@ -38,9 +40,10 @@ export default defineConfig(({ mode }) => ({
 					'script-src': ['self', 'static.cloudflareinsights.com'],
 					'style-src': ['self', 'unsafe-inline'],
 					'connect-src': ['self', 'cloudflareinsights.com'],
-					// posts embed external images; `*` is valid CSP but missing from SvelteKit's Source type
+					// posts embed external images; `*` is valid CSP but missing from SvelteKit's Source type.
+					// `*` doesn't cover blob:, which the composer needs for previews of attached files
 					// @ts-expect-error
-					'img-src': ['*'],
+					'img-src': ['*', 'blob:'],
 					'base-uri': ['self'],
 					'frame-ancestors': ['none'],
 					'object-src': ['none'],

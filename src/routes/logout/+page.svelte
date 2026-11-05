@@ -6,13 +6,13 @@
 	const current = () => accounts().find((a) => a.active || a.identities.some((i) => i.active));
 </script>
 
-<div class="logout">
+<div class="flex flex-col items-start gap-2.5">
 	{#each [current()].filter((a) => !!a) as account}
 		<p>
 			Do you want to log out of <b>@{account.username}</b>{#if account.identities.length > 0}
 				&nbsp;and its identities{/if}?
 		</p>
-		<div class="buttons">
+		<div class="flex flex-wrap gap-2.5">
 			<form method="POST" action="?/current">
 				<button class="btn" type="submit">Log out @{account.username}</button>
 			</form>
@@ -26,18 +26,3 @@
 		<p>You are not logged in.</p>
 	{/each}
 </div>
-
-<style>
-	.logout {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		align-items: flex-start;
-	}
-
-	.buttons {
-		display: flex;
-		gap: 10px;
-		flex-wrap: wrap;
-	}
-</style>

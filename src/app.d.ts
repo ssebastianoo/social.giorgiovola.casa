@@ -2,6 +2,7 @@
 
 import type { User } from '#lib/types.js';
 import type { SessionRef } from '#lib/server/session.js';
+import type { Role } from '#lib/server/moderation.js';
 
 // for information about these interfaces
 declare global {
@@ -14,6 +15,12 @@ declare global {
 			accountId: number | null;
 			/** valid sessions on this browser, active first */
 			sessions: SessionRef[];
+			/** role of the account that is signed in */
+			role: Role;
+			/** the account that is signed in is muted */
+			muted: boolean;
+			/** why the account was muted, if a reason was given */
+			muteReason: string | null;
 		}
 		// interface PageData {}
 		// interface Platform {}

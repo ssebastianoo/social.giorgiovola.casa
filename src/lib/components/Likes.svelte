@@ -16,9 +16,9 @@
 
 {#if users}
 	{#if users.length > 0}
-		<div class="likes">
+		<div class="flex w-75 flex-col items-start gap-3.75 overflow-auto">
 			{#each users as user}
-				<a href={`/@${user.username}`} class="user">
+				<a href={`/@${user.username}`} class="flex w-full items-center gap-2.5 text-foreground">
 					<Avatar {user} size={45} />
 					<div>
 						<h3>{user.name}</h3>
@@ -33,23 +33,3 @@
 {:else}
 	Loading likes...
 {/if}
-
-<style lang="scss">
-	@import 'src/variables.scss';
-	.user {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		color: $color3;
-		width: 100%;
-	}
-
-	.likes {
-		width: 300px;
-		display: flex;
-		flex-direction: column;
-		gap: 15px;
-		align-items: start;
-		overflow: auto;
-	}
-</style>

@@ -4,6 +4,7 @@
 	import { user } from '#lib/store.js';
 	import { goto } from '$app/navigation';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ModerationControls from '#lib/components/ModerationControls.svelte';
 
 	export let data: PageData;
 	export let editing = false;
@@ -68,40 +69,49 @@
 </script>
 
 {#if error}
-	<p class="error">{error}</p>
+	<p class="mb-5 rounded-[5px] bg-danger p-[5px]">{error}</p>
 {/if}
-<div class="user">
+<div class="mb-5 flex gap-2.5">
 	<Avatar size={60} user={data.user} clickable={false} />
 
 	{#if !editing}
-		<div class="content">
-			<div class="left">
+		<div class="flex w-full justify-between">
+			<div>
 				<h2>{data.user.name}</h2>
 				<p>@{data.user.username}</p>
 			</div>
 			{#if $user && $user.id === data.user.id}
-				<div class="right">
+				<div class="flex gap-2.5">
 					<button
-						class="btn"
+						class="btn h-8"
 						on:click={() => {
 							editing = true;
 						}}>Edit</button
 					>
 					<form method="POST" action="/logout?/current">
-						<button type="submit" class="btn logout">Logout</button>
+						<button type="submit" class="btn btn-red h-8">Logout</button>
 					</form>
 				</div>
+			{:else if $user}
+				<a class="btn h-8 hover:no-underline" href={`/messages/${data.user.username}`}>Message</a>
 			{/if}
 		</div>
 	{:else}
-		<form on:submit|preventDefault={updateUser}>
-			<div class="field">
-				<label for="avatar">Avatar</label>
-				<input name="avatar" id="avatar" type="file" accept="image/*" />
-			</div>
-			<div class="field">
-				<label for="fullName">Name</label>
+		<form class="flex flex-col gap-3.75" on:submit|preventDefault={updateUser}>
+			<div class="flex flex-col">
+				<label class="text-[0.8em] opacity-80" for="avatar">Avatar</label>
 				<input
+					class="border-b border-[#ccc] outline-none file:mr-1 file:cursor-pointer file:rounded-sm file:border file:border-line file:px-1.5"
+					name="avatar"
+					id="avatar"
+					type="file"
+					accept="image/*"
+				/>
+			</div>
+			<div class="flex flex-col">
+				<label class="text-[0.8em] opacity-80" for="fullName">Name</label>
+				<input
+					class="border-b border-[#ccc] outline-none"
 					id="fullName"
 					placeholder="Giorgio"
 					name="fullName"
@@ -110,9 +120,10 @@
 					required
 				/>
 			</div>
-			<div class="field">
-				<label for="username">Username</label>
+			<div class="flex flex-col">
+				<label class="text-[0.8em] opacity-80" for="username">Username</label>
 				<input
+					class="border-b border-[#ccc] outline-none"
 					id="username"
 					placeholder="Infinit7Even"
 					name="username"
@@ -122,9 +133,10 @@
 				/>
 			</div>
 			{#if !identity}
-				<div class="field">
-					<label for="email">Email</label>
+				<div class="flex flex-col">
+					<label class="text-[0.8em] opacity-80" for="email">Email</label>
 					<input
+						class="border-b border-[#ccc] outline-none"
 						id="email"
 						placeholder="social@giorgiovola.casa"
 						name="email"
@@ -133,19 +145,29 @@
 						required
 					/>
 				</div>
-				<div class="field">
-					<label for="password">New password</label>
-					<input placeholder="G1*rg!07" name="password" type="password" />
+				<div class="flex flex-col">
+					<label class="text-[0.8em] opacity-80" for="password">New password</label>
+					<input
+						class="border-b border-[#ccc] outline-none"
+						placeholder="G1*rg!07"
+						name="password"
+						type="password"
+					/>
 				</div>
-				<div class="field">
-					<label for="password">Confirm new password</label>
-					<input placeholder="G1*rg!07" name="confirmPassword" type="password" />
+				<div class="flex flex-col">
+					<label class="text-[0.8em] opacity-80" for="password">Confirm new password</label>
+					<input
+						class="border-b border-[#ccc] outline-none"
+						placeholder="G1*rg!07"
+						name="confirmPassword"
+						type="password"
+					/>
 				</div>
 			{/if}
-			<div class="buttons">
+			<div>
 				<button class="btn" type="submit">Save</button>
 				<button
-					class="btn cancel"
+					class="btn btn-red"
 					on:click={() => {
 						editing = false;
 					}}>Cancel</button
@@ -155,79 +177,17 @@
 	{/if}
 </div>
 
+{#if data.moderation}
+	<ModerationControls
+		username={data.user.username}
+		banned={data.moderation.banned}
+		muted={data.moderation.muted}
+		banReason={data.moderation.ban_reason}
+		muteReason={data.moderation.mute_reason}
+		identity={data.moderation.identity}
+	/>
+{/if}
+
 {#key data.user}
 	<Posts shouldLoadMore posts={data.posts} />
 {/key}
-
-<style lang="scss">
-	@import 'src/variables';
-
-	.error {
-		background-color: $color4;
-		padding: 5px;
-		border-radius: 5px;
-		margin-bottom: 20px;
-	}
-
-	.user {
-		display: flex;
-		margin-bottom: 20px;
-		gap: 10px;
-
-		.content {
-			width: 100%;
-			display: flex;
-			justify-content: space-between;
-
-			.right {
-				display: flex;
-				gap: 10px;
-
-				.btn {
-					height: 20px;
-				}
-
-				.logout {
-					height: auto;
-					border-color: $color4;
-
-					&:hover {
-						background: $color4;
-						text-decoration: none;
-					}
-				}
-			}
-		}
-
-		form {
-			display: flex;
-			flex-direction: column;
-			gap: 15px;
-
-			.field {
-				display: flex;
-				flex-direction: column;
-
-				label {
-					font-size: 0.8em;
-					opacity: 0.8;
-				}
-
-				input {
-					all: unset;
-					border-bottom: 1px solid #ccc;
-				}
-			}
-
-			.buttons {
-				.cancel {
-					border: 1px solid $color4;
-
-					&:hover {
-						background: $color4;
-					}
-				}
-			}
-		}
-	}
-</style>

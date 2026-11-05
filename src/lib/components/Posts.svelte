@@ -64,7 +64,7 @@
 	}
 </script>
 
-<div class="posts" bind:this={listElement} data-replies={replies}>
+<div class="flex flex-col" bind:this={listElement} data-replies={replies}>
 	{#each posts as post, i}
 		{#if i === posts.length - 1 && shouldLoadMore}
 			<IntersectionObserver once let:intersecting>
@@ -80,12 +80,3 @@
 		{/if}
 	{/each}
 </div>
-
-<style lang="scss">
-	@import 'src/variables.scss';
-
-	.posts {
-		display: flex;
-		flex-direction: column;
-	}
-</style>
