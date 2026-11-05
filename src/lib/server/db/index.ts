@@ -12,6 +12,7 @@ export const {
 	users,
 	sessions,
 	posts,
+	post_hashtags,
 	likes,
 	inbox,
 	messages,

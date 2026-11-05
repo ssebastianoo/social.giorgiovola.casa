@@ -15,3 +15,5 @@ drizzle/
 
 # prettier-plugin-svelte 2 can't print {@render} (Svelte 5 snippets)
 src/lib/components/Button.svelte
+src/lib/components/Search.svelte
+src/routes/search/+page.svelte

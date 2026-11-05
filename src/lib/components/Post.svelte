@@ -12,6 +12,7 @@
 	import { onRealtime } from '#lib/realtime.js';
 	import { markMentionSeen } from '#lib/mentions.js';
 	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
+	import { hashtagHref, parseHashtag } from '#lib/hashtags.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
 	import { profileHover } from '#lib/profileCard.svelte.js';
 
@@ -276,6 +277,10 @@
 										target="_blank"
 										rel="noopener noreferrer nofollow">{part}</a
 									>
+								{:else if parseHashtag(part)}
+									{@const hashtag = parseHashtag(part)!}
+									<a on:click|stopPropagation href={hashtagHref(hashtag.tag)}>#{hashtag.tag}</a
+									>{hashtag.rest}
 								{:else if mentionRegex.test(part)}
 									<a
 										on:click|stopPropagation
