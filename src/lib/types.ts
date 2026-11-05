@@ -109,3 +109,9 @@ export type Conversation = {
 	created_at: Date;
 	unread: number;
 };
+
+/** A profile in search results. */
+export type UserResult = Pick<User, 'username' | 'name' | 'avatar'>;
+
+/** A hashtag in search results, with how many posts use it. */
+export type HashtagResult = { tag: string; posts: number };

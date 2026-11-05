@@ -4,6 +4,7 @@
 
 	import { notisCount, messagesCount } from '#lib/store.js';
 	import AccountSwitcher from './AccountSwitcher.svelte';
+	import Search from './Search.svelte';
 
 	const pillClass = (count: number) =>
 		count === 0
@@ -54,6 +55,7 @@
 	</div>
 	<div class="flex items-center gap-3 sm:gap-5">
 		{#if $user}
+			<Search />
 			<a
 				href="/messages"
 				title="Messages"

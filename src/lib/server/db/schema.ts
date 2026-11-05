@@ -88,6 +88,23 @@ export const posts = pgTable('posts', {
 	reply_to: integer('reply_to').references((): AnyPgColumn => posts.id, { onDelete: 'cascade' })
 });
 
+// Hashtags of a post, lowercased and without the "#". Written by the post API with
+// extractHashtags (src/lib/hashtags.ts), which is the one definition of what a hashtag is.
+export const post_hashtags = pgTable(
+	'post_hashtags',
+	{
+		post_id: integer('post_id')
+			.notNull()
+			.references(() => posts.id, { onDelete: 'cascade' }),
+		tag: text('tag').notNull()
+	},
+	(t) => [
+		// the tag first: hashtag pages and counts look rows up by tag
+		primaryKey({ columns: [t.tag, t.post_id] }),
+		index('post_hashtags_post_id').on(t.post_id)
+	]
+);
+
 export const likes = pgTable(
 	'likes',
 	{

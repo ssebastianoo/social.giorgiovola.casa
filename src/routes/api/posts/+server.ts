@@ -1,7 +1,8 @@
 import type { RequestHandler } from './$types';
 import { eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { db, posts, users } from '#lib/server/db/index.js';
+import { db, post_hashtags, posts, users } from '#lib/server/db/index.js';
+import { extractHashtags } from '#lib/hashtags.js';
 import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
 import { getAvatar } from '#lib/utils.js';
@@ -101,16 +102,24 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	let created;
 	try {
-		[created] = await db
-			.insert(posts)
-			.values({ user_id: locals.user.id, content, images, reply_to })
-			.returning({
-				content: posts.content,
-				images: posts.images,
-				created_at: posts.created_at,
-				edited_at: posts.edited_at,
-				id: posts.id
-			});
+		const user_id = locals.user.id;
+		// the post and its hashtags together, so a post never shows up without its tags
+		created = await db.transaction(async (tx) => {
+			const [row] = await tx
+				.insert(posts)
+				.values({ user_id, content, images, reply_to })
+				.returning({
+					content: posts.content,
+					images: posts.images,
+					created_at: posts.created_at,
+					edited_at: posts.edited_at,
+					id: posts.id
+				});
+			const tags = extractHashtags(content);
+			if (tags.length)
+				await tx.insert(post_hashtags).values(tags.map((tag) => ({ post_id: row.id, tag })));
+			return row;
+		});
 	} catch (e) {
 		await removeUploads(images);
 		throw e;
