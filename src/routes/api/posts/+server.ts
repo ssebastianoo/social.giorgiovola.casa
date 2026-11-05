@@ -113,10 +113,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		throw e;
 	}
 
-	let parentRef: { id: number; username: string } | null = null;
+	let parentRef: { id: number; username: string; likes: number } | null = null;
 	if (reply_to !== null) {
 		const [parent] = await db
-			.select({ id: posts.id, username: users.username })
+			.select({
+				id: posts.id,
+				username: users.username,
+				likes: sql<number>`(SELECT COUNT(*)::int FROM likes l WHERE l.post_id = posts.id)`
+			})
 			.from(posts)
 			.innerJoin(users, eq(posts.user_id, users.id))
 			.where(eq(posts.id, reply_to));

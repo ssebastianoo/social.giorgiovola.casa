@@ -22,7 +22,12 @@ export const load = (async ({ params, locals }) => {
 		streamed: {
 			replies:
 				posts[0].replies_count > 0
-					? getPosts({ loggedUser: locals.user, reply_to: postId, order: 'ASC' })
+					? getPosts({
+							loggedUser: locals.user,
+							reply_to: postId,
+							order: 'ASC',
+							ratioFirst: true
+					  })
 					: []
 		}
 	};
