@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
-import { db, messages, users } from './db/index.js';
+import { db, blocks, messages, users } from './db/index.js';
 import type { ChatMessage, ChatPeer, Conversation } from '#lib/types.js';
 
 const THREAD_PAGE = 30;
@@ -15,6 +15,34 @@ const between = (a: number, b: number) =>
 
 export function unreadMessageCount(userId: number) {
 	return db.$count(messages, and(eq(messages.recipient_id, userId), isNull(messages.read_at)));
+}
+
+/** Who blocked whom between two profiles: `me` if I did, `peer` if they did. */
+export async function getBlock(
+	meId: number,
+	peerId: number
+): Promise<{ me: boolean; peer: boolean }> {
+	const rows = await db
+		.select({ blocker_id: blocks.blocker_id })
+		.from(blocks)
+		.where(
+			or(
+				and(eq(blocks.blocker_id, meId), eq(blocks.blocked_id, peerId)),
+				and(eq(blocks.blocker_id, peerId), eq(blocks.blocked_id, meId))
+			)
+		);
+	return {
+		me: rows.some((r) => r.blocker_id === meId),
+		peer: rows.some((r) => r.blocker_id === peerId)
+	};
+}
+
+export async function setBlocked(meId: number, peerId: number, blocked: boolean) {
+	if (blocked) {
+		await db.insert(blocks).values({ blocker_id: meId, blocked_id: peerId }).onConflictDoNothing();
+	} else {
+		await db.delete(blocks).where(and(eq(blocks.blocker_id, meId), eq(blocks.blocked_id, peerId)));
+	}
 }
 
 export async function findPeer(username: string): Promise<(ChatPeer & Party) | null> {

@@ -57,6 +57,13 @@
       "when": 1793892476914,
       "tag": "0007_dm_images",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793893190635,
+      "tag": "0008_dm_blocks",
+      "breakpoints": true
     }
   ]
 }

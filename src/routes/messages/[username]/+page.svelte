@@ -7,5 +7,10 @@
 
 <!-- a conversation's state must not carry over when navigating to another one -->
 {#key data.peer.username}
-	<Chat peer={data.peer} initial={data.thread.messages} initialHasMore={data.thread.hasMore} />
+	<Chat
+		peer={data.peer}
+		initial={data.thread.messages}
+		initialHasMore={data.thread.hasMore}
+		block={data.block}
+	/>
 {/key}

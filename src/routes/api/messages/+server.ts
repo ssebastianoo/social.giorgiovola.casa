@@ -1,6 +1,7 @@
 import type { RequestHandler } from './$types';
-import { findPeer, sendMessage } from '#lib/server/messages.js';
+import { findPeer, getBlock, sendMessage } from '#lib/server/messages.js';
 import { publishMessage } from '#lib/server/realtime.js';
+import { hit, isLimited } from '#lib/server/ratelimit.js';
 import { LIMITS } from '#lib/server/validation.js';
 import {
 	ImageError,
@@ -10,6 +11,12 @@ import {
 	sniffImage,
 	toWebp
 } from '#lib/server/images.js';
+
+// Sending is limited per sender, and messages carrying images (the expensive ones to process
+// and store) have a tighter limit of their own.
+const WINDOW_MS = 60_000;
+const MAX_MESSAGES = 20;
+const MAX_IMAGE_MESSAGES = 5;
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) return new Response('Unauthorized', { status: 401 });
@@ -34,6 +41,17 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		rawContent = json?.content;
 	}
 
+	const messageKey = `dm:${locals.user.id}`;
+	const imageKey = `dm-images:${locals.user.id}`;
+	if (
+		isLimited(messageKey, MAX_MESSAGES) ||
+		(files.length > 0 && isLimited(imageKey, MAX_IMAGE_MESSAGES))
+	) {
+		return new Response('You are sending messages too fast, try again in a minute', {
+			status: 429
+		});
+	}
+
 	const content = typeof rawContent === 'string' ? rawContent.trim() : '';
 	if (!content && files.length === 0) return new Response('Missing content', { status: 400 });
 	if (content.length > LIMITS.messageContent) {
@@ -52,6 +70,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (peer.id === locals.user.id) {
 		return new Response("You can't message yourself", { status: 400 });
 	}
+
+	const block = await getBlock(locals.user.id, peer.id);
+	if (block.me) return new Response('Unblock this user to message them', { status: 403 });
+	if (block.peer) return new Response("You can't message this user", { status: 403 });
+
+	// counted before the image processing, so a burst of concurrent requests can't skip the limit
+	hit(messageKey, WINDOW_MS);
+	if (files.length > 0) hit(imageKey, WINDOW_MS);
 
 	// validate everything before anything is written to disk
 	const uploads: { buffer: Buffer; ext: string }[] = [];

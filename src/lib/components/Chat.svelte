@@ -9,6 +9,11 @@
 	export let peer: ChatPeer;
 	export let initial: ChatMessage[];
 	export let initialHasMore: boolean;
+	/** me: I blocked them, peer: they blocked me */
+	export let block: { me: boolean; peer: boolean };
+
+	let blockedByMe = block.me;
+	const blockedByPeer = block.peer;
 
 	let messages = initial;
 	let hasMore = initialHasMore;
@@ -47,9 +52,36 @@
 		if (stick) scrollToBottom();
 	}
 
+	// set when there may be unread messages, cleared once the reader has seen the bottom
+	let pendingRead = true;
+
+	/** Marks the thread read, but only while the latest messages are on screen: someone reading older history hasn't seen the new ones. */
 	function markRead() {
-		if (document.visibilityState !== 'visible') return;
+		pendingRead = true;
+		if (document.visibilityState !== 'visible' || !isAtBottom()) return;
+		pendingRead = false;
 		fetch(`${threadUrl}/read`, { method: 'POST' }).catch(() => {});
+	}
+
+	function onScroll() {
+		if (list.scrollTop < 100) loadOlder();
+		if (pendingRead && isAtBottom()) markRead();
+	}
+
+	async function toggleBlock() {
+		const blocking = !blockedByMe;
+		if (
+			blocking &&
+			!confirm(`Block @${peer.username}? Neither of you will be able to message the other.`)
+		)
+			return;
+		try {
+			const res = await fetch(`${threadUrl}/block`, { method: blocking ? 'POST' : 'DELETE' });
+			if (res.ok) blockedByMe = blocking;
+			else showError('Something went wrong.');
+		} catch {
+			showError('Could not reach the server, check your connection.');
+		}
 	}
 
 	/** Catches up on what the stream can't have delivered: it drops while the app is in the background. */
@@ -161,7 +193,7 @@
 				await add([await res.json()], true);
 			} else {
 				error =
-					res.status === 400
+					res.status === 400 || res.status === 403 || res.status === 429
 						? await res.text()
 						: res.status === 413
 						? 'Images are too big.'
@@ -216,9 +248,9 @@
 		window.addEventListener('drop', onDrop);
 		scrollToBottom();
 		markRead();
-		const offMessage = onRealtime('message', (message) => {
+		const offMessage = onRealtime('message', async (message) => {
 			if (message.sender !== peer.username && message.recipient !== peer.username) return;
-			add([message]);
+			await add([message]);
 			if (message.sender === peer.username) markRead();
 		});
 		const offOpen = onRealtime('open', sync);
@@ -265,14 +297,17 @@
 			<p class="truncate font-extrabold">{peer.name}</p>
 			<p class="truncate text-[0.85rem] opacity-70">@{peer.username}</p>
 		</a>
+		<button
+			type="button"
+			class="ml-auto cursor-pointer text-[0.85rem] opacity-70 outline-none hover:opacity-100"
+			on:click={toggleBlock}>{blockedByMe ? 'Unblock' : 'Block'}</button
+		>
 	</div>
 
 	<div
 		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
 		bind:this={list}
-		on:scroll={() => {
-			if (list.scrollTop < 100) loadOlder();
-		}}
+		on:scroll={onScroll}
 	>
 		{#each messages as message (message.id)}
 			{@const mine = message.sender !== peer.username}
@@ -343,56 +378,64 @@
 		</div>
 	{/if}
 
-	<form class="flex" on:submit|preventDefault={send} on:paste={onPaste}>
-		<input
-			bind:this={fileInput}
-			on:change={onFilesSelected}
-			type="file"
-			accept="image/*"
-			multiple
-			hidden
-		/>
-		<textarea
-			class="input max-h-32 resize-none field-sizing-content"
-			rows="1"
-			maxlength="2000"
-			placeholder="Write a message"
-			aria-label="Write a message"
-			bind:this={textarea}
-			bind:value={content}
-			on:keydown={onKeydown}
-		></textarea>
-		<button
-			type="button"
-			title="Attach images"
-			aria-label="Attach images"
-			disabled={attachments.length >= MAX_IMAGES}
-			on:click={() => fileInput.click()}
-			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none disabled:cursor-default disabled:opacity-40"
-			><svg
-				xmlns="http://www.w3.org/2000/svg"
-				height="20px"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="#d9d9d9"
-				stroke-width="1.8"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" /><path
-					d="M21 15l-5-5L5 21"
-				/></svg
-			></button
-		>
-		<button
-			type="submit"
-			title="Send"
-			disabled={sending}
-			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
-			><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 512 512"
-				><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
-					d="M16.1 260.2c-22.6 12.9-20.5 47.3 3.6 57.3L160 376V479.3c0 18.1 14.6 32.7 32.7 32.7c9.7 0 18.9-4.3 25.1-11.8l62-74.3 123.9 51.6c18.9 7.9 40.8-4.5 43.9-24.7l64-416c1.9-12.1-3.4-24.3-13.5-31.2s-23.3-7.5-34-1.4l-448 256zm52.1 25.5L409.7 90.6 190.1 336l1.2 1L68.2 285.7zM403.3 425.4L236.7 355.9 450.8 116.6 403.3 425.4z"
-				/></svg
-			></button
-		>
-	</form>
+	{#if blockedByMe}
+		<p class="p-2.5 text-center text-muted">You blocked @{peer.username}.</p>
+	{:else if blockedByPeer}
+		<p class="p-2.5 text-center text-muted">You can't message this user.</p>
+	{:else}
+		<form class="flex" on:submit|preventDefault={send} on:paste={onPaste}>
+			<input
+				bind:this={fileInput}
+				on:change={onFilesSelected}
+				type="file"
+				accept="image/*"
+				multiple
+				hidden
+			/>
+			<textarea
+				class="input max-h-32 resize-none field-sizing-content"
+				rows="1"
+				maxlength="2000"
+				placeholder="Write a message"
+				aria-label="Write a message"
+				bind:this={textarea}
+				bind:value={content}
+				on:keydown={onKeydown}
+			/>
+			<button
+				type="button"
+				title="Attach images"
+				aria-label="Attach images"
+				disabled={attachments.length >= MAX_IMAGES}
+				on:click={() => fileInput.click()}
+				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none disabled:cursor-default disabled:opacity-40"
+				><svg
+					xmlns="http://www.w3.org/2000/svg"
+					height="20px"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="#d9d9d9"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					><rect x="3" y="3" width="18" height="18" rx="3" /><circle
+						cx="8.5"
+						cy="8.5"
+						r="1.5"
+					/><path d="M21 15l-5-5L5 21" /></svg
+				></button
+			>
+			<button
+				type="submit"
+				title="Send"
+				disabled={sending}
+				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
+				><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 512 512"
+					><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
+						d="M16.1 260.2c-22.6 12.9-20.5 47.3 3.6 57.3L160 376V479.3c0 18.1 14.6 32.7 32.7 32.7c9.7 0 18.9-4.3 25.1-11.8l62-74.3 123.9 51.6c18.9 7.9 40.8-4.5 43.9-24.7l64-416c1.9-12.1-3.4-24.3-13.5-31.2s-23.3-7.5-34-1.4l-448 256zm52.1 25.5L409.7 90.6 190.1 336l1.2 1L68.2 285.7zM403.3 425.4L236.7 355.9 450.8 116.6 403.3 425.4z"
+					/></svg
+				></button
+			>
+		</form>
+	{/if}
 </div>

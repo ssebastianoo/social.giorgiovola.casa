@@ -8,5 +8,14 @@ const client = postgres(DATABASE_URL);
 
 export const db = drizzle(client, { schema });
 export { schema };
-export const { users, sessions, posts, likes, inbox, messages, settings, push_subscriptions } =
-	schema;
+export const {
+	users,
+	sessions,
+	posts,
+	likes,
+	inbox,
+	messages,
+	blocks,
+	settings,
+	push_subscriptions
+} = schema;

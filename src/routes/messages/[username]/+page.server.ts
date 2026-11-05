@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { findPeer, getThread } from '#lib/server/messages.js';
+import { findPeer, getBlock, getThread } from '#lib/server/messages.js';
 import type { PageServerLoad } from './$types';
 
 // Nothing is marked as read here: hover preloading runs this load before the page is opened.
@@ -12,6 +12,8 @@ export const load = (async ({ locals, params }) => {
 	const { username, name, avatar } = peer;
 	return {
 		peer: { username, name, avatar },
-		thread: await getThread(locals.user, peer)
+		thread: await getThread(locals.user, peer),
+		// `me`: I blocked them, `peer`: they blocked me
+		block: await getBlock(locals.user.id, peer.id)
 	};
 }) satisfies PageServerLoad;

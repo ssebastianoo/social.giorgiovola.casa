@@ -136,8 +136,29 @@ export const messages = pgTable(
 	(t) => [
 		index('messages_sender_recipient').on(t.sender_id, t.recipient_id, t.id),
 		index('messages_recipient_sender').on(t.recipient_id, t.sender_id, t.id),
-		index('messages_unread').on(t.recipient_id, t.sender_id).where(sql`${t.read_at} IS NULL`),
+		index('messages_unread')
+			.on(t.recipient_id, t.sender_id)
+			.where(sql`${t.read_at} IS NULL`),
 		check('messages_not_self', sql`${t.sender_id} != ${t.recipient_id}`)
+	]
+);
+
+// Blocking stops direct messages in both directions between the two profiles.
+export const blocks = pgTable(
+	'blocks',
+	{
+		blocker_id: integer('blocker_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		blocked_id: integer('blocked_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.blocker_id, t.blocked_id] }),
+		index('blocks_blocked_id').on(t.blocked_id),
+		check('blocks_not_self', sql`${t.blocker_id} != ${t.blocked_id}`)
 	]
 );
 
