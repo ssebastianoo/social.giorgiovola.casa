@@ -5,6 +5,7 @@ import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
 import { getPosts } from '#lib/server/posts.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
+import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
 
 export const load = (async ({ params, locals, depends }) => {
 	const username = params.username.toLowerCase();
@@ -58,9 +59,31 @@ export const load = (async ({ params, locals, depends }) => {
 		order: 'DESC',
 		limit: PAGE_SIZE
 	});
+	// staff see the moderation controls on profiles they are allowed to act on
+	let moderation: {
+		banned: boolean;
+		muted: boolean;
+		ban_reason: string | null;
+		mute_reason: string | null;
+		identity: boolean;
+	} | null = null;
+	if (isStaff(locals.role)) {
+		const target = await findTarget(username);
+		if (target && canModerate(locals, target)) {
+			moderation = {
+				banned: target.banned_at !== null,
+				muted: target.muted_at !== null,
+				ban_reason: target.ban_reason,
+				mute_reason: target.mute_reason,
+				identity: target.username !== username
+			};
+		}
+	}
+
 	return {
 		user,
 		posts,
+		moderation,
 		self: locals.user && locals.user.username === user.username
 	};
 }) satisfies PageServerLoad;

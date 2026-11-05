@@ -78,6 +78,12 @@ export const actions = {
 		}
 		clear(accountKey);
 
+		// only said after the password checked out, so it can't be used to probe for accounts
+		if (res[0].banned_at) {
+			const reason = res[0].ban_reason ? ` Reason: ${res[0].ban_reason}` : '';
+			return { error: `This account has been banned.${reason}` };
+		}
+
 		const user: User = {
 			email: res[0].email,
 			name: res[0].name,

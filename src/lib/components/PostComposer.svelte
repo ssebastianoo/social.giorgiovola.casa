@@ -133,7 +133,7 @@
 				content = '';
 				clearAttachments();
 				dispatch('created', post);
-			} else if (res.status === 400) {
+			} else if (res.status === 400 || res.status === 403) {
 				showError(await res.text());
 			} else if (res.status === 413) {
 				showError('Images are too big.');

@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { deleteMessage, findPeer, getBlock, sendMessage } from '#lib/server/messages.js';
 import { publishMessage, publishMessageDeleted } from '#lib/server/realtime.js';
 import { hit, isLimited } from '#lib/server/ratelimit.js';
+import { mutedMessage } from '#lib/server/moderation.js';
 import { LIMITS, parseId } from '#lib/server/validation.js';
 import {
 	ImageError,
@@ -20,6 +21,7 @@ const MAX_IMAGE_MESSAGES = 5;
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) return new Response('Unauthorized', { status: 401 });
+	if (locals.muted) return new Response(mutedMessage(locals), { status: 403 });
 
 	// multipart when the message has images, plain JSON otherwise
 	let to = '';

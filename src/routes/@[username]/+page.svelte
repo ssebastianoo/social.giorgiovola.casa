@@ -4,6 +4,7 @@
 	import { user } from '#lib/store.js';
 	import { goto } from '$app/navigation';
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ModerationControls from '#lib/components/ModerationControls.svelte';
 
 	export let data: PageData;
 	export let editing = false;
@@ -175,6 +176,17 @@
 		</form>
 	{/if}
 </div>
+
+{#if data.moderation}
+	<ModerationControls
+		username={data.user.username}
+		banned={data.moderation.banned}
+		muted={data.moderation.muted}
+		banReason={data.moderation.ban_reason}
+		muteReason={data.moderation.mute_reason}
+		identity={data.moderation.identity}
+	/>
+{/if}
 
 {#key data.user}
 	<Posts shouldLoadMore posts={data.posts} />

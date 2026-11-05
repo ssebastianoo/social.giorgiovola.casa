@@ -1,5 +1,6 @@
 import type { Handle } from '@sveltejs/kit/hooks';
-import { and, eq, gt, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db, sessions, users } from '#lib/server/db/index.js';
 import { SESSION_DAYS, cookieTokens, setSessionCookies } from '#lib/server/session.js';
 import { PUBLIC_URL } from '$app/env/public';
@@ -14,9 +15,14 @@ export const handle = (async ({ event, resolve }) => {
 	event.locals.user = null;
 	event.locals.accountId = null;
 	event.locals.sessions = [];
+	event.locals.role = 'user';
+	event.locals.muted = false;
+	event.locals.muteReason = null;
 
 	const tokens = cookieTokens(event.cookies);
 	if (tokens.length > 0) {
+		// role, ban and mute belong to the account, whichever of its profiles is in use
+		const account = alias(users, 'account');
 		// one row per valid session, with the profile it is currently acting as
 		const rows = await db
 			.select({
@@ -28,7 +34,10 @@ export const handle = (async ({ event, resolve }) => {
 				username: users.username,
 				avatar: users.avatar,
 				created_at: users.created_at,
-				owner_id: users.owner_id
+				owner_id: users.owner_id,
+				role: account.role,
+				muted_at: account.muted_at,
+				mute_reason: account.mute_reason
 			})
 			.from(sessions)
 			.innerJoin(
@@ -38,9 +47,12 @@ export const handle = (async ({ event, resolve }) => {
 					or(eq(users.id, sessions.user_id), eq(users.owner_id, sessions.user_id))
 				)
 			)
+			.innerJoin(account, eq(account.id, sessions.user_id))
 			.where(
 				and(
 					inArray(sessions.token, tokens),
+					// banned accounts are signed out when banned, this covers any session left behind
+					isNull(account.banned_at),
 					gt(sessions.created_at, sql`NOW() - make_interval(days => ${SESSION_DAYS})`)
 				)
 			);
@@ -59,6 +71,9 @@ export const handle = (async ({ event, resolve }) => {
 		if (valid.length > 0) {
 			const u = valid[0];
 			event.locals.accountId = u.account_id;
+			event.locals.role = u.role;
+			event.locals.muted = u.muted_at !== null;
+			event.locals.muteReason = u.mute_reason;
 			event.locals.user = {
 				id: u.id,
 				email: u.email,
