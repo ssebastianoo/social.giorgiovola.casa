@@ -94,7 +94,11 @@ export const inbox = pgTable(
 			.references(() => users.id, { onDelete: 'cascade' }),
 		sender_id: integer('sender_id').references(() => users.id, { onDelete: 'cascade' }),
 		post_id: integer('post_id').references(() => posts.id, { onDelete: 'cascade' }),
-		type: text('type', { enum: ['mention', 'reply', 'like'] }).notNull(),
+		// ratio: sender's reply (post_id) got more likes than the recipient's post
+		// ratioed_by_you: the recipient's reply (post_id) got more likes than the sender's post
+		type: text('type', {
+			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you']
+		}).notNull(),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		read_at: timestamptz('read_at'),
 		// set once a push for this row has been sent, so it never goes out twice
@@ -102,7 +106,10 @@ export const inbox = pgTable(
 	},
 	(t) => [
 		unique().on(t.user_id, t.sender_id, t.post_id, t.type),
-		check('inbox_type_check', sql`${t.type} IN ('mention', 'reply', 'like')`)
+		check(
+			'inbox_type_check',
+			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you')`
+		)
 	]
 );
 

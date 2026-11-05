@@ -9,6 +9,7 @@
 	import Avatar from './Avatar.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
+	import { isRatio } from '#lib/utils.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -39,6 +40,7 @@
 	}
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
+	$: ratio = isRatio(post);
 
 	// images linked with markdown syntax in the content
 	let images: string[] = [];
@@ -57,6 +59,9 @@
 
 	onMount(() => {
 		const offCounts = onRealtime('counts', (c) => {
+			// the parent's likes decide whether this reply ratios it
+			if (post.reply_to && c.id === post.reply_to.id && c.likes !== undefined)
+				post.reply_to.likes = c.likes;
 			if (c.id !== post.id) return;
 			if (c.likes !== undefined) post.likes = c.likes;
 			if (c.replies_count !== undefined) post.replies_count = c.replies_count;
@@ -313,6 +318,12 @@
 							{post.likes ? post.likes : '0'}
 						</div>
 					</div>
+					{#if ratio}
+						<span
+							class="rounded-[5px] border border-[#bb5353] px-1.5 text-[0.7rem] font-extrabold tracking-wider text-[#bb5353]"
+							title="This reply has more likes than @{post.reply_to?.username}'s post">RATIO</span
+						>
+					{/if}
 					<svg
 						on:click|preventDefault|stopPropagation={() => {
 							sharePost(post);

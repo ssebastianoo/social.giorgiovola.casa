@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db, inbox, posts, push_subscriptions, sessions, settings, users } from './db/index.js';
 import { PUBLIC_URL } from '$app/env/public';
+import type { NotificationType } from '#lib/types.js';
 
 /** Web push: sends a system notification to the browsers subscribed by the recipient's account. */
 
@@ -76,7 +77,7 @@ const subject = () =>
 	PUBLIC_URL?.startsWith('https://') ? PUBLIC_URL : 'mailto:admin@example.com';
 
 type Row = {
-	type: 'mention' | 'reply' | 'like';
+	type: NotificationType;
 	post_id: number;
 	content: string | null;
 	sender_name: string | null;
@@ -86,21 +87,27 @@ type Row = {
 	account_id: number;
 };
 
+/** Whether the notification's post belongs to the recipient (else to the sender). */
+export const recipientOwnsPost = (type: NotificationType) =>
+	type === 'like' || type === 'ratioed_by_you';
+
 const clip = (text: string, max = 140) => (text.length > max ? `${text.slice(0, max)}…` : text);
 
 function payloadFor(row: Row) {
 	const sender = row.sender_name ?? 'Someone';
-	const verb =
-		row.type === 'like'
-			? 'liked your post'
-			: row.type === 'reply'
-			? 'replied to your post'
-			: 'mentioned you in a post';
+	const verbs: Record<NotificationType, string> = {
+		like: 'liked your post',
+		reply: 'replied to your post',
+		mention: 'mentioned you in a post',
+		ratio: 'ratioed your post',
+		ratioed_by_you: 'got ratioed by your reply'
+	};
+	const verb = verbs[row.type];
 	let body = row.type === 'like' || !row.content ? verb : `${verb}: ${clip(row.content)}`;
 	// identities share the owner's devices: say which profile it is for
 	if (row.identity) body += ` (@${row.recipient_username})`;
-	// the link matches the notifications page: a like points at the recipient's own post
-	const owner = row.type === 'like' ? row.recipient_username : row.sender_username;
+	// the link matches the notifications page: likes and ratios won point at the recipient's own post
+	const owner = recipientOwnsPost(row.type) ? row.recipient_username : row.sender_username;
 	return {
 		title: sender,
 		body,
@@ -113,9 +120,8 @@ function payloadFor(row: Row) {
  * Sends a push for the inbox rows `postId` just created. Rows are claimed (pushed_at) before
  * sending, so a like that is toggled off and on, or a retry, never notifies twice.
  */
-export async function sendPush(postId: number, type?: 'like') {
+export async function sendPush(postId: number, types?: NotificationType[]) {
 	try {
-		const only = type ?? null;
 		const sender = alias(users, 'sender');
 		const recipient = alias(users, 'recipient');
 		const claimed = db.$with('claimed').as(
@@ -127,7 +133,7 @@ export async function sendPush(postId: number, type?: 'like') {
 						eq(inbox.post_id, postId),
 						isNull(inbox.pushed_at),
 						gt(inbox.created_at, sql`NOW() - INTERVAL '1 minute'`),
-						type ? eq(inbox.type, type) : undefined
+						types ? inArray(inbox.type, types) : undefined
 					)
 				)
 				.returning({
@@ -186,7 +192,9 @@ export async function sendPush(postId: number, type?: 'like') {
 						const status = (e as { statusCode?: number }).statusCode;
 						// the browser dropped the subscription
 						if (status === 404 || status === 410)
-							await db.delete(push_subscriptions).where(eq(push_subscriptions.endpoint, sub.endpoint));
+							await db
+								.delete(push_subscriptions)
+								.where(eq(push_subscriptions.endpoint, sub.endpoint));
 						else console.error('push: send failed', status ?? e);
 					}
 				})

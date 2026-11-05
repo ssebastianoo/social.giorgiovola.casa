@@ -1,5 +1,14 @@
 import { PUBLIC_URL } from '$app/env/public';
-import type { User } from './types';
+import type { Post, User } from './types';
+
+/** A reply ratios its parent when it has more likes than the parent. Replying to yourself never does. */
+export function isRatio(post: Pick<Post, 'likes' | 'reply_to' | 'user'>) {
+	return (
+		post.reply_to != null &&
+		post.user.username !== post.reply_to.username &&
+		post.likes > (post.reply_to.likes ?? 0)
+	);
+}
 
 export function getAvatar(
 	user: Pick<User, 'avatar'> & Pick<User, 'username'>,

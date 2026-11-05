@@ -41,15 +41,19 @@ export type Post = {
 	reply_to: {
 		username: string;
 		id: number;
+		/** the parent's like count, to tell whether this reply ratios it */
+		likes: number;
 	} | null;
 };
+
+export type NotificationType = 'like' | 'reply' | 'mention' | 'ratio' | 'ratioed_by_you';
 
 export type Notification = {
 	id: number;
 	user_id: number;
 	sender: Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 	post: Pick<Post, 'id' | 'content'>;
-	type: 'like' | 'reply' | 'mention';
+	type: NotificationType;
 	created_at: Date;
 	read_at: Date | null;
 };

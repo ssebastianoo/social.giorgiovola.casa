@@ -9,6 +9,8 @@ export type GetPostsOptions = {
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
 	excludeReplies?: boolean;
 	order?: 'ASC' | 'DESC';
+	/** replies that ratio their parent come first (then `order`) */
+	ratioFirst?: boolean;
 	limit?: number;
 	offset?: number;
 };
@@ -20,6 +22,7 @@ export async function getPosts({
 	fromUser,
 	excludeReplies,
 	order,
+	ratioFirst,
 	limit,
 	offset
 }: GetPostsOptions) {
@@ -52,7 +55,11 @@ export async function getPosts({
 			// correlated subqueries: the table names are written out so they can't be mis-qualified
 			replies_count: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id)`,
 			reply_to: sql<Post['reply_to']>`(
-				SELECT jsonb_build_object('username', u.username, 'id', p.id)
+				SELECT jsonb_build_object(
+					'username', u.username,
+					'id', p.id,
+					'likes', (SELECT COUNT(*)::int FROM likes l WHERE l.post_id = p.id)
+				)
 				FROM posts p INNER JOIN users u ON p.user_id = u.id
 				WHERE p.id = posts.reply_to
 			)`,
@@ -67,8 +74,17 @@ export async function getPosts({
 		.groupBy(posts.id, users.id)
 		.$dynamic();
 
-	if (order === 'ASC') query.orderBy(asc(posts.created_at));
-	else if (order === 'DESC') query.orderBy(desc(posts.created_at));
+	const ordering: SQL[] = [];
+	if (ratioFirst)
+		ordering.push(
+			desc(
+				sql`COUNT(${likes.post_id}) > (SELECT COUNT(*) FROM likes l WHERE l.post_id = posts.reply_to)
+					AND posts.user_id IS DISTINCT FROM (SELECT p.user_id FROM posts p WHERE p.id = posts.reply_to)`
+			)
+		);
+	if (order === 'ASC') ordering.push(asc(posts.created_at));
+	else if (order === 'DESC') ordering.push(desc(posts.created_at));
+	if (ordering.length) query.orderBy(...ordering);
 	if (limit != null) query.limit(limit);
 	if (offset != null) query.offset(offset);
 

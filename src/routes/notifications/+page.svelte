@@ -52,7 +52,7 @@
 			}
 		}
 		if (redirect) {
-			if (notification.type === 'like') {
+			if (notification.type === 'like' || notification.type === 'ratioed_by_you') {
 				goto(`/@${$user?.username}/${notification.post.id}`);
 			} else {
 				goto(`/@${notification.sender.username}/${notification.post.id}`);
@@ -108,6 +108,18 @@
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
 							mentioned you in
 							<a href={`/@${notification.sender.username}/${notification.post.id}`}>a post</a>
+						</p>
+					{:else if notification.type === 'ratio'}
+						<p>
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							ratioed
+							<a href={`/@${notification.sender.username}/${notification.post.id}`}>your post</a>
+						</p>
+					{:else if notification.type === 'ratioed_by_you'}
+						<p>
+							You ratioed
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							with <a href={`/@${$user?.username}/${notification.post.id}`}>your reply</a>
 						</p>
 					{:else if notification.type === 'reply'}
 						<p>
