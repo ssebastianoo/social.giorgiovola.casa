@@ -5,6 +5,7 @@
 	import { isMobile } from '#lib/store.js';
 	import type { ChatMessage, ChatPeer } from '#lib/types.js';
 	import { isHttpLink } from '#lib/utils.js';
+	import { openImage } from '#lib/imageViewer.svelte.js';
 
 	export let peer: ChatPeer;
 	export let initial: ChatMessage[];
@@ -342,12 +343,12 @@
 			>
 				{#if message.images?.length}
 					<div class="grid gap-1.5 {message.images.length > 1 ? 'grid-cols-2' : ''}">
-						{#each message.images as image}
-							<a
-								class="flex justify-center overflow-hidden rounded-[5px] bg-black/20"
-								href={image}
-								target="_blank"
-								rel="noopener noreferrer"
+						{#each message.images as image, i}
+							<button
+								type="button"
+								class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/20 outline-none"
+								aria-label="Open image"
+								on:click={() => openImage(message.images ?? [], i)}
 							>
 								<img
 									class={message.images.length > 1
@@ -357,7 +358,7 @@
 									alt=""
 									loading="lazy"
 								/>
-							</a>
+							</button>
 						{/each}
 					</div>
 				{/if}

@@ -7,6 +7,7 @@
 	import { user, isMobile, notisCount, messagesCount } from '#lib/store.js';
 	import { navigating, page } from '$app/state';
 	import Loading from '#lib/components/Loading.svelte';
+	import ImageViewer from '#lib/components/ImageViewer.svelte';
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
 	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
@@ -72,6 +73,7 @@
 </script>
 
 <Header />
+<ImageViewer />
 <svelte:head>
 	{#if page.route.id === '/@[username]/[post]' && !page.error}
 		<!-- Primary Meta Tags -->

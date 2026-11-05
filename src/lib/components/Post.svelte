@@ -11,6 +11,7 @@
 	import { onRealtime } from '#lib/realtime.js';
 	import { markMentionSeen } from '#lib/mentions.js';
 	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
+	import { openImage } from '#lib/imageViewer.svelte.js';
 
 	export let loadReplies = false;
 	export let post: Post;
@@ -270,13 +271,12 @@
 					{/if}
 					{#if gallery.length > 0}
 						<div class="grid gap-1.5 {gallery.length > 1 ? 'grid-cols-2' : ''}">
-							{#each gallery as image}
-								<a
-									class="flex justify-center overflow-hidden rounded-[5px] bg-black/40"
-									href={image}
-									target="_blank"
-									rel="noopener noreferrer"
-									on:click|stopPropagation
+							{#each gallery as image, i}
+								<button
+									type="button"
+									class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/40 outline-none"
+									aria-label="Open image"
+									on:click|stopPropagation={() => openImage(gallery, i)}
 								>
 									<img
 										class={gallery.length > 1
@@ -287,7 +287,7 @@
 										referrerpolicy="no-referrer"
 										loading="lazy"
 									/>
-								</a>
+								</button>
 							{/each}
 						</div>
 					{/if}
