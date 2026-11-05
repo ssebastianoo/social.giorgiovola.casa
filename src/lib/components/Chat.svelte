@@ -375,8 +375,24 @@
 					{#if mine}
 						<button
 							type="button"
-							class="cursor-pointer opacity-60 outline-none hover:underline hover:opacity-100"
-							on:click={() => deleteMessage(message)}>Delete</button
+							class="cursor-pointer opacity-60 outline-none hover:opacity-100"
+							aria-label="Delete message"
+							title="Delete message"
+							on:click={() => deleteMessage(message)}
+							><svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="1em"
+								height="1em"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
+									d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+								/><path d="M10 11v6" /><path d="M14 11v6" /></svg
+							></button
 						>
 					{/if}
 					<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>

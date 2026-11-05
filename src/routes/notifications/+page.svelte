@@ -6,11 +6,13 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { disablePush, enablePush, getPushState, type PushState } from '#lib/push.js';
-	export let data: PageData;
+	let { data }: { data: PageData } = $props();
 
-	let push: PushState | null = null;
-	let pushBusy = false;
-	let pushError = false;
+	// reassignable so read state can be updated locally until the next load
+	let notifications = $derived(data.notifications);
+	let push: PushState | null = $state(null);
+	let pushBusy = $state(false);
+	let pushError = $state(false);
 
 	const togglePush = async () => {
 		pushBusy = true;
@@ -42,13 +44,9 @@
 			$notisCount -= 1;
 
 			if (!redirect) {
-				for (const not of data.notifications) {
-					if (not.id === notification.id) {
-						not.read_at = new Date();
-						data.notifications = data.notifications;
-						break;
-					}
-				}
+				notifications = notifications.map((not) =>
+					not.id === notification.id ? { ...not, read_at: new Date() } : not
+				);
 			}
 		}
 		if (redirect) {
@@ -59,9 +57,22 @@
 			}
 		}
 	};
+
+	const readAll = async () => {
+		const res = await fetch('/api/notifications/read', { method: 'POST' });
+		if (!res.ok) return;
+		$notisCount = 0;
+		const now = new Date();
+		notifications = notifications.map((not) => (not.read_at ? not : { ...not, read_at: now }));
+	};
 </script>
 
-<h1>Notifications</h1>
+<div class="flex items-center justify-between gap-2.5">
+	<h1>Notifications</h1>
+	{#if notifications.some((n) => !n.read_at)}
+		<button class="btn" onclick={readAll}>Mark all as read</button>
+	{/if}
+</div>
 {#if push === 'on' || push === 'off'}
 	<div class="mt-2.5 flex items-center justify-between gap-2.5 rounded-[10px] bg-black/70 p-2.5">
 		<p>
@@ -69,7 +80,7 @@
 				? 'Push notifications are on for this browser.'
 				: 'Get a notification on this device when someone likes, replies, mentions or messages you.'}
 		</p>
-		<button class="btn" disabled={pushBusy} on:click={togglePush}>
+		<button class="btn" disabled={pushBusy} onclick={togglePush}>
 			{push === 'on' ? 'Turn off' : 'Turn on'}
 		</button>
 	</div>
@@ -80,17 +91,17 @@
 	</p>
 {/if}
 <div class="mt-2.5 flex flex-col gap-3.75">
-	{#each data.notifications as notification}
+	{#each notifications as notification (notification.id)}
 		<div
 			class="flex cursor-pointer items-center justify-between rounded-[10px] bg-black/70 p-2.5 {notification.read_at
 				? ''
 				: 'border border-accent'}"
 			role="button"
 			tabindex="0"
-			on:keypress={async () => {
+			onkeypress={async () => {
 				await readNotification(notification);
 			}}
-			on:click={async () => {
+			onclick={async () => {
 				await readNotification(notification);
 			}}
 		>
@@ -139,10 +150,14 @@
 			{#if !notification.read_at}
 				<button
 					class="btn flex size-8 items-center justify-center"
-					on:keypress|stopPropagation|preventDefault={async () => {
+					onkeypress={async (e) => {
+						e.stopPropagation();
+						e.preventDefault();
 						await readNotification(notification, false);
 					}}
-					on:click|stopPropagation|preventDefault={async () => {
+					onclick={async (e) => {
+						e.stopPropagation();
+						e.preventDefault();
 						await readNotification(notification, false);
 					}}
 					><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 0 448 512"
