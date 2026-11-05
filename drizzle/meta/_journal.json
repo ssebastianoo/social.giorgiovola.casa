@@ -64,6 +64,20 @@
       "when": 1793893190635,
       "tag": "0008_dm_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793894136987,
+      "tag": "0009_moderation",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793895022028,
+      "tag": "0010_mute_reason",
+      "breakpoints": true
     }
   ]
 }

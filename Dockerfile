@@ -23,7 +23,7 @@ RUN apt-get update \
 	&& mkdir -p static/avatars static/uploads
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
-COPY package.json migrate.ts ./
+COPY package.json migrate.ts admin.ts ./
 COPY drizzle ./drizzle
 
 ENV PORT=7777

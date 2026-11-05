@@ -32,10 +32,20 @@ export const users = pgTable(
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		// identities: extra profiles owned by an account, usable only by switching to them
 		// from the owning account (see src/routes/accounts)
-		owner_id: integer('owner_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' })
+		owner_id: integer('owner_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+		// moderation lives on accounts, identities follow the account that owns them
+		role: text('role', { enum: ['user', 'mod', 'admin'] })
+			.notNull()
+			.default('user'),
+		// banned accounts can't sign in; muted ones can't post, reply or send messages
+		banned_at: timestamptz('banned_at'),
+		ban_reason: text('ban_reason'),
+		muted_at: timestamptz('muted_at'),
+		mute_reason: text('mute_reason')
 	},
 	(t) => [
 		index('users_owner_id').on(t.owner_id),
+		check('users_role_check', sql`${t.role} IN ('user', 'mod', 'admin')`),
 		check(
 			'users_identity_check',
 			sql`(${t.owner_id} IS NULL AND ${t.email} IS NOT NULL AND ${t.password} IS NOT NULL AND ${t.salt} IS NOT NULL)

@@ -112,10 +112,10 @@
 				id: post.id
 			})
 		});
-		if (res.ok) {
-			if (page.route.id === '/@[username]/[post]') {
-				return await goto('/');
-			}
+		// staff can try to delete any post, the server refuses the ones they can't (a missing one is gone anyway)
+		if (!res.ok && res.status !== 404) return alert(await res.text());
+		if (page.route.id === '/@[username]/[post]') {
+			return await goto('/');
 		}
 		dispatch('postDeleted', {
 			id: post.id
@@ -164,7 +164,11 @@
 <dialog class={dialogClass} open={isModalOpen}>
 	<div class="flex h-full items-center justify-center">
 		<div class={dialogContentClass}>
-			<p>Are you sure you want to delete this post?</p>
+			<p>
+				Are you sure you want to delete this post{$user && $user.username !== post.user.username
+					? ' as a moderator'
+					: ''}?
+			</p>
 			<div class="flex gap-2.5">
 				<button class="btn w-full" on:click|stopPropagation={deletePost}>Yes</button>
 				<button
@@ -368,7 +372,7 @@
 							stroke-linejoin="round"
 						/>
 					</svg>
-					{#if $user && $user.username === post.user.username}
+					{#if $user && ($user.username === post.user.username || page.data.role !== 'user')}
 						<button
 							class="group flex cursor-pointer items-center outline-none"
 							on:click|preventDefault|stopPropagation={() => (isModalOpen = true)}

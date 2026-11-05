@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db, posts, users } from '#lib/server/db/index.js';
 import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
@@ -15,6 +16,7 @@ import {
 	toWebp
 } from '#lib/server/images.js';
 import { publishPost, publishDeleted } from '#lib/server/realtime.js';
+import { actionsLimited, mutedMessage, canDeletePostOf } from '#lib/server/moderation.js';
 
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
 	try {
@@ -29,6 +31,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) {
 		return new Response('Unauthorized', { status: 401 });
 	}
+	if (locals.muted) return new Response(mutedMessage(locals), { status: 403 });
 
 	// multipart when the post has images, plain JSON otherwise
 	let body: Record<string, unknown> | null;
@@ -163,18 +166,27 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 		return new Response('Missing post id', { status: 400 });
 	}
 
+	// the author's account decides whether a moderator may delete it
+	const account = alias(users, 'account');
+	const [target] = await db
+		.select({ user_id: posts.user_id, role: account.role })
+		.from(posts)
+		.innerJoin(users, eq(posts.user_id, users.id))
+		.innerJoin(account, eq(account.id, sql`COALESCE(${users.owner_id}, ${users.id})`))
+		.where(eq(posts.id, postId));
+	if (!target) return new Response('Post not found', { status: 404 });
+	if (target.user_id !== locals.user.id) {
+		if (!canDeletePostOf(locals, target.role)) return new Response('Forbidden', { status: 403 });
+		if (actionsLimited(locals.user.id)) return new Response('Too many requests', { status: 429 });
+	}
+
 	// replies go with the post: collect the images of the whole thread first
-	const images = await imagesOfPostTrees(sql`id = ${postId} AND user_id = ${locals.user.id}`);
+	const images = await imagesOfPostTrees(sql`id = ${postId}`);
 	const deleted = await db
 		.delete(posts)
-		.where(and(eq(posts.id, postId), eq(posts.user_id, locals.user.id)))
+		.where(eq(posts.id, postId))
 		.returning({ id: posts.id, reply_to: posts.reply_to });
-	if (deleted.length === 0) {
-		const exists = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, postId));
-		return exists.length === 0
-			? new Response('Post not found', { status: 404 })
-			: new Response('Forbidden', { status: 403 });
-	}
+	if (deleted.length === 0) return new Response('Post not found', { status: 404 });
 
 	await removeUploads(images);
 	publishDeleted(postId, deleted[0].reply_to);

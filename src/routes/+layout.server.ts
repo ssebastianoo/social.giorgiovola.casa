@@ -17,6 +17,9 @@ export const load = (async ({ locals }) => {
 
 	return {
 		user: locals.user,
+		role: locals.role,
+		muted: locals.muted,
+		muteReason: locals.muteReason,
 		notisCount,
 		messagesCount,
 		accounts: await getSwitcher(locals)

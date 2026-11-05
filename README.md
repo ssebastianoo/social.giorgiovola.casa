@@ -26,6 +26,19 @@ Data lives in the `postgres-data`, `avatars` and `uploads` docker volumes (`uplo
 - **Switching accounts:** up to 5 accounts can be signed in on one browser. Use the avatar menu in the header to switch, and *Sign in to another account* to add one.
 - **Identities:** extra profiles that belong to an account and have no email or password (up to 10 per account). Create and delete them at `/accounts`. They post, like and get notifications on their own, and the owning account is never shown publicly. Deleting an identity also deletes its posts.
 
+## moderation
+There are three roles: users, mods and admins.
+- **Mods** delete posts and replies, ban and mute users, and unban and unmute them from the panel at `/admin`. Banned users are signed out and can't sign in; muted users can't post, reply or send messages. Bans and mutes apply to the whole account, identities included.
+- **Admins** can do everything a mod can, and also reset passwords and make users mods (or remove them) from `/admin`.
+- Staff only act on people ranked below them: mods on users, admins on users and mods. Nobody moderates themselves.
+
+Admins are created from the command line, so there is always a way in:
+```
+bun admin.ts <username>             # make an account an admin
+bun admin.ts <username> --revoke    # back to a regular user
+docker compose exec web bun admin.ts <username>
+```
+
 ## development
 ```
 bun install

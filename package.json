@@ -12,7 +12,8 @@
 		"format": "prettier --plugin-search-dir . --write .",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "bun migrate.ts",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"admin": "bun admin.ts"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "^6.0.0",
