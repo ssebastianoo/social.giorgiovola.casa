@@ -41,6 +41,8 @@
 	"dependencies": {
 		"@fontsource-variable/manrope": "^5.0.5",
 		"@napi-rs/canvas": "^1.0.13",
+		"@simplewebauthn/browser": "^14.0.0",
+		"@simplewebauthn/server": "^14.0.3",
 		"dotenv": "^16.3.1",
 		"drizzle-orm": "0.45.4",
 		"postgres": "^3.3.5",

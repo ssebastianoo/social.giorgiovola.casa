@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import Avatar from '#lib/components/Avatar.svelte';
 
 	let { data, form }: PageProps = $props();
@@ -25,13 +25,22 @@
 		return query ? `?${query}` : '?';
 	};
 
-	const confirmBan = (username: string) => (e: SubmitEvent) => {
-		if (!confirm(`Ban @${username}? They will be signed out everywhere.`)) e.preventDefault();
-	};
-	const confirmPassword = (username: string) => (e: SubmitEvent) => {
-		if (!confirm(`Reset the password of @${username}? They will be signed out everywhere.`))
-			e.preventDefault();
-	};
+	// enhance submits even when onsubmit calls preventDefault, so the confirms go through cancel()
+	const confirmBan =
+		(username: string): SubmitFunction =>
+		({ cancel }) => {
+			if (!confirm(`Ban @${username}? They will be signed out everywhere.`)) cancel();
+		};
+	const confirmPassword =
+		(username: string): SubmitFunction =>
+		({ cancel }) => {
+			if (!confirm(`Reset the password of @${username}? They will be signed out everywhere.`))
+				return cancel();
+			return async ({ update }) => {
+				// the new password shouldn't linger in the field
+				await update({ reset: true });
+			};
+		};
 </script>
 
 <svelte:head>
@@ -123,8 +132,7 @@
 								class="flex flex-wrap items-center gap-2"
 								method="POST"
 								action="?/ban"
-								onsubmit={confirmBan(u.username)}
-								use:enhance
+								use:enhance={confirmBan(u.username)}
 							>
 								<input type="hidden" name="username" value={u.username} />
 								<input
@@ -180,12 +188,7 @@
 								class="flex flex-wrap items-center gap-2"
 								method="POST"
 								action="?/password"
-								onsubmit={confirmPassword(u.username)}
-								use:enhance={() =>
-									async ({ update }) => {
-										// the new password shouldn't linger in the field
-										await update({ reset: true });
-									}}
+								use:enhance={confirmPassword(u.username)}
 							>
 								<input type="hidden" name="username" value={u.username} />
 								<input

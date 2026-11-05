@@ -17,5 +17,6 @@ export const {
 	messages,
 	blocks,
 	settings,
-	push_subscriptions
+	push_subscriptions,
+	passkeys
 } = schema;
