@@ -27,24 +27,26 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		.where(eq(posts.id, postId));
 	if (!post) return new Response(null, { status: 404 });
 
-	const liked = await db.transaction(async (tx) => {
+	const { liked, total } = await db.transaction(async (tx) => {
 		const res = await tx
 			.insert(likes)
 			.values({ user_id: user.id, post_id: postId })
 			.onConflictDoNothing({ target: [likes.user_id, likes.post_id] })
 			.returning();
+		let liked = true;
 		if (res.length === 0) {
 			// no action, delete like
 			await tx.delete(likes).where(and(eq(likes.user_id, user.id), eq(likes.post_id, postId)));
-			return false;
-		} else {
-			// post has been liked
-			return true;
+			liked = false;
 		}
+		const total = await tx.$count(likes, eq(likes.post_id, postId));
+		return { liked, total };
 	});
 
-	void publishLikes(postId, post.user_id);
-	return new Response(JSON.stringify({ liked }), {
+	void publishLikes(postId, post.user_id, total);
+	// return the absolute count: the SSE `counts` event may reach this client before
+	// the response does, so the client must set it rather than increment
+	return new Response(JSON.stringify({ liked, likes: total }), {
 		headers: { 'Content-Type': 'application/json' }
 	});
 };

@@ -6,7 +6,9 @@ export const LIMITS = {
 	email: 254,
 	passwordMin: 8,
 	passwordMax: 256,
-	avatarBytes: 10 * 1024 * 1024
+	avatarBytes: 10 * 1024 * 1024,
+	postImages: 5,
+	imageBytes: 10 * 1024 * 1024
 } as const;
 
 // same character set the mention trigger (see drizzle/0001_notification_triggers.sql) recognises

@@ -32,7 +32,10 @@
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
 	$: contentParts = post.content.split(/(\s)/);
 
+	// images linked with markdown syntax in the content
 	let images: string[] = [];
+	// uploaded images first, then linked ones
+	$: gallery = [...(post.images ?? []), ...images];
 
 	// a mention notification is read as soon as the post it points at is actually on screen
 	let postElement: HTMLDivElement;
@@ -128,11 +131,8 @@
 		if (res.status === 200) {
 			const data = await res.json();
 			post.liked = data.liked;
-			if (post.liked) {
-				post.likes++;
-			} else {
-				post.likes--;
-			}
+			// absolute count, so it doesn't double up with the realtime `counts` event
+			post.likes = data.likes;
 		}
 	}
 
@@ -241,32 +241,47 @@
 					</p>
 				</div>
 				<div class="flex flex-col gap-2.5">
-					<p class="cursor-text wrap-anywhere">
-						{#each contentParts as part}
-							{#if isHttpLink(part)}
+					{#if post.content.trim()}
+						<p class="cursor-text wrap-anywhere">
+							{#each contentParts as part}
+								{#if isHttpLink(part)}
+									<a
+										on:click|stopPropagation
+										href={part}
+										target="_blank"
+										rel="noopener noreferrer nofollow">{part}</a
+									>
+								{:else if mentionRegex.test(part)}
+									<a on:click|stopPropagation href={`/${part}`}>{part}</a>
+								{:else}
+									{part}
+								{/if}
+							{/each}
+						</p>
+					{/if}
+					{#if gallery.length > 0}
+						<div class="grid gap-1.5 {gallery.length > 1 ? 'grid-cols-2' : ''}">
+							{#each gallery as image}
 								<a
-									on:click|stopPropagation
-									href={part}
+									class="flex justify-center overflow-hidden rounded-[5px] bg-black/40"
+									href={image}
 									target="_blank"
-									rel="noopener noreferrer nofollow">{part}</a
+									rel="noopener noreferrer"
+									on:click|stopPropagation
 								>
-							{:else if mentionRegex.test(part)}
-								<a on:click|stopPropagation href={`/${part}`}>{part}</a>
-							{:else}
-								{part}
-							{/if}
-						{/each}
-					</p>
-					{#each images as image}
-						<img
-							class="rounded-[5px]"
-							width="100%"
-							src={image}
-							alt=""
-							referrerpolicy="no-referrer"
-							loading="lazy"
-						/>
-					{/each}
+									<img
+										class={gallery.length > 1
+											? 'aspect-square w-full object-cover'
+											: 'max-h-[500px] max-w-full object-contain'}
+										src={image}
+										alt=""
+										referrerpolicy="no-referrer"
+										loading="lazy"
+									/>
+								</a>
+							{/each}
+						</div>
+					{/if}
 				</div>
 				<div class="mt-2.5 flex w-full items-center gap-2.5">
 					<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 0 512 512"

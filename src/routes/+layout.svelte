@@ -17,6 +17,15 @@
 	$notisCount = data.notisCount;
 	$messagesCount = data.messagesCount;
 
+	// social cards can't show SVGs: use the first other image of a post, else the generated card
+	const postCard = (post: { images?: string[] }) => {
+		const image = post.images?.find((i) => !i.endsWith('.svg'));
+		return image ? (PUBLIC_URL || page.url.origin) + image : publicUrl() + '/image.png';
+	};
+	// image-only posts have no text to quote
+	const postText = (post: { content: string; images?: string[] }) =>
+		post.content || (post.images?.length ? '[image]' : '');
+
 	// adapter-node no longer rewrites the request URL to the public origin (SvelteKit 3 dropped
 	// ORIGIN), so build absolute share URLs from PUBLIC_URL like the canonical link does
 	const publicUrl = () => `${PUBLIC_URL || page.url.origin}${page.url.pathname}${page.url.search}`;
@@ -66,19 +75,19 @@
 <svelte:head>
 	{#if page.route.id === '/@[username]/[post]' && !page.error}
 		<!-- Primary Meta Tags -->
-		<title>{`${page.data.post.user.name} : "${page.data.post.content}"`}</title>
+		<title>{`${page.data.post.user.name} : "${postText(page.data.post)}"`}</title>
 		<meta name="title" content={`${page.data.post.user.name} on social.giorgiovola.casa`} />
-		<meta name="description" content={page.data.post.content} />
+		<meta name="description" content={postText(page.data.post)} />
 
 		<!-- Open Graph / Facebook -->
 		<meta property="og:type" content="article" />
 		<meta property="og:url" content={publicUrl()} />
 		<meta
 			property="og:title"
-			content={`${page.data.post.user.name} : "${page.data.post.content}"`}
+			content={`${page.data.post.user.name} : "${postText(page.data.post)}"`}
 		/>
-		<meta property="og:description" content={page.data.post.content} />
-		<meta property="og:image" content={publicUrl() + '/image.png'} />
+		<meta property="og:description" content={postText(page.data.post)} />
+		<meta property="og:image" content={postCard(page.data.post)} />
 		<meta property="og:profile:username" content={page.data.post.user.username} />
 		<meta property="og:article:published_time" content={page.data.post.created_at.toISOString()} />
 
@@ -89,8 +98,8 @@
 			property="twitter:title"
 			content={`${page.data.post.user.name} on social.giorgiovola.casa`}
 		/>
-		<meta property="twitter:description" content={page.data.post.content} />
-		<meta property="twitter:image" content={publicUrl() + '/image.png'} />
+		<meta property="twitter:description" content={postText(page.data.post)} />
+		<meta property="twitter:image" content={postCard(page.data.post)} />
 	{:else if page.route.id === '/@[username]' && !page.error}
 		<!-- Primary Meta Tags -->
 		<title>{page.data.user.name} (@{page.data.user.username}) / social.giorgiovola.casa</title>

@@ -37,6 +37,7 @@ export async function getPosts({
 	const query = db
 		.select({
 			content: posts.content,
+			images: posts.images,
 			id: posts.id,
 			created_at: posts.created_at,
 			edited_at: posts.edited_at,
