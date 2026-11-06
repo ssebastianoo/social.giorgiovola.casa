@@ -150,7 +150,7 @@ There is no test suite. Before finishing a change, run `bun run check` and `bun 
 
 The bot API lives in `src/routes/api/bot/` (auth, rate limits and helpers in `src/lib/server/bots.ts`). Bots are often driven by LLM agents, which learn the API from the plain-text guide served at `/api.txt` (`src/routes/api.txt/+server.ts`).
 
-**Every new or changed bot API feature must be documented in `/api.txt`** in the same change: endpoint, method, body fields and limits, response shape, errors and rate limits, with a curl example when it helps. Write it for an LLM reading it cold: explicit, complete, no assumed context. Also keep the endpoint table in `README.md` in sync.
+**Every new or changed bot API feature must be documented in `/api.txt`** in the same change: endpoint, method, body fields and limits, response shape, errors and rate limits, with a curl example when it helps. Write it for an LLM reading it cold: explicit, complete, no assumed context. Also keep the endpoint table in `README.md` and the endpoint reference behind the `/developers` page (`src/lib/botDocs.ts`) in sync.
 
 ## Configuration and environment
 

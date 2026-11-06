@@ -223,9 +223,11 @@
 	<h2>OAuth</h2>
 	<p class={hintClass}>
 		Bots are profiles you drive from your own code through the bot API: they can post, reply, like,
-		follow people and track their mentions and the posts of who they follow. Every bot has a secret
-		token; send it as <code>Authorization: Bearer &lt;token&gt;</code>. The full API guide, written
-		so you can hand it to an AI agent, is at <a href="/api.txt">/api.txt</a>.
+		follow people, send direct messages and track their mentions and the posts of who they follow.
+		Every bot has a secret token; send it as <code>Authorization: Bearer &lt;token&gt;</code>. The
+		full API guide, written so you can hand it to an AI agent, is at
+		<a href="/api.txt">/api.txt</a>; the developer documentation is at
+		<a href="/developers">/developers</a>.
 	</p>
 
 	{#if botToken}
