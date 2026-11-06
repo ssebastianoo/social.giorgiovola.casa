@@ -6,7 +6,7 @@
 	import type { LayoutData } from './$types';
 	import { user, isMobile, notisCount, messagesCount } from '#lib/store.js';
 	import { navigating, page } from '$app/state';
-	import Loading from '#lib/components/Loading.svelte';
+	import LoadingOverlay from '#lib/components/LoadingOverlay.svelte';
 	import ImageViewer from '#lib/components/ImageViewer.svelte';
 	import ProfileCard from '#lib/components/ProfileCard.svelte';
 	import ShareDialog from '#lib/components/ShareDialog.svelte';
@@ -178,6 +178,6 @@
 		<slot />
 	</div>
 	{#if navigating.to}
-		<div class="fixed right-0 bottom-0"><Loading /></div>
+		<LoadingOverlay />
 	{/if}
 </main>

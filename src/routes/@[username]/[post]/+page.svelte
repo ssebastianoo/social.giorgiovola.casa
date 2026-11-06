@@ -5,7 +5,7 @@
 	import Posts from '#lib/components/Posts.svelte';
 	import PostComposer from '#lib/components/PostComposer.svelte';
 	import { user } from '#lib/store.js';
-	import Loading from '#lib/components/Loading.svelte';
+	import LoadingScreen from '#lib/components/LoadingScreen.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
 
@@ -38,7 +38,7 @@
 
 {#await getReplies()}
 	<div class="mt-5 flex items-center justify-center">
-		<Loading />
+		<LoadingScreen size={64} />
 	</div>
 {:then}
 	<div class="mt-5">
