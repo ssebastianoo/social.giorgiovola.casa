@@ -491,7 +491,7 @@
 			<div class="flex self-start" use:profileHover={post.user.username}>
 				<Avatar size={45} user={post.user} />
 			</div>
-			<div class="flex w-full flex-col gap-0.75">
+			<div class="flex min-w-0 flex-1 flex-col gap-0.75">
 				<div class="flex flex-wrap items-center justify-between gap-[5px]">
 					<p class="font-extrabold">
 						<a
