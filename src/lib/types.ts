@@ -67,6 +67,11 @@ export type Post = {
 	edited_at: Date | null;
 	likes: number;
 	liked?: boolean;
+	regiorgs: number;
+	/** the viewer regiorged it */
+	regiorged?: boolean;
+	/** in a timeline: the profile whose regiorg put the post there */
+	regiorged_by?: { username: string; name: string } | null;
 	replies_count: number;
 	reply_to: {
 		username: string;
@@ -76,7 +81,14 @@ export type Post = {
 	} | null;
 };
 
-export type NotificationType = 'like' | 'reply' | 'mention' | 'ratio' | 'ratioed_by_you' | 'follow';
+export type NotificationType =
+	| 'like'
+	| 'reply'
+	| 'mention'
+	| 'ratio'
+	| 'ratioed_by_you'
+	| 'follow'
+	| 'regiorg';
 
 export type Notification = {
 	id: number;

@@ -122,6 +122,22 @@ export const likes = pgTable(
 	(t) => [primaryKey({ columns: [t.user_id, t.post_id] })]
 );
 
+// A regiorg reshares a post: it shows up on the regiorger's profile and in their followers'
+// feeds, as of when it was regiorged.
+export const regiorgs = pgTable(
+	'regiorgs',
+	{
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		post_id: integer('post_id')
+			.notNull()
+			.references(() => posts.id, { onDelete: 'cascade' }),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.user_id, t.post_id] }), index('regiorgs_post_id').on(t.post_id)]
+);
+
 export const inbox = pgTable(
 	'inbox',
 	{
@@ -134,8 +150,9 @@ export const inbox = pgTable(
 		// ratio: sender's reply (post_id) got more likes than the recipient's post
 		// ratioed_by_you: the recipient's reply (post_id) got more likes than the sender's post
 		// follow: the sender followed the recipient, post_id is null
+		// regiorg: the sender regiorged the recipient's post
 		type: text('type', {
-			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow']
+			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow', 'regiorg']
 		}).notNull(),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		read_at: timestamptz('read_at'),
@@ -151,7 +168,7 @@ export const inbox = pgTable(
 			.where(sql`${t.type} = 'follow'`),
 		check(
 			'inbox_type_check',
-			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow')`
+			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow', 'regiorg')`
 		)
 	]
 );

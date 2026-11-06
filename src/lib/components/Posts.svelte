@@ -28,10 +28,8 @@
 		})
 	);
 
-	const handleDeletedPost = (e: CustomEvent) => {
-		posts = posts.filter((post) => {
-			return post.id !== e.detail.id;
-		});
+	const handleDeletedPost = (id: number) => {
+		posts = posts.filter((post) => post.id !== id);
 	};
 
 	const scrollToBottom = async (node: HTMLDivElement) => {
@@ -68,7 +66,7 @@
 	{#each posts as post, i}
 		{#if i === posts.length - 1 && shouldLoadMore}
 			<IntersectionObserver once let:intersecting>
-				<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
+				<Post onpostdeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
 				{#if intersecting}
 					{#await loadMore()}
 						Loading...
@@ -76,7 +74,7 @@
 				{/if}
 			</IntersectionObserver>
 		{:else}
-			<Post on:postDeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
+			<Post onpostdeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
 		{/if}
 	{/each}
 </div>

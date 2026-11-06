@@ -1,5 +1,5 @@
 import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
-import { db, follows, inbox, likes, posts } from './db/index.js';
+import { db, follows, inbox, likes, posts, users } from './db/index.js';
 import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
 import { sendFollowPush, sendMessagePush, sendPush } from './push';
@@ -266,6 +266,35 @@ export async function publishLikes(postId: number, ownerId: number | null, total
 		await sendPush(postId, ['like', 'ratio', 'ratioed_by_you']);
 	} catch (e) {
 		console.error('realtime: publishLikes failed', e);
+	}
+}
+
+/**
+ * A post's regiorgs changed: update its count everywhere. When `regiorgerId` regiorged it just
+ * now, the post goes out with who regiorged it (for followers' feeds) and its author is notified.
+ */
+export async function publishRegiorg(
+	postId: number,
+	ownerId: number | null,
+	total: number,
+	regiorgerId: number | null
+) {
+	try {
+		broadcast('counts', { id: postId, regiorgs: total });
+		if (regiorgerId === null) return;
+		const [[post], [regiorger]] = await Promise.all([
+			getPosts({ postId }),
+			db
+				.select({ username: users.username, name: users.name })
+				.from(users)
+				.where(eq(users.id, regiorgerId))
+		]);
+		if (post && regiorger) broadcast('regiorg', { ...post, regiorged_by: regiorger });
+		// the trigger created the notification (not for regiorging your own post)
+		await pushUnread([ownerId]);
+		await sendPush(postId, ['regiorg']);
+	} catch (e) {
+		console.error('realtime: publishRegiorg failed', e);
 	}
 }
 

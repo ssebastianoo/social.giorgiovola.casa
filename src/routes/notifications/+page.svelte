@@ -53,7 +53,11 @@
 		if (redirect) {
 			if (notification.type === 'follow' || !notification.post) {
 				goto(`/@${notification.sender.username}`);
-			} else if (notification.type === 'like' || notification.type === 'ratioed_by_you') {
+			} else if (
+				notification.type === 'like' ||
+				notification.type === 'ratioed_by_you' ||
+				notification.type === 'regiorg'
+			) {
 				goto(`/@${$user?.username}/${notification.post.id}`);
 			} else {
 				goto(`/@${notification.sender.username}/${notification.post.id}`);
@@ -81,7 +85,7 @@
 		<p>
 			{push === 'on'
 				? 'Push notifications are on for this browser.'
-				: 'Get a notification on this device when someone likes, replies, mentions, follows or messages you.'}
+				: 'Get a notification on this device when someone likes, regiorgs, replies, mentions, follows or messages you.'}
 		</p>
 		<Button disabled={pushBusy} onclick={togglePush}>
 			{push === 'on' ? 'Turn off' : 'Turn on'}
@@ -130,6 +134,12 @@
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
 							liked
+							<a href={`/@${$user?.username}/${notification.post.id}`}>your post</a>
+						</p>
+					{:else if notification.type === 'regiorg'}
+						<p>
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							regiorged
 							<a href={`/@${$user?.username}/${notification.post.id}`}>your post</a>
 						</p>
 					{:else if notification.type === 'mention'}

@@ -1,12 +1,12 @@
-import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Post, User } from '#lib/types.js';
 import { extractHashtags } from '#lib/hashtags.js';
 import { getAvatar } from '#lib/utils.js';
 import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
-import { db, follows, likes, post_hashtags, posts, users } from './db/index.js';
+import { db, follows, likes, post_hashtags, posts, regiorgs, users } from './db/index.js';
 import { imagesOfPostTrees, removeUploads } from './images.js';
-import { publishDeleted, publishLikes, publishPost } from './realtime.js';
+import { publishDeleted, publishLikes, publishPost, publishRegiorg } from './realtime.js';
 
 export type GetPostsOptions = {
 	loggedUser?: User | null;
@@ -84,6 +84,7 @@ export async function getPosts({
 			likes: count(likes.post_id),
 			// correlated subqueries: the table names are written out so they can't be mis-qualified
 			replies_count: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id)`,
+			regiorgs: sql<number>`(SELECT COUNT(*)::int FROM regiorgs r WHERE r.post_id = posts.id)`,
 			reply_to: sql<Post['reply_to']>`(
 				SELECT jsonb_build_object(
 					'username', u.username,
@@ -94,7 +95,12 @@ export async function getPosts({
 				WHERE p.id = posts.reply_to
 			)`,
 			...(loggedUser
-				? { liked: sql<boolean>`COALESCE(BOOL_OR(${likes.user_id} = ${loggedUser.id}), false)` }
+				? {
+						liked: sql<boolean>`COALESCE(BOOL_OR(${likes.user_id} = ${loggedUser.id}), false)`,
+						regiorged: sql<boolean>`EXISTS (
+							SELECT 1 FROM regiorgs r WHERE r.post_id = posts.id AND r.user_id = ${loggedUser.id}
+						)`
+				  }
 				: {})
 		})
 		.from(posts)
@@ -120,6 +126,75 @@ export async function getPosts({
 
 	return (await query) as unknown as Post[];
 }
+
+export type TimelineOptions = {
+	loggedUser?: User | null;
+	/** whose posts and regiorgs: a condition on a user id column */
+	authors: (userId: SQL) => SQL;
+	/** leave out their replies (regiorged replies still show) */
+	excludeReplies?: boolean;
+	limit: number;
+	offset?: number;
+};
+
+/**
+ * The posts of some profiles mixed with the posts they regiorged, newest first. A post shows
+ * once, at its latest regiorg or when it was posted, whichever is newer, and carries who
+ * regiorged it (`regiorged_by`) when that regiorg is why it is there.
+ */
+export async function getTimeline({
+	loggedUser,
+	authors,
+	excludeReplies,
+	limit,
+	offset = 0
+}: TimelineOptions) {
+	const entries = (await db.execute(sql`
+		SELECT t.post_id, u.username, u.name
+		FROM (
+			SELECT DISTINCT ON (e.post_id) e.post_id, e.regiorger_id, e.at
+			FROM (
+				SELECT p.id AS post_id, NULL::int AS regiorger_id, p.created_at AS at
+				FROM posts p
+				WHERE ${authors(sql`p.user_id`)} ${excludeReplies ? sql`AND p.reply_to IS NULL` : sql``}
+				UNION ALL
+				SELECT r.post_id, r.user_id, r.created_at
+				FROM regiorgs r
+				WHERE ${authors(sql`r.user_id`)}
+			) e
+			ORDER BY e.post_id, e.at DESC
+		) t
+		LEFT JOIN users u ON u.id = t.regiorger_id
+		ORDER BY t.at DESC, t.post_id DESC
+		LIMIT ${limit} OFFSET ${offset}
+	`)) as unknown as { post_id: number; username: string | null; name: string | null }[];
+	if (entries.length === 0) return [];
+
+	const found = await getPosts({
+		loggedUser,
+		where: inArray(
+			posts.id,
+			entries.map((e) => e.post_id)
+		)
+	});
+	const byId = new Map(found.map((p) => [p.id, p]));
+	return entries.flatMap((e): Post[] => {
+		const post = byId.get(e.post_id);
+		if (!post) return [];
+		const regiorged_by = e.username ? { username: e.username, name: e.name ?? e.username } : null;
+		return [{ ...post, regiorged_by }];
+	});
+}
+
+/** The profiles `userId` follows and itself, as a timeline `authors` condition. */
+export const followedAuthors = (userId: number) => (column: SQL) =>
+	sql`(${column} = ${userId} OR ${column} IN (
+		SELECT ${follows.followed_id} FROM ${follows} WHERE ${follows.follower_id} = ${userId}
+	))`;
+
+/** One profile, by username, as a timeline `authors` condition. */
+export const profileAuthor = (username: string) => (column: SQL) =>
+	sql`${column} = (SELECT u.id FROM users u WHERE u.username = ${username})`;
 
 /**
  * Writes a post (or a reply, when `reply_to` is set) by `user` with its hashtags, then tells
@@ -222,4 +297,39 @@ export async function setLiked(userId: number, postId: number, liked: boolean) {
 	});
 	void publishLikes(postId, post.user_id, total);
 	return { liked, likes: total };
+}
+
+/** Regiorgs or un-regiorgs a post. Idempotent, unlike the toggle of the regiorg button. */
+export async function setRegiorged(userId: number, postId: number, regiorged: boolean) {
+	const [post] = await db
+		.select({ id: posts.id, user_id: posts.user_id })
+		.from(posts)
+		.where(eq(posts.id, postId));
+	if (!post) return null;
+	const { added, total } = await db.transaction(async (tx) => {
+		let added = false;
+		if (regiorged) {
+			const res = await tx
+				.insert(regiorgs)
+				.values({ user_id: userId, post_id: postId })
+				.onConflictDoNothing({ target: [regiorgs.user_id, regiorgs.post_id] })
+				.returning({ post_id: regiorgs.post_id });
+			added = res.length > 0;
+		} else
+			await tx
+				.delete(regiorgs)
+				.where(and(eq(regiorgs.user_id, userId), eq(regiorgs.post_id, postId)));
+		return { added, total: await tx.$count(regiorgs, eq(regiorgs.post_id, postId)) };
+	});
+	void publishRegiorg(postId, post.user_id, total, added ? userId : null);
+	return { regiorged, regiorgs: total };
+}
+
+/** Whether `userId` has regiorged the post. */
+export async function isRegiorged(userId: number, postId: number) {
+	const n = await db.$count(
+		regiorgs,
+		and(eq(regiorgs.user_id, userId), eq(regiorgs.post_id, postId))
+	);
+	return n > 0;
 }

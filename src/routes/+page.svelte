@@ -23,7 +23,26 @@
 		posts = [post, ...posts];
 	}
 
-	onMount(() => onRealtime('post', add));
+	// a followed profile (or you) regiorged a post: it moves to the top of the following feed
+	function addRegiorg(post: Post) {
+		const by = post.regiorged_by?.username;
+		if (data.feed !== 'following' || !by) return;
+		const mine = by === $user?.username;
+		if (!mine && !data.following?.includes(by)) return;
+		// realtime posts are anonymous: keep what we know of our own like and regiorg
+		const old = posts.find((p) => p.id === post.id);
+		const entry = { ...post, liked: old?.liked, regiorged: mine || old?.regiorged };
+		posts = [entry, ...posts.filter((p) => p.id !== post.id)];
+	}
+
+	onMount(() => {
+		const offPost = onRealtime('post', add);
+		const offRegiorg = onRealtime('regiorg', addRegiorg);
+		return () => {
+			offPost();
+			offRegiorg();
+		};
+	});
 
 	const tabClass = (active: boolean) =>
 		`flex-1 border-b-2 p-2.5 text-center text-foreground hover:no-underline ${

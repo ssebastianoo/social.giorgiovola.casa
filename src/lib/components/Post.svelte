@@ -5,7 +5,6 @@
 	import Posts from './Posts.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { createEventDispatcher } from 'svelte';
 	import Likes from './Likes.svelte';
 	import Avatar from './Avatar.svelte';
 	import { onMount } from 'svelte';
@@ -16,47 +15,80 @@
 	import { openImage } from '#lib/imageViewer.svelte.js';
 	import { profileHover } from '#lib/profileCard.svelte.js';
 
-	export let loadReplies = false;
-	export let post: Post;
-	export let showReplyTo = false;
-	export let isPostOpen = false;
-	export let showThread = false;
+	type Props = {
+		post: Post;
+		loadReplies?: boolean;
+		showReplyTo?: boolean;
+		isPostOpen?: boolean;
+		showThread?: boolean;
+		onpostdeleted?: (id: number) => void;
+	};
 
-	const dispatch = createEventDispatcher();
+	let {
+		post,
+		loadReplies = false,
+		showReplyTo = false,
+		isPostOpen = false,
+		showThread = false,
+		onpostdeleted
+	}: Props = $props();
+
 	const dialogClass =
 		'fixed top-0 left-0 z-999 m-0 h-full w-screen border-none bg-background/20 p-0 text-foreground backdrop-blur-[2px]';
 	const dialogContentClass =
 		'flex w-[calc(85%+2px)] max-w-[392px] flex-col gap-2.5 rounded-md border border-accent bg-background/80 p-5';
-	let showingLikes = false;
-	let isModalOpen = false;
-	let popup: HTMLDivElement;
+	// which list of users is open
+	let showing: 'likes' | 'regiorgs' | null = $state(null);
+	let isModalOpen = $state(false);
+	let popup: HTMLDivElement | undefined = $state();
+
+	// writable derived: follow the post, overwritten by the buttons and realtime counts
+	let liked = $derived(post.liked ?? false);
+	let likes = $derived(post.likes);
+	let regiorged = $derived(post.regiorged ?? false);
+	let regiorgs = $derived(post.regiorgs ?? 0);
+	let repliesCount = $derived(post.replies_count);
+	// the parent's likes decide whether this reply ratios it
+	let parentLikes = $derived(post.reply_to?.likes ?? 0);
 
 	const mentionRegex = /^@[a-zA-Z0-9_]+$/;
+	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?="|\))(?<optionalpart>".*")?\)/;
 
-	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?=\"|\))(?<optionalpart>\".*\")?\)/;
-	$: contentParts = post.content.split(/(\s)/);
-	$: ratio = isRatio(post);
-	$: percent = ratioPercent(post);
+	// an image linked with markdown syntax in the content: only absolute https images, no
+	// same-origin URLs that could trigger actions
+	const linkedImage = $derived.by(() => {
+		const match = post.content.match(imageRegex);
+		const src = match?.[1].trim();
+		return src && src.startsWith('https://') && isHttpLink(src) ? src : null;
+	});
+	const contentParts = $derived(post.content.replace(imageRegex, '').split(/(\s)/));
+	// uploaded images first, then the linked one
+	const gallery = $derived([...(post.images ?? []), ...(linkedImage ? [linkedImage] : [])]);
 
-	// images linked with markdown syntax in the content
-	let images: string[] = [];
-	// uploaded images first, then linked ones
-	$: gallery = [...(post.images ?? []), ...images];
+	const ratioPost = $derived({
+		likes,
+		user: post.user,
+		reply_to: post.reply_to && { ...post.reply_to, likes: parentLikes }
+	});
+	const ratio = $derived(isRatio(ratioPost));
+	const percent = $derived(ratioPercent(ratioPost));
 
 	// a mention notification is read as soon as the post it points at is actually on screen
-	let postElement: HTMLDivElement;
-	let onScreen = false;
-	let visibilityState: DocumentVisibilityState;
-	$: if (
-		$user &&
-		onScreen &&
-		visibilityState === 'visible' &&
-		contentParts.includes(`@${$user.username}`)
-	)
-		markMentionSeen($user.id, post.id);
+	let postElement: HTMLDivElement | undefined = $state();
+	let onScreen = $state(false);
+	let visibilityState: Document['visibilityState'] | undefined = $state();
+	$effect(() => {
+		if (
+			$user &&
+			onScreen &&
+			visibilityState === 'visible' &&
+			contentParts.includes(`@${$user.username}`)
+		)
+			markMentionSeen($user.id, post.id);
+	});
 
 	onMount(() => {
-		if (!$user) return;
+		if (!$user || !postElement) return;
 		// below the fixed header, and past the very bottom edge of the screen
 		const observer = new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting), {
 			rootMargin: '-80px 0px -10% 0px'
@@ -66,23 +98,13 @@
 	});
 
 	onMount(() => {
-		const matchImage = post.content.match(imageRegex);
-		if (matchImage) {
-			// only absolute https images: no same-origin URLs that could trigger actions
-			const src = matchImage[1].trim();
-			if (src.startsWith('https://') && isHttpLink(src)) images = [...images, src];
-			post.content = post.content.replace(imageRegex, '');
-		}
-	});
-
-	onMount(() => {
 		const offCounts = onRealtime('counts', (c) => {
-			// the parent's likes decide whether this reply ratios it
 			if (post.reply_to && c.id === post.reply_to.id && c.likes !== undefined)
-				post.reply_to.likes = c.likes;
+				parentLikes = c.likes;
 			if (c.id !== post.id) return;
-			if (c.likes !== undefined) post.likes = c.likes;
-			if (c.replies_count !== undefined) post.replies_count = c.replies_count;
+			if (c.likes !== undefined) likes = c.likes;
+			if (c.replies_count !== undefined) repliesCount = c.replies_count;
+			if (c.regiorgs !== undefined) regiorgs = c.regiorgs;
 		});
 		const offDeleted = onRealtime('post_deleted', ({ id }) => {
 			// the open post vanished under the viewer
@@ -94,18 +116,21 @@
 		};
 	});
 
-	const fetchRepliesPromise = async () => {
-		if (!loadReplies || post.replies_count === 0) return;
-		const res = await fetch(`/api/posts/${post.id}/replies`, {
+	// fetched once per post: realtime reply counts don't refetch the thread
+	const repliesPromise = $derived(
+		loadReplies && post.replies_count > 0 ? fetchReplies(post.id) : null
+	);
+
+	async function fetchReplies(id: number): Promise<Post[]> {
+		const res = await fetch(`/api/posts/${id}/replies`, {
 			headers: {
 				'Content-Type': 'application/json'
 			}
 		});
-		const json = await res.json();
-		return json;
-	};
+		return res.json();
+	}
 
-	async function deletePost(e: Event) {
+	async function deletePost() {
 		isModalOpen = false;
 		const res = await fetch('/api/posts', {
 			method: 'DELETE',
@@ -121,12 +146,10 @@
 		if (page.route.id === '/@[username]/[post]') {
 			return await goto('/');
 		}
-		dispatch('postDeleted', {
-			id: post.id
-		});
+		onpostdeleted?.(post.id);
 	}
 
-	async function toggleLike(e: Event) {
+	async function toggleLike() {
 		const res = await fetch('/api/posts/like', {
 			method: 'POST',
 			headers: {
@@ -139,21 +162,43 @@
 
 		if (res.status === 200) {
 			const data = await res.json();
-			post.liked = data.liked;
+			liked = data.liked;
 			// absolute count, so it doesn't double up with the realtime `counts` event
-			post.likes = data.likes;
+			likes = data.likes;
 		}
 	}
 
+	async function toggleRegiorg() {
+		const res = await fetch('/api/posts/regiorg', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				id: post.id
+			})
+		});
+		if (res.ok) {
+			const data = await res.json();
+			regiorged = data.regiorged;
+			// absolute count, like for likes
+			regiorgs = data.regiorgs;
+		} else if (res.status !== 401) alert((await res.text()) || 'Could not regiorg');
+	}
+
 	function sharePost(post: Post) {
+		if (!popup) return;
+		const el = popup;
 		navigator.clipboard.writeText(`${window.location.origin}/@${post.user.username}/${post.id}`);
-		popup.style.top = '90px';
-		popup.style.visibility = 'visible';
+		el.style.top = '90px';
+		el.style.visibility = 'visible';
 		setTimeout(() => {
-			popup.style.top = '-100px';
-			popup.style.visibility = 'hidden';
+			el.style.top = '-100px';
+			el.style.visibility = 'hidden';
 		}, 1500);
 	}
+
+	const stop = (e: Event) => e.stopPropagation();
 </script>
 
 <svelte:document bind:visibilityState />
@@ -178,7 +223,7 @@
 					class="w-full"
 					onclick={(e) => {
 						e.stopPropagation();
-						deletePost(e);
+						deletePost();
 					}}>Yes</Button
 				>
 				<Button
@@ -193,15 +238,19 @@
 		</div>
 	</div>
 </dialog>
-<dialog class={dialogClass} open={showingLikes}>
-	{#if showingLikes}<!--  we don't want to render the component until the dialog is open -->
+<dialog class={dialogClass} open={showing !== null}>
+	{#if showing}<!--  we don't want to render the component until the dialog is open -->
 		<div class="flex h-full items-center justify-center">
 			<div class={dialogContentClass}>
 				<div class="flex items-center justify-between">
-					<h3>Users who liked</h3>
+					<h3>{showing === 'likes' ? 'Users who liked' : 'Users who regiorged'}</h3>
 					<button
 						class="flex cursor-pointer outline-none"
-						on:click|stopPropagation={() => (showingLikes = false)}
+						aria-label="Close"
+						onclick={(e) => {
+							e.stopPropagation();
+							showing = null;
+						}}
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -215,7 +264,7 @@
 					</button>
 				</div>
 				<div class="max-h-[calc(var(--fh)-160px)] cursor-pointer overflow-auto hover:underline">
-					<Likes postId={post.id} />
+					<Likes postId={post.id} kind={showing} />
 				</div>
 			</div>
 		</div>
@@ -223,7 +272,29 @@
 </dialog>
 <div class="flex flex-col gap-2.5">
 	<div class="flex flex-col gap-2.5">
-		{#if post.reply_to && showReplyTo}
+		{#if post.regiorged_by}
+			<a
+				class="ml-0.75 flex items-center gap-[5px] text-[0.85em] text-muted"
+				href={'/@' + post.regiorged_by.username}
+			>
+				<svg
+					class="stroke-muted"
+					height="14px"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					xmlns="http://www.w3.org/2000/svg"
+					aria-hidden="true"
+					><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path
+						d="M7 23l-4-4 4-4"
+					/><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
+				>
+				{post.regiorged_by.username === $user?.username ? 'You' : post.regiorged_by.name} regiorged
+			</a>
+		{/if}
+		{#if post.reply_to && (showReplyTo || post.regiorged_by)}
 			<a class="ml-0.75" href={'/@' + post.reply_to.username + '/' + post.reply_to.id}
 				>Replying to @{post.reply_to.username}</a
 			>
@@ -236,15 +307,13 @@
 			tabindex="0"
 			role="button"
 			aria-pressed="false"
-			on:keypress={() => {
+			onkeypress={() => {
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
-			on:click={(e) => {
+			onclick={() => {
 				// allow dragging to select text
-
 				const selection = getSelection();
 				if (selection && selection.type === 'Range') return;
-				// if (e.target && e.target.matches('a')) return;
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
 		>
@@ -267,25 +336,19 @@
 					</p>
 				</div>
 				<div class="flex flex-col gap-2.5">
-					{#if post.content.trim()}
+					{#if contentParts.join('').trim()}
 						<p class="cursor-text wrap-anywhere">
 							{#each contentParts as part}
 								{#if isHttpLink(part)}
-									<a
-										on:click|stopPropagation
-										href={part}
-										target="_blank"
-										rel="noopener noreferrer nofollow">{part}</a
+									<a onclick={stop} href={part} target="_blank" rel="noopener noreferrer nofollow"
+										>{part}</a
 									>
 								{:else if parseHashtag(part)}
 									{@const hashtag = parseHashtag(part)!}
-									<a on:click|stopPropagation href={hashtagHref(hashtag.tag)}>#{hashtag.tag}</a
-									>{hashtag.rest}
+									<a onclick={stop} href={hashtagHref(hashtag.tag)}>#{hashtag.tag}</a>{hashtag.rest}
 								{:else if mentionRegex.test(part)}
-									<a
-										on:click|stopPropagation
-										href={`/${part}`}
-										use:profileHover={part.slice(1).toLowerCase()}>{part}</a
+									<a onclick={stop} href={`/${part}`} use:profileHover={part.slice(1).toLowerCase()}
+										>{part}</a
 									>
 								{:else}
 									{part}
@@ -300,7 +363,10 @@
 									type="button"
 									class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/40 outline-none"
 									aria-label="Open image"
-									on:click|stopPropagation={() => openImage(gallery, i)}
+									onclick={(e) => {
+										e.stopPropagation();
+										openImage(gallery, i);
+									}}
 								>
 									<img
 										class={gallery.length > 1
@@ -324,9 +390,58 @@
 							d="M123.6 391.3c12.9-9.4 29.6-11.8 44.6-6.4c26.5 9.6 56.2 15.1 87.8 15.1c124.7 0 208-80.5 208-160s-83.3-160-208-160S48 160.5 48 240c0 32 12.4 62.8 35.7 89.2c8.6 9.7 12.8 22.5 11.8 35.5c-1.4 18.1-5.7 34.7-11.3 49.4c17-7.9 31.1-16.7 39.4-22.7zM21.2 431.9c1.8-2.7 3.5-5.4 5.1-8.1c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208s-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6c-15.1 6.6-32.3 12.6-50.1 16.1c-.8 .2-1.6 .3-2.4 .5c-4.4 .8-8.7 1.5-13.2 1.9c-.2 0-.5 .1-.7 .1c-5.1 .5-10.2 .8-15.3 .8c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4c4.1-4.2 7.8-8.7 11.3-13.5c1.7-2.3 3.3-4.6 4.8-6.9c.1-.2 .2-.3 .3-.5z"
 						/></svg
 					>
-					<p>{post.replies_count ? post.replies_count : '0'}</p>
+					<p>{repliesCount ? repliesCount : '0'}</p>
 					<button
-						on:click|preventDefault|stopPropagation={toggleLike}
+						onclick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							toggleRegiorg();
+						}}
+						class="group flex cursor-pointer items-center outline-none"
+						title={regiorged ? 'undo regiorg' : 'regiorg'}
+						aria-pressed={regiorged}
+					>
+						<svg
+							height="19px"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							xmlns="http://www.w3.org/2000/svg"
+							class="{regiorged ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
+								? ''
+								: `transition-[stroke] duration-100 ease-in-out ${
+										!regiorged && $user ? 'group-hover:stroke-accent' : ''
+								  }`}"
+							><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path
+								d="M7 23l-4-4 4-4"
+							/><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
+						>
+					</button>
+					<div class="cursor-pointer hover:underline">
+						<div
+							role="button"
+							tabindex="0"
+							title="Users who regiorged"
+							onkeypress={(e) => {
+								e.stopPropagation();
+								showing = 'regiorgs';
+							}}
+							onclick={(e) => {
+								e.stopPropagation();
+								showing = 'regiorgs';
+							}}
+						>
+							{regiorgs ? regiorgs : '0'}
+						</div>
+					</div>
+					<button
+						onclick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							toggleLike();
+						}}
 						class="group flex cursor-pointer items-center outline-none"
 						title="like"
 					>
@@ -340,11 +455,11 @@
 									class={$isMobile
 										? ''
 										: `transition-[fill,stroke] duration-100 ease-in-out ${
-												!post.liked && $user ? 'group-hover:fill-foreground' : ''
+												!liked && $user ? 'group-hover:fill-foreground' : ''
 										  }`}
 									d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z"
-									fill={post.liked ? '#bb5353' : 'transparent'}
-									stroke={post.liked ? '#bb5353' : '#d9d9d9'}
+									fill={liked ? '#bb5353' : 'transparent'}
+									stroke={liked ? '#bb5353' : '#d9d9d9'}
 								/>
 							</g></svg
 						>
@@ -353,28 +468,34 @@
 						<div
 							role="button"
 							tabindex="0"
-							on:keypress|stopPropagation={() => {
-								showingLikes = true;
+							onkeypress={(e) => {
+								e.stopPropagation();
+								showing = 'likes';
 							}}
-							on:click|stopPropagation={() => {
-								showingLikes = true;
+							onclick={(e) => {
+								e.stopPropagation();
+								showing = 'likes';
 							}}
 						>
-							{post.likes ? post.likes : '0'}
+							{likes ? likes : '0'}
 						</div>
 					</div>
 					{#if ratio}
 						<span
 							class="rounded-[5px] border border-[#bb5353] px-1.5 text-[0.7rem] font-extrabold tracking-wider text-[#bb5353]"
 							title="This reply has {percent}% of the likes between it and @{post.reply_to
-								?.username}'s post ({post.likes} vs {post.reply_to?.likes})">RATIO {percent}%</span
+								?.username}'s post ({likes} vs {parentLikes})">RATIO {percent}%</span
 						>
 					{/if}
 					<svg
-						on:click|preventDefault|stopPropagation={() => {
+						onclick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
 							sharePost(post);
 						}}
-						on:keypress|preventDefault|stopPropagation={() => {
+						onkeypress={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
 							sharePost(post);
 						}}
 						class="group outline-none select-none [-webkit-tap-highlight-color:transparent]"
@@ -399,7 +520,12 @@
 					{#if $user && ($user.username === post.user.username || page.data.role !== 'user')}
 						<button
 							class="group flex cursor-pointer items-center outline-none"
-							on:click|preventDefault|stopPropagation={() => (isModalOpen = true)}
+							aria-label="Delete post"
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								isModalOpen = true;
+							}}
 						>
 							<svg
 								class="fill-foreground"
@@ -418,12 +544,12 @@
 			</div>
 		</div>
 	</div>
-	{#if post.replies_count > 0 && loadReplies}
+	{#if repliesPromise}
 		<div class="flex justify-end">
 			<div
 				class="relative w-[90.5%] before:absolute before:top-0 before:-left-5 before:block before:h-[calc(100%-74px)] before:w-px before:bg-accent"
 			>
-				{#await fetchRepliesPromise()}
+				{#await repliesPromise}
 					Loading replies...
 				{:then replies}
 					<Posts posts={replies} replies={true} showThread={true} />

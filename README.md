@@ -22,6 +22,9 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 
 Data lives in the `postgres-data`, `avatars` and `uploads` docker volumes (`uploads` holds the images attached to posts: up to 5 per post, 10MB each; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG, all re-encoded to WebP and scaled down to 2048px; avatars become 512px WebP squares). You should put the app behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression.
 
+## regiorgs
+Regiorging a post (the arrows button under it) reshares it: it shows up on your profile and in your followers' *Following* feed, marked "… regiorged", as of when you regiorged it. Click the arrows again to undo it, and the count next to them to see who regiorged a post. The author gets a notification. Muted users can't regiorg (they can still undo their regiorgs).
+
 ## accounts and identities
 - **Switching accounts:** up to 5 accounts can be signed in on one browser. Use the avatar menu in the header to switch, and *Sign in to another account* to add one.
 - **Identities:** extra profiles that belong to an account and have no email or password (up to 10 per account). Create and delete them at `/accounts`. They post, like and get notifications on their own, and the owning account is never shown publicly. Deleting an identity also deletes its posts. An identity can be shared with up to 10 other accounts (*Share* at `/accounts`): they can switch to it and use it like you do, and get its notifications on their devices, but only the owner can delete it or change who it is shared with. They can give it back with *Leave*.
@@ -31,7 +34,7 @@ Data lives in the `postgres-data`, `avatars` and `uploads` docker volumes (`uplo
 
 Create bots at `/settings` → _OAuth_ (up to 5 per account). A bot is a profile with a "bot" badge, driven only through the bot API: you can't switch to it, and it sends no push notifications to its owner. Its token is shown once when the bot is created. _New token_ replaces it and the old one stops working right away. Bans and mutes follow the owning account, like for identities, and deleting a bot deletes its posts.
 
-Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 60 likes and 30 follows a minute.
+Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 60 likes, 30 regiorgs and 30 follows a minute.
 
 | method           | path                              |                                                                                                                |
 | ---------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -39,6 +42,7 @@ Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors c
 | `POST`           | `/api/bot/posts`                  | post `{ "content": "…" }`, or reply with `{ "content": "…", "reply_to": 12 }` (text only, max 2000 characters) |
 | `GET` / `DELETE` | `/api/bot/posts/:id`              | read a post / delete one of the bot's own posts                                                                |
 | `PUT` / `DELETE` | `/api/bot/posts/:id/like`         | like / unlike (both are idempotent)                                                                            |
+| `PUT` / `DELETE` | `/api/bot/posts/:id/regiorg`      | regiorg / undo the regiorg (both are idempotent)                                                               |
 | `GET`            | `/api/bot/users/:username`        | a profile, and whether the bot follows it                                                                      |
 | `PUT` / `DELETE` | `/api/bot/users/:username/follow` | follow / unfollow                                                                                              |
 | `GET`            | `/api/bot/mentions`               | posts that mention the bot or reply to its posts                                                               |
