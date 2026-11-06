@@ -22,6 +22,11 @@
 	let website = $derived(data.website);
 	let followBusy = $state(false);
 
+	const tabClass = (active: boolean) =>
+		`flex-1 border-b-2 p-2.5 text-center text-foreground hover:no-underline ${
+			active ? 'border-accent' : 'border-transparent opacity-60 hover:opacity-100'
+		}`;
+
 	const nf = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
 
 	// "A, B, and 3 others", like the profile card
@@ -308,11 +313,31 @@
 	/>
 {/if}
 
+<nav class="mb-5 flex">
+	<a
+		class={tabClass(data.tab === 'posts')}
+		href="/@{profile.username}"
+		data-sveltekit-noscroll
+		aria-current={data.tab === 'posts' ? 'page' : undefined}>Posts</a
+	>
+	<a
+		class={tabClass(data.tab === 'replies')}
+		href="/@{profile.username}?tab=replies"
+		data-sveltekit-noscroll
+		aria-current={data.tab === 'replies' ? 'page' : undefined}>Replies</a
+	>
+</nav>
+
 {#if pinned}
 	{#key pinned.id}
 		<Post pinned post={pinned} onpostdeleted={() => (pinned = null)} />
 	{/key}
 {/if}
+{#if data.posts.length === 0 && !pinned}
+	<p class="text-center text-muted">
+		{data.tab === 'replies' ? 'No replies yet.' : 'No posts yet.'}
+	</p>
+{/if}
 {#key profile}
-	<Posts shouldLoadMore posts={data.posts} />
+	<Posts shouldLoadMore showReplyTo={data.tab === 'replies'} posts={data.posts} />
 {/key}
