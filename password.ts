@@ -8,10 +8,10 @@ import { sessions, users } from './src/lib/server/db/schema';
 const client = postgres(Bun.env.DATABASE_URL);
 const db = drizzle(client);
 
-// @ts-ignore
+// @ts-ignore bun globals aren't typed here
 const username: string = Bun.argv[2];
 
-// @ts-ignore
+// @ts-ignore bun globals aren't typed here
 const password: string = Bun.argv[3];
 
 const { salt, hash } = await hashPassword(password);

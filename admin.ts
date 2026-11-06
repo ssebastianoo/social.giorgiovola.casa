@@ -4,7 +4,7 @@
 // With docker: docker compose exec web bun admin.ts <username>
 import postgres from 'postgres';
 
-// @ts-ignore
+// @ts-ignore bun globals aren't typed here
 const args: string[] = Bun.argv.slice(2);
 const revoke = args.includes('--revoke');
 const username = args
@@ -17,7 +17,7 @@ if (!username || args.some((a) => a.startsWith('--') && a !== '--revoke')) {
 	process.exit(1);
 }
 
-// @ts-ignore
+// @ts-ignore bun globals aren't typed here
 const url: string | undefined = Bun.env.DATABASE_URL;
 if (!url) {
 	console.error('DATABASE_URL is not set');

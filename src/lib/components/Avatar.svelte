@@ -4,7 +4,7 @@
 
 	export let user: Pick<User, 'username' | 'name' | 'avatar'>;
 	export let size: number;
-	export let clickable: boolean = true;
+	export let clickable = true;
 
 	// preflight's max-width and height: auto would otherwise let avatars shrink or lose their ratio
 	const imgClass = 'aspect-square max-w-none self-start rounded-full object-cover';

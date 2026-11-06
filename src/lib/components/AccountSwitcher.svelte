@@ -53,6 +53,7 @@
 				width="50"
 			/>
 			{#if otherUnread() > 0}
+				<!-- prettier-ignore -->
 				<span class={dotClass} title="Unread notifications or messages on your other profiles"></span>
 			{/if}
 		</button>

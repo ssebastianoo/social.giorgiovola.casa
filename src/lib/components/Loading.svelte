@@ -1,16 +1,11 @@
+<script lang="ts">
+	const bars = Array.from({ length: 12 }, (_, i) => i);
+</script>
+
 <div class="lds-spinner">
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
-	<div />
+	{#each bars as bar (bar)}
+		<div></div>
+	{/each}
 </div>
 
 <style>

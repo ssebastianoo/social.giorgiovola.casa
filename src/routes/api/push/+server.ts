@@ -67,7 +67,10 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 	await db
 		.delete(push_subscriptions)
 		.where(
-			and(eq(push_subscriptions.session_token, session.token), eq(push_subscriptions.endpoint, endpoint))
+			and(
+				eq(push_subscriptions.session_token, session.token),
+				eq(push_subscriptions.endpoint, endpoint)
+			)
 		);
 	return new Response(null, { status: 204 });
 };

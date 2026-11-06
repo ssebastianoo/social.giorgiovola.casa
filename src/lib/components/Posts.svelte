@@ -53,9 +53,9 @@
 		});
 		if (res.ok) {
 			const data = deserialize(await res.text());
-			// @ts-ignore
+			// @ts-ignore deserialize() result is untyped
 			if (data.status === 200 && data.data) {
-				// @ts-ignore
+				// @ts-ignore deserialize() result is untyped
 				posts = [...posts, ...data.data.posts];
 			}
 		}

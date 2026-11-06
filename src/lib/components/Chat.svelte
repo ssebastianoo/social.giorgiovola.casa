@@ -440,6 +440,7 @@
 				multiple
 				hidden
 			/>
+			<!-- prettier-ignore -->
 			<textarea
 				class="input max-h-32 resize-none field-sizing-content"
 				rows="1"
@@ -449,7 +450,7 @@
 				bind:this={textarea}
 				bind:value={content}
 				on:keydown={onKeydown}
-			/>
+			></textarea>
 			<button
 				type="button"
 				title="Attach images"
