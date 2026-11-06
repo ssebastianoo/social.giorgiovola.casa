@@ -24,7 +24,10 @@ const frame = (event: string, data: unknown) =>
 	`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
 /** An event stream body: `register` adds the client to a hub and returns how to remove it. */
-function eventStream(signal: AbortSignal, register: (send: (chunk: string) => void) => () => void) {
+function eventStream(
+	signal: AbortSignal,
+	register: (send: (chunk: string) => void, close: () => void) => () => void
+) {
 	let cleanup = () => {};
 	return new ReadableStream<Uint8Array>({
 		start(controller) {
@@ -39,7 +42,7 @@ function eventStream(signal: AbortSignal, register: (send: (chunk: string) => vo
 			const heartbeat = setInterval(() => send(': ping\n\n'), HEARTBEAT_MS);
 			let closed = false;
 			send('retry: 3000\n\n');
-			const unregister = register(send);
+			const unregister = register(send, () => cleanup());
 			cleanup = () => {
 				if (closed) return;
 				closed = true;
@@ -76,23 +79,34 @@ type BotClient = {
 	/** matches a mention of the bot, like the mention trigger does */
 	mention: RegExp;
 	send: (chunk: string) => void;
+	close: () => void;
 };
 
 const botClients = new Set<BotClient>();
 
 /** The bot API stream: `mention` and `post` (by a followed profile) events. */
 export function openBotStream(bot: { id: number; username: string }, signal: AbortSignal) {
-	return eventStream(signal, (send) => {
+	return eventStream(signal, (send, close) => {
 		// usernames are [a-z0-9_], nothing to escape
 		const client: BotClient = {
 			botId: bot.id,
 			mention: new RegExp(`@${bot.username}(\\s|$)`),
-			send
+			send,
+			close
 		};
 		botClients.add(client);
 		send(frame('ready', { id: bot.id, username: bot.username }));
 		return () => botClients.delete(client);
 	});
+}
+
+/**
+ * Ends the open streams of these bots. The token is only checked when a stream opens, so this
+ * runs when it stops being valid: a new token, a deleted bot or a banned owner.
+ */
+export function closeBotStreams(botIds: number[]) {
+	const ids = new Set(botIds);
+	for (const client of [...botClients]) if (ids.has(client.botId)) client.close();
 }
 
 /** Whether a post mentions this bot or replies to one of its posts. */

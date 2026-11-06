@@ -6,6 +6,7 @@ import { MAX_BOTS, listBots, newToken } from '#lib/server/bots.js';
 import { removeAvatarFiles } from '#lib/server/accounts.js';
 import { imagesOfPostTrees, removeUploads } from '#lib/server/images.js';
 import { hit, isLimited } from '#lib/server/ratelimit.js';
+import { closeBotStreams } from '#lib/server/realtime.js';
 import {
 	isUniqueViolation,
 	parseId,
@@ -130,6 +131,7 @@ export const actions = {
 			.update(bots)
 			.set({ token_hash: hash, created_at: sql`NOW()`, last_used_at: null })
 			.where(eq(bots.user_id, bot.id));
+		closeBotStreams([bot.id]);
 		return { botToken: { id: bot.id, username: bot.username, token } };
 	},
 
@@ -137,6 +139,10 @@ export const actions = {
 	deleteBot: async ({ request, locals }) => {
 		const accountId = locals.accountId;
 		if (!accountId) return fail(401, { error: 'You are not signed in.' });
+		const key = `bots:${accountId}`;
+		if (isLimited(key, MAX_BOT_ACTIONS))
+			return fail(429, { error: 'Too many attempts, try again in a minute.' });
+		hit(key, BOT_WINDOW_MS);
 		const data = await request.formData();
 		const bot = await ownedBot(accountId, parseId(data.get('id')));
 		if (!bot) return fail(404, { error: 'Bot not found.' });
@@ -146,6 +152,7 @@ export const actions = {
 		await db
 			.delete(users)
 			.where(and(eq(users.id, bot.id), eq(users.owner_id, accountId), eq(users.bot, true)));
+		closeBotStreams([bot.id]);
 		await removeAvatarFiles(bot.id);
 		await removeUploads(images);
 		return { deletedBot: true };

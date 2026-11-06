@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, sessions, users } from './db/index.js';
 import { hit, isLimited } from './ratelimit.js';
+import { closeBotStreams } from './realtime.js';
 
 export type Role = 'user' | 'mod' | 'admin';
 
@@ -82,6 +83,12 @@ export async function banAccount(id: number, reason: string | null) {
 		.where(and(eq(users.id, id), isNull(users.banned_at)));
 	// signs them out everywhere (push subscriptions go with the sessions)
 	await db.delete(sessions).where(eq(sessions.user_id, id));
+	// the bot API checks bans per request, open bot streams have to be ended
+	const owned = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.owner_id, id), eq(users.bot, true)));
+	closeBotStreams(owned.map((b) => b.id));
 }
 
 export const unbanAccount = (id: number) =>
