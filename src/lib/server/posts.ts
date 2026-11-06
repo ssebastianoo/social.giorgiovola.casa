@@ -139,7 +139,65 @@ export async function getPosts({
 	if (limit != null) query.limit(limit);
 	if (offset != null) query.offset(offset);
 
-	return (await query) as unknown as Post[];
+	return withLinkedPosts((await query) as unknown as Post[]);
+}
+
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// a link to a post on this instance: PUBLIC_URL/@username/id
+const postLinkRegex = PUBLIC_URL
+	? new RegExp(
+			`${escapeRegex(PUBLIC_URL.replace(/\/+$/, ''))}/@([a-zA-Z0-9_]+)/(\\d+)(?![\\d])`,
+			'i'
+	  )
+	: null;
+
+/** The first post linked in the content, as its author's username and id. */
+function linkedPostRef(content: string) {
+	const match = postLinkRegex && content.match(postLinkRegex);
+	return match ? { username: match[1].toLowerCase(), id: Number(match[2]) } : null;
+}
+
+/**
+ * Fills `linked_post` with the first post on this instance a post links to, shown as an embed
+ * like a quote. A post that already quotes doesn't get one, and neither does a link whose
+ * username doesn't match the post's author or a post that's gone.
+ */
+async function withLinkedPosts(found: Post[]): Promise<Post[]> {
+	const refs = new Map<number, { username: string; id: number }>();
+	for (const post of found) {
+		const ref = post.quote ? null : linkedPostRef(post.content);
+		if (ref && ref.id !== post.id && Number.isSafeInteger(ref.id) && ref.id <= 2147483647)
+			refs.set(post.id, ref);
+	}
+	if (refs.size === 0) return found.map((p) => ({ ...p, linked_post: null }));
+
+	const ids = [...new Set([...refs.values()].map((r) => r.id))];
+	const linked = await db
+		.select({
+			id: posts.id,
+			content: posts.content,
+			images: posts.images,
+			created_at: posts.created_at,
+			is_quote: posts.is_quote,
+			user: {
+				username: users.username,
+				name: users.name,
+				avatar: users.avatar
+			}
+		})
+		.from(posts)
+		.innerJoin(users, eq(posts.user_id, users.id))
+		.where(inArray(posts.id, ids));
+	const byId = new Map(linked.map((p) => [p.id, p]));
+
+	return found.map((post) => {
+		const ref = refs.get(post.id);
+		const target = ref && byId.get(ref.id);
+		return {
+			...post,
+			linked_post: target && target.user.username.toLowerCase() === ref.username ? target : null
+		};
+	});
 }
 
 export type TimelineOptions = {

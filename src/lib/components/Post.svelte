@@ -64,6 +64,8 @@
 	let quotes = $derived(post.quotes ?? 0);
 	// the quoted post, marked deleted when it goes away under the viewer
 	let quote = $derived(post.quote ?? null);
+	// a post on this instance linked in the content, embedded like a quote
+	let linkedPost = $derived(post.linked_post ?? null);
 	let repliesCount = $derived(post.replies_count);
 	// the parent's likes decide whether this reply ratios it
 	let parentLikes = $derived(post.reply_to?.likes ?? 0);
@@ -126,6 +128,7 @@
 		});
 		const offDeleted = onRealtime('post_deleted', ({ id }) => {
 			if (quote && !('deleted' in quote) && quote.id === id) quote = { deleted: true };
+			if (linkedPost?.id === id) linkedPost = null;
 			// the open post vanished under the viewer
 			if (id === post.id && isPostOpen) goto('/');
 		});
@@ -603,6 +606,8 @@
 					{/if}
 					{#if quote}
 						<QuoteCard {quote} />
+					{:else if linkedPost}
+						<QuoteCard quote={linkedPost} />
 					{/if}
 				</div>
 				<div class="mt-2.5 flex w-full items-center gap-2.5">
