@@ -113,6 +113,9 @@
 			<a class="font-extrabold text-inherit" href="/@{card.username}">{card.name}</a>
 			<p class="flex items-center gap-1.5 opacity-80">
 				@{card.username}
+				{#if card.bot}
+					<span class="rounded-full border border-accent px-2 text-[0.75em] text-accent">bot</span>
+				{/if}
 				{#if card.followsYou}
 					<span class="rounded-[5px] border border-line px-1.5 py-px text-[0.75em]"
 						>Follows you</span

@@ -120,7 +120,8 @@ export async function getProfileCard(
 			name: users.name,
 			avatar: users.avatar,
 			bio: users.bio,
-			website: users.website
+			website: users.website,
+			bot: users.bot
 		})
 		.from(users)
 		.where(eq(users.username, username.toLowerCase()));
@@ -143,6 +144,7 @@ export async function getProfileCard(
 		username: profile.username,
 		name: profile.name,
 		avatar: profile.avatar,
+		bot: profile.bot,
 		bio: profile.bio,
 		website: profile.website,
 		...stats,

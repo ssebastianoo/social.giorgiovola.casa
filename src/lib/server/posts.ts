@@ -79,6 +79,7 @@ export async function getPosts({
 				'name', ${users.name},
 				'username', ${users.username},
 				'avatar', ${users.avatar},
+				'bot', ${users.bot},
 				'created_at', ${users.created_at}
 			)`,
 			likes: count(likes.post_id),

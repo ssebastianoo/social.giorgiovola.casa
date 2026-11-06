@@ -5,6 +5,7 @@ export type User = {
 	name: string;
 	username: string;
 	avatar: string | null;
+	bot?: boolean;
 	created_at: Date;
 	/** the account owning this identity, null for regular accounts */
 	owner_id: number | null;
@@ -26,11 +27,12 @@ export type PublicUser = {
 	name: string;
 	username: string;
 	avatar: string | null;
+	bot?: boolean;
 	created_at: Date;
 };
 
 /** The profile hover card (see src/lib/components/ProfileCard.svelte). */
-export type ProfileCard = Pick<User, 'username' | 'name' | 'avatar'> & {
+export type ProfileCard = Pick<User, 'username' | 'name' | 'avatar' | 'bot'> & {
 	bio: string;
 	/** an http(s) URL, may be empty */
 	website: string;

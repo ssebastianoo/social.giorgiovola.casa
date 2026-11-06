@@ -544,6 +544,12 @@
 							>{post.user.name}
 							<span class="font-medium opacity-80">@{post.user.username}</span></a
 						>
+						{#if post.user.bot}
+							<span
+								class="ml-1 rounded-full border border-accent px-2 align-middle text-[0.75em] font-medium text-accent"
+								>bot</span
+							>
+						{/if}
 					</p>
 					<p class="text-[0.8rem] opacity-70">
 						{new Date(post.created_at).toLocaleString()}
