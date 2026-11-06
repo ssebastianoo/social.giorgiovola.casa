@@ -46,6 +46,8 @@
 	let toast = $state('Link copied!');
 	// the regiorg button opens a menu: regiorg (or undo it) and quote
 	let menuOpen = $state(false);
+	// the menu opens upwards when there is no room for it below the button
+	let menuUp = $state(false);
 	let menu: HTMLDivElement | undefined = $state();
 	let quoting = $state(false);
 	let quoteDialog: HTMLDialogElement | undefined = $state();
@@ -218,6 +220,10 @@
 
 	function openRegiorgMenu() {
 		if (!$user) return goto('/login');
+		if (!menuOpen && menu) {
+			// about the menu's height, plus room for mobile browser bars
+			menuUp = menu.getBoundingClientRect().bottom + 120 > window.innerHeight;
+		}
 		menuOpen = !menuOpen;
 	}
 
@@ -583,7 +589,9 @@
 						</button>
 						{#if menuOpen}
 							<div
-								class="absolute top-full left-0 z-50 mt-[5px] flex w-max flex-col rounded-[5px] border border-accent bg-background p-[5px]"
+								class="absolute {menuUp
+									? 'bottom-full mb-[5px]'
+									: 'top-full mt-[5px]'} left-0 z-50 flex w-max flex-col rounded-[5px] border border-accent bg-background p-[5px]"
 								role="menu"
 							>
 								<button
