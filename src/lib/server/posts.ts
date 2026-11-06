@@ -146,6 +146,8 @@ export type TimelineOptions = {
 	authors: (userId: SQL) => SQL;
 	/** leave out their replies (regiorged replies still show) */
 	excludeReplies?: boolean;
+	/** leave this post out (the pinned post, shown separately) */
+	excludeId?: number | null;
 	limit: number;
 	offset?: number;
 };
@@ -159,6 +161,7 @@ export async function getTimeline({
 	loggedUser,
 	authors,
 	excludeReplies,
+	excludeId,
 	limit,
 	offset = 0
 }: TimelineOptions) {
@@ -179,6 +182,7 @@ export async function getTimeline({
 			ORDER BY e.post_id, e.at DESC
 		) t
 		LEFT JOIN users u ON u.id = t.regiorger_id
+		${excludeId != null ? sql`WHERE t.post_id <> ${excludeId}` : sql``}
 		ORDER BY t.at DESC, t.post_id DESC
 		LIMIT ${limit} OFFSET ${offset}
 	`)) as unknown as {
@@ -347,6 +351,34 @@ export async function setRegiorged(userId: number, postId: number, regiorged: bo
 	});
 	void publishRegiorg(postId, post.user_id, total, added ? userId : null);
 	return { regiorged, regiorgs: total };
+}
+
+/** The id of the post pinned to a profile, null when there is none. */
+export async function getPinnedId(userId: number) {
+	const [row] = await db
+		.select({ id: users.pinned_post_id })
+		.from(users)
+		.where(eq(users.id, userId));
+	return row?.id ?? null;
+}
+
+/**
+ * Pins one of `userId`'s own posts to their profile (replacing the previous pin), or unpins it.
+ * Null when the post isn't theirs to pin; replies can't be pinned.
+ */
+export async function setPinned(userId: number, postId: number, pinned: boolean) {
+	const [post] = await db
+		.select({ id: posts.id, user_id: posts.user_id, reply_to: posts.reply_to })
+		.from(posts)
+		.where(eq(posts.id, postId));
+	if (!post || post.user_id !== userId || post.reply_to !== null) return null;
+	if (pinned) await db.update(users).set({ pinned_post_id: postId }).where(eq(users.id, userId));
+	else
+		await db
+			.update(users)
+			.set({ pinned_post_id: null })
+			.where(and(eq(users.id, userId), eq(users.pinned_post_id, postId)));
+	return { pinned };
 }
 
 /** Whether `userId` has regiorged the post. */

@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "pinned_post_id" integer;--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_pinned_post_id_posts_id_fk" FOREIGN KEY ("pinned_post_id") REFERENCES "public"."posts"("id") ON DELETE set null ON UPDATE no action;

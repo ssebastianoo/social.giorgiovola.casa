@@ -43,6 +43,10 @@ export const users = pgTable(
 		// bots are owned like identities but driven by the bot API (see bots below), never by
 		// switching to them
 		bot: boolean('bot').notNull().default(false),
+		// the one post shown first on the profile, always one of its own; deleting it unpins it
+		pinned_post_id: integer('pinned_post_id').references((): AnyPgColumn => posts.id, {
+			onDelete: 'set null'
+		}),
 		// moderation lives on accounts, identities follow the account that owns them
 		role: text('role', { enum: ['user', 'mod', 'admin'] })
 			.notNull()

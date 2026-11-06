@@ -2,6 +2,7 @@
 	import Button from '#lib/components/Button.svelte';
 	import type { PageProps } from './$types';
 	import Posts from '#lib/components/Posts.svelte';
+	import Post from '#lib/components/Post.svelte';
 	import { user } from '#lib/store.js';
 	import { goto } from '$app/navigation';
 	import Avatar from '#lib/components/Avatar.svelte';
@@ -15,6 +16,8 @@
 	let profile = $derived(data.user);
 	// writable derived: reset on navigation, updated by the follow button
 	let follow = $derived(data.follow);
+	// writable derived: cleared when the pinned post is deleted
+	let pinned = $derived(data.pinned);
 	let bio = $derived(data.bio);
 	let website = $derived(data.website);
 	let followBusy = $state(false);
@@ -305,6 +308,11 @@
 	/>
 {/if}
 
+{#if pinned}
+	{#key pinned.id}
+		<Post pinned post={pinned} onpostdeleted={() => (pinned = null)} />
+	{/key}
+{/if}
 {#key profile}
 	<Posts shouldLoadMore posts={data.posts} />
 {/key}

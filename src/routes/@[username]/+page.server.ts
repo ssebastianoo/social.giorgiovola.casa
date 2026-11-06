@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, users as usersTable } from '#lib/server/db/index.js';
 import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
-import { getTimeline, profileAuthor } from '#lib/server/posts.js';
+import { getPinnedId, getPosts, getTimeline, profileAuthor } from '#lib/server/posts.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 import { getFollowedBy, getFollowStats } from '#lib/server/follows.js';
 import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
@@ -58,12 +58,17 @@ export const load = (async ({ params, locals, depends }) => {
 	}
 
 	const viewerId = locals.user?.id;
-	const [posts, follow, followedBy] = await Promise.all([
+	const pinnedId = await getPinnedId(users[0].id);
+	const [posts, pinned, follow, followedBy] = await Promise.all([
 		getTimeline({
 			loggedUser: locals.user,
 			authors: profileAuthor(username),
+			excludeId: pinnedId,
 			limit: PAGE_SIZE
 		}),
+		pinnedId !== null
+			? getPosts({ loggedUser: locals.user, postId: pinnedId }).then((p) => p[0] ?? null)
+			: null,
 		getFollowStats(users[0].id, viewerId),
 		// mutuals: profiles the viewer follows that follow this one
 		viewerId ? getFollowedBy(users[0].id, viewerId) : { users: [], total: 0 }
@@ -95,6 +100,7 @@ export const load = (async ({ params, locals, depends }) => {
 		bot: users[0].bot,
 		website: users[0].website,
 		posts,
+		pinned,
 		follow,
 		followedBy,
 		moderation,
@@ -105,9 +111,15 @@ export const load = (async ({ params, locals, depends }) => {
 export const actions = {
 	// infinite scroll of the profile's posts and regiorgs
 	async default({ params, locals, request }) {
+		const username = params.username.toLowerCase();
+		const [owner] = await db
+			.select({ pinned: usersTable.pinned_post_id })
+			.from(usersTable)
+			.where(eq(usersTable.username, username));
 		const posts = await getTimeline({
 			loggedUser: locals.user,
-			authors: profileAuthor(params.username.toLowerCase()),
+			authors: profileAuthor(username),
+			excludeId: owner?.pinned ?? null,
 			limit: PAGE_SIZE,
 			offset: await pageOffset(request)
 		});
