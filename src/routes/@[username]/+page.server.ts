@@ -1,6 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
-import { eq } from 'drizzle-orm';
-import { db, users as usersTable } from '#lib/server/db/index.js';
+import { eq, isNotNull } from 'drizzle-orm';
+import { db, posts as postsTable, users as usersTable } from '#lib/server/db/index.js';
 import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
 import { getPinnedId, getPosts, getTimeline, profileAuthor } from '#lib/server/posts.js';
@@ -8,7 +8,39 @@ import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 import { getFollowedBy, getFollowStats } from '#lib/server/follows.js';
 import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
 
-export const load = (async ({ params, locals, depends }) => {
+type Tab = 'posts' | 'replies';
+
+const pickTab = (url: URL): Tab =>
+	url.searchParams.get('tab') === 'replies' ? 'replies' : 'posts';
+
+// posts (with regiorgs) and replies are separate tabs; the pinned post sits above the posts tab
+function tabPosts(
+	tab: Tab,
+	username: string,
+	loggedUser: App.Locals['user'],
+	pinnedId: number | null,
+	offset = 0
+) {
+	if (tab === 'replies')
+		return getPosts({
+			loggedUser,
+			fromUser: { username },
+			where: isNotNull(postsTable.reply_to),
+			order: 'DESC',
+			limit: PAGE_SIZE,
+			offset
+		});
+	return getTimeline({
+		loggedUser,
+		authors: profileAuthor(username),
+		excludeReplies: true,
+		excludeId: pinnedId,
+		limit: PAGE_SIZE,
+		offset
+	});
+}
+
+export const load = (async ({ params, locals, depends, url }) => {
 	const username = params.username.toLowerCase();
 	depends('app:posts');
 
@@ -58,15 +90,11 @@ export const load = (async ({ params, locals, depends }) => {
 	}
 
 	const viewerId = locals.user?.id;
+	const tab = pickTab(url);
 	const pinnedId = await getPinnedId(users[0].id);
 	const [posts, pinned, follow, followedBy] = await Promise.all([
-		getTimeline({
-			loggedUser: locals.user,
-			authors: profileAuthor(username),
-			excludeId: pinnedId,
-			limit: PAGE_SIZE
-		}),
-		pinnedId !== null
+		tabPosts(tab, username, locals.user, pinnedId),
+		pinnedId !== null && tab === 'posts'
 			? getPosts({ loggedUser: locals.user, postId: pinnedId }).then((p) => p[0] ?? null)
 			: null,
 		getFollowStats(users[0].id, viewerId),
@@ -99,6 +127,7 @@ export const load = (async ({ params, locals, depends }) => {
 		bio: users[0].bio,
 		bot: users[0].bot,
 		website: users[0].website,
+		tab,
 		posts,
 		pinned,
 		follow,
@@ -109,20 +138,20 @@ export const load = (async ({ params, locals, depends }) => {
 }) satisfies PageServerLoad;
 
 export const actions = {
-	// infinite scroll of the profile's posts and regiorgs
-	async default({ params, locals, request }) {
+	// infinite scroll of the open tab; the Posts component posts to the current URL, tab included
+	async default({ params, locals, request, url }) {
 		const username = params.username.toLowerCase();
 		const [owner] = await db
 			.select({ pinned: usersTable.pinned_post_id })
 			.from(usersTable)
 			.where(eq(usersTable.username, username));
-		const posts = await getTimeline({
-			loggedUser: locals.user,
-			authors: profileAuthor(username),
-			excludeId: owner?.pinned ?? null,
-			limit: PAGE_SIZE,
-			offset: await pageOffset(request)
-		});
+		const posts = await tabPosts(
+			pickTab(url),
+			username,
+			locals.user,
+			owner?.pinned ?? null,
+			await pageOffset(request)
+		);
 		return { posts };
 	}
 } satisfies Actions;

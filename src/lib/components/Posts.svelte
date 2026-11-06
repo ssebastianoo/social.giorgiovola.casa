@@ -13,6 +13,7 @@
 	export let scrollToNew = false;
 	export let replies = false;
 	export let showThread = false;
+	export let showReplyTo = false;
 
 	let alreadyScrolled = false;
 	let currentPage = 0;
@@ -66,7 +67,7 @@
 	{#each posts as post, i}
 		{#if i === posts.length - 1 && shouldLoadMore}
 			<IntersectionObserver once let:intersecting>
-				<Post onpostdeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
+				<Post onpostdeleted={handleDeletedPost} {loadReplies} {post} {showThread} {showReplyTo} />
 				{#if intersecting}
 					{#await loadMore()}
 						Loading...
@@ -74,7 +75,7 @@
 				{/if}
 			</IntersectionObserver>
 		{:else}
-			<Post onpostdeleted={handleDeletedPost} {loadReplies} {post} {showThread} />
+			<Post onpostdeleted={handleDeletedPost} {loadReplies} {post} {showThread} {showReplyTo} />
 		{/if}
 	{/each}
 </div>
