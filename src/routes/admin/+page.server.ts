@@ -1,7 +1,8 @@
 import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { and, desc, eq, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
-import { db, sessions, users } from '#lib/server/db/index.js';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { db, identity_members, sessions, users } from '#lib/server/db/index.js';
 import { hashPassword } from '#lib/server/password.js';
 import {
 	actionsLimited,
@@ -38,7 +39,18 @@ export const load = (async ({ locals, url }) => {
 	const filters: (SQL | undefined)[] = [isNull(users.owner_id)];
 	if (q) {
 		const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
-		filters.push(or(sql`${users.username} ILIKE ${like}`, sql`${users.name} ILIKE ${like}`));
+		filters.push(
+			or(
+				sql`${users.username} ILIKE ${like}`,
+				sql`${users.name} ILIKE ${like}`,
+				// searching an identity (or bot) finds the account behind it, and so does one shared
+				// with the account; the table names are written out so they can't be mis-qualified
+				sql`EXISTS (SELECT 1 FROM users i WHERE i.owner_id = users.id
+					AND (i.username ILIKE ${like} OR i.name ILIKE ${like}))`,
+				sql`EXISTS (SELECT 1 FROM identity_members m JOIN users i ON i.id = m.identity_id
+					WHERE m.account_id = users.id AND (i.username ILIKE ${like} OR i.name ILIKE ${like}))`
+			)
+		);
 	}
 	if (filter === 'banned') filters.push(isNotNull(users.banned_at));
 	if (filter === 'muted') filters.push(isNotNull(users.muted_at));
@@ -63,6 +75,9 @@ export const load = (async ({ locals, url }) => {
 		.limit(PAGE_SIZE + 1)
 		.offset(page * PAGE_SIZE);
 
+	const accounts = rows.slice(0, PAGE_SIZE);
+	const identities = await loadIdentities(accounts.map((r) => r.id));
+
 	const admin = locals.role === 'admin';
 	return {
 		role: locals.role,
@@ -71,10 +86,11 @@ export const load = (async ({ locals, url }) => {
 		page,
 		hasMore: rows.length > PAGE_SIZE,
 		// what the signed in staff member may do to each account (ids stay on the server)
-		users: rows.slice(0, PAGE_SIZE).map(({ id, ...row }) => {
+		users: accounts.map(({ id, ...row }) => {
 			const allowed = canModerate(locals, { id, role: row.role });
 			return {
 				...row,
+				...identities(id),
 				self: id === locals.accountId,
 				canModerate: allowed,
 				canManage: admin && allowed
@@ -82,6 +98,79 @@ export const load = (async ({ locals, url }) => {
 		})
 	};
 }) satisfies PageServerLoad;
+
+/**
+ * The identities (and bots) each account owns, with who they are shared with, and the
+ * identities of others shared with it, so staff can see who is behind a profile.
+ */
+async function loadIdentities(accountIds: number[]) {
+	if (accountIds.length === 0) return () => ({ identities: [], sharedWith: [] });
+
+	const owned = await db
+		.select({
+			id: users.id,
+			owner_id: users.owner_id,
+			username: users.username,
+			name: users.name,
+			avatar: users.avatar,
+			bot: users.bot
+		})
+		.from(users)
+		.where(inArray(users.owner_id, accountIds))
+		.orderBy(asc(users.created_at), asc(users.id));
+
+	const member = alias(users, 'member');
+	const members =
+		owned.length === 0
+			? []
+			: await db
+					.select({ identity_id: identity_members.identity_id, username: member.username })
+					.from(identity_members)
+					.innerJoin(member, eq(member.id, identity_members.account_id))
+					.where(
+						inArray(
+							identity_members.identity_id,
+							owned.map((i) => i.id)
+						)
+					)
+					.orderBy(asc(identity_members.created_at));
+
+	const identity = alias(users, 'identity');
+	const owner = alias(users, 'owner');
+	const shared = await db
+		.select({
+			account_id: identity_members.account_id,
+			username: identity.username,
+			name: identity.name,
+			avatar: identity.avatar,
+			owner_username: owner.username
+		})
+		.from(identity_members)
+		.innerJoin(identity, eq(identity.id, identity_members.identity_id))
+		.innerJoin(owner, eq(owner.id, identity.owner_id))
+		.where(inArray(identity_members.account_id, accountIds))
+		.orderBy(asc(identity_members.created_at));
+
+	return (accountId: number) => ({
+		identities: owned
+			.filter((i) => i.owner_id === accountId)
+			.map((i) => ({
+				username: i.username,
+				name: i.name,
+				avatar: i.avatar,
+				bot: i.bot,
+				members: members.filter((m) => m.identity_id === i.id).map((m) => m.username)
+			})),
+		sharedWith: shared
+			.filter((s) => s.account_id === accountId)
+			.map((s) => ({
+				username: s.username,
+				name: s.name,
+				avatar: s.avatar,
+				owner_username: s.owner_username
+			}))
+	});
+}
 
 type Authorized = { target: ModerationTarget; data: FormData; denied?: undefined };
 type Denied = { denied: ActionFailure<{ error: string }> };

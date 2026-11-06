@@ -26,6 +26,12 @@
 		return query ? `?${query}` : '?';
 	};
 
+	// a search that found the account through one of its identities opens the list
+	const matches = (p: { username: string; name: string }) => {
+		const q = data.q.toLowerCase();
+		return !!q && (p.username.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+	};
+
 	// enhance submits even when onsubmit calls preventDefault, so the confirms go through cancel()
 	const confirmBan =
 		(username: string): SubmitFunction =>
@@ -72,7 +78,7 @@
 			class="input min-w-0 flex-1"
 			type="search"
 			name="q"
-			placeholder="Search users"
+			placeholder="Search users or identities"
 			value={data.q}
 		/>
 		{#if data.filter !== 'all'}
@@ -118,6 +124,66 @@
 				{/if}
 				{#if u.muted_at && u.mute_reason}
 					<p class={hintClass}>Mute reason: {u.mute_reason}</p>
+				{/if}
+
+				{#if u.identities.length > 0 || u.sharedWith.length > 0}
+					{@const profiles = [...u.identities, ...u.sharedWith]}
+					<details class="text-[0.9em]" open={!matches(u) && profiles.some(matches)}>
+						<summary class="cursor-pointer text-muted">
+							{#if u.identities.length > 0}
+								{u.identities.length}
+								{u.identities.length === 1 ? 'identity' : 'identities'}
+							{/if}
+							{#if u.identities.length > 0 && u.sharedWith.length > 0}·{/if}
+							{#if u.sharedWith.length > 0}
+								{u.sharedWith.length} shared by others
+							{/if}
+						</summary>
+						<ul class="mt-2 flex flex-col gap-1.5">
+							{#each u.identities as i (i.username)}
+								<li
+									class="flex items-center gap-2.5 rounded-md p-[5px] {matches(i)
+										? 'bg-white/5'
+										: ''}"
+								>
+									<Avatar user={i} size={24} />
+									<div class="flex min-w-0 flex-1 flex-col">
+										<span class="truncate">
+											<a class="font-bold text-foreground" href={'/@' + i.username}>{i.name}</a>
+											<span class="opacity-70">@{i.username}</span>
+										</span>
+										{#if i.members.length > 0}
+											<span class={hintClass}>
+												Shared with {i.members.map((m) => '@' + m).join(', ')}
+											</span>
+										{/if}
+									</div>
+									{#if i.bot}
+										<span class="{badgeClass} border-line text-muted">bot</span>
+									{/if}
+								</li>
+							{/each}
+							{#each u.sharedWith as i (i.username)}
+								<li
+									class="flex items-center gap-2.5 rounded-md p-[5px] {matches(i)
+										? 'bg-white/5'
+										: ''}"
+								>
+									<Avatar user={i} size={24} />
+									<div class="flex min-w-0 flex-1 flex-col">
+										<span class="truncate">
+											<a class="font-bold text-foreground" href={'/@' + i.username}>{i.name}</a>
+											<span class="opacity-70">@{i.username}</span>
+										</span>
+										<span class={hintClass}>
+											Owned by
+											<a href={'?q=' + encodeURIComponent(i.owner_username)}>@{i.owner_username}</a>
+										</span>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					</details>
 				{/if}
 
 				{#if u.canModerate}
