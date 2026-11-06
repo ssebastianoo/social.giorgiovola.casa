@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { db, blocks, messages, users } from './db/index.js';
 import type { ChatMessage, ChatPeer, Conversation } from '#lib/types.js';
 
@@ -84,6 +84,67 @@ export async function getThread(me: Party, peer: Party, before?: number | null) 
 				})
 			)
 	};
+}
+
+type ListOptions = { afterId: number | null; limit: number };
+
+const toChatMessage = (
+	row: { id: number; content: string; images: string[]; created_at: Date },
+	sender: string,
+	recipient: string
+): ChatMessage => ({
+	id: row.id,
+	sender,
+	recipient,
+	content: row.content,
+	images: row.images,
+	created_at: row.created_at
+});
+
+/**
+ * A conversation for the bot API, oldest first: the messages after `afterId`, or the latest
+ * ones when it isn't given.
+ */
+export async function getThreadFrom(me: Party, peer: Party, { afterId, limit }: ListOptions) {
+	const rows = await db
+		.select({
+			id: messages.id,
+			sender_id: messages.sender_id,
+			content: messages.content,
+			images: messages.images,
+			created_at: messages.created_at
+		})
+		.from(messages)
+		.where(and(between(me.id, peer.id), afterId !== null ? gt(messages.id, afterId) : undefined))
+		.orderBy(afterId === null ? desc(messages.id) : asc(messages.id))
+		.limit(limit);
+	if (afterId === null) rows.reverse();
+	return rows.map((row) =>
+		row.sender_id === me.id
+			? toChatMessage(row, me.username, peer.username)
+			: toChatMessage(row, peer.username, me.username)
+	);
+}
+
+/** Messages received by a profile from anyone, oldest first, like `getThreadFrom`. */
+export async function getReceived(me: Party, { afterId, limit }: ListOptions) {
+	const rows = await db
+		.select({
+			id: messages.id,
+			sender: users.username,
+			content: messages.content,
+			images: messages.images,
+			created_at: messages.created_at
+		})
+		.from(messages)
+		.innerJoin(users, eq(users.id, messages.sender_id))
+		.where(
+			and(eq(messages.recipient_id, me.id), afterId !== null ? gt(messages.id, afterId) : undefined)
+		)
+		.orderBy(afterId === null ? desc(messages.id) : asc(messages.id))
+		.limit(limit);
+	if (afterId === null) rows.reverse();
+	return rows.map((row) => toChatMessage(row, row.sender, me.username));
 }
 
 export async function sendMessage(

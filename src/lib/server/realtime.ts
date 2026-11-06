@@ -84,7 +84,7 @@ type BotClient = {
 
 const botClients = new Set<BotClient>();
 
-/** The bot API stream: `mention` and `post` (by a followed profile) events. */
+/** The bot API stream: `mention`, `post` (by a followed profile) and `message` (DM) events. */
 export function openBotStream(bot: { id: number; username: string }, signal: AbortSignal) {
 	return eventStream(signal, (send, close) => {
 		// usernames are [a-z0-9_], nothing to escape
@@ -194,6 +194,10 @@ export async function publishMessage(
 		const chunk = frame('message', message);
 		for (const client of [...clients]) {
 			if (client.userId === senderId || client.userId === recipientId) client.send(chunk);
+		}
+		// a bot hears about what it receives, not about what it sent itself
+		for (const client of [...botClients]) {
+			if (client.botId === recipientId) client.send(chunk);
 		}
 		await pushUnreadMessages(recipientId);
 		await sendMessagePush(recipientId, message, senderName);
