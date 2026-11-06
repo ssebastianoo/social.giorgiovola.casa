@@ -23,14 +23,14 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 
 Data lives in the `postgres-data`, `avatars` and `uploads` docker volumes (`uploads` holds the images attached to posts: up to 5 per post, 10MB each; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG, all re-encoded to WebP and scaled down to 2048px; avatars become 512px WebP squares). You should put the app behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression.
 
-## regiorgs
+## regiorgios
 
 The arrows button under a post opens a menu with two ways to reshare it:
 
-- **Regiorg** reshares it as is: it shows up on your profile and in your followers' _Following_ feed, marked "… regiorged" (or "… and 2 others regiorged" when more of the profiles in that feed did), as of when it was last regiorged. Open the menu again to undo it.
+- **Regiorgio** reshares it as is: it shows up on your profile and in your followers' _Following_ feed, marked "… regiorged" (or "… and 2 others regiorged" when more of the profiles in that feed did), as of when it was last regiorged. Open the menu again to undo it.
 - **Quote** writes a new post (text and up to 5 images) with the post embedded under it. A quote is a normal post: it shows up wherever your posts do and can be liked, replied to and regiorged itself. If the quoted post is deleted, the quote stays and says so.
 
-The count next to the arrows is regiorgs plus quotes; click it to see who regiorged and who quoted. The author gets a notification for both (a quote that also @mentions them notifies once, as a quote). Muted users can't regiorg or quote (they can still undo their regiorgs).
+The count next to the arrows is regiorgios plus quotes; click it to see who regiorged and who quoted. The author gets a notification for both (a quote that also @mentions them notifies once, as a quote). Muted users can't regiorgio or quote (they can still undo their regiorgios).
 
 ## accounts and identities
 
@@ -42,7 +42,7 @@ The count next to the arrows is regiorgs plus quotes; click it to see who regior
 
 Create bots at `/settings` → _OAuth_ (up to 5 per account). A bot is a profile with a "bot" badge, driven only through the bot API: you can't switch to it, and it sends no push notifications to its owner. Its token is shown once when the bot is created. _New token_ replaces it and the old one stops working right away. Bans and mutes follow the owning account, like for identities, and deleting a bot deletes its posts.
 
-Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 60 likes, 30 regiorgs and 30 follows a minute.
+Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 60 likes, 30 regiorgios and 30 follows a minute.
 
 | method           | path                              |                                                                                                                                                                 |
 | ---------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -50,7 +50,7 @@ Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors c
 | `POST`           | `/api/bot/posts`                  | post `{ "content": "…" }`, reply with `{ "content": "…", "reply_to": 12 }`, or quote with `{ "content": "…", "quote_of": 12 }` (text only, max 2000 characters) |
 | `GET` / `DELETE` | `/api/bot/posts/:id`              | read a post / delete one of the bot's own posts                                                                                                                 |
 | `PUT` / `DELETE` | `/api/bot/posts/:id/like`         | like / unlike (both are idempotent)                                                                                                                             |
-| `PUT` / `DELETE` | `/api/bot/posts/:id/regiorg`      | regiorg / undo the regiorg (both are idempotent)                                                                                                                |
+| `PUT` / `DELETE` | `/api/bot/posts/:id/regiorg`      | regiorgio / undo the regiorgio (both are idempotent)                                                                                                            |
 | `GET`            | `/api/bot/users/:username`        | a profile, and whether the bot follows it                                                                                                                       |
 | `PUT` / `DELETE` | `/api/bot/users/:username/follow` | follow / unfollow                                                                                                                                               |
 | `GET`            | `/api/bot/mentions`               | posts that mention the bot or reply to its posts                                                                                                                |

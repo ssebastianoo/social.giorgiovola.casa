@@ -209,7 +209,7 @@
 				regiorgs = data.regiorgs;
 			} else {
 				({ regiorged, regiorgs } = before);
-				if (res.status !== 401) alert((await res.text()) || 'Could not regiorg');
+				if (res.status !== 401) alert((await res.text()) || 'Could not regiorgio');
 			}
 		} catch {
 			({ regiorged, regiorgs } = before);
@@ -281,7 +281,7 @@
 
 	// the tabs of the regiorgs dialog
 	const listTabs = $derived([
-		['regiorgs', 'Regiorgs', regiorgs],
+		['regiorgs', 'Regiorgios', regiorgs],
 		['quotes', 'Quotes', quotes]
 	] as const);
 
@@ -573,8 +573,8 @@
 								openRegiorgMenu();
 							}}
 							class="group flex cursor-pointer items-center outline-none"
-							title={regiorged ? 'Regiorged' : 'Regiorg or quote'}
-							aria-label="Regiorg or quote"
+							title={regiorged ? 'Regiorged' : 'Regiorgio or quote'}
+							aria-label="Regiorgio or quote"
 							aria-haspopup="menu"
 							aria-expanded={menuOpen}
 						>
@@ -611,7 +611,7 @@
 									onclick={(e) => {
 										e.stopPropagation();
 										toggleRegiorg();
-									}}>{regiorged ? 'Undo regiorg' : 'Regiorg'}</button
+									}}>{regiorged ? 'Undo regiorgio' : 'Regiorgio'}</button
 								>
 								<button
 									role="menuitem"
@@ -628,7 +628,7 @@
 						<div
 							role="button"
 							tabindex="0"
-							title="Regiorgs and quotes"
+							title="Regiorgios and quotes"
 							onkeypress={(e) => {
 								e.stopPropagation();
 								showing = 'regiorgs';
