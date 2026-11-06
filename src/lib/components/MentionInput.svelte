@@ -4,23 +4,43 @@
 
 	type Suggestion = Pick<User, 'username' | 'name' | 'avatar'>;
 
-	export let value = '';
-	export let name = 'content';
-	export let placeholder = '';
-	export let maxlength = 2000;
-	export let required = false;
+	type Props = {
+		value?: string;
+		name?: string;
+		placeholder?: string;
+		maxlength?: number;
+		required?: boolean;
+	};
 
-	let input: HTMLInputElement;
-	let suggestions: Suggestion[] = [];
-	let active = 0;
+	let {
+		value = $bindable(''),
+		name = 'content',
+		placeholder = '',
+		maxlength = 2000,
+		required = false
+	}: Props = $props();
+
+	// a textarea that grows with the text, so a long post can be read whole before sending it
+	let input: HTMLTextAreaElement | undefined = $state();
+	let suggestions: Suggestion[] = $state([]);
+	let active = $state(0);
 	// index of the "@" being completed, null when no mention is being typed
-	let start: number | null = null;
+	let start: number | null = $state(null);
 	let query = '';
 	let timer: ReturnType<typeof setTimeout>;
 	let request = 0;
 	const listId = `mentions-${Math.random().toString(36).slice(2)}`;
 
-	$: open = start !== null && suggestions.length > 0;
+	const open = $derived(start !== null && suggestions.length > 0);
+
+	// fit the height to the text, also when it is cleared or a mention is inserted
+	$effect(() => {
+		void value;
+		if (!input) return;
+		input.style.height = 'auto';
+		// scrollHeight leaves out the bottom border
+		input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
+	});
 
 	function close() {
 		clearTimeout(timer);
@@ -31,6 +51,7 @@
 
 	/** Looks for an "@word" right before the caret. */
 	function detect() {
+		if (!input) return;
 		const caret = input.selectionStart ?? 0;
 		const match = /(?:^|\s)@([a-zA-Z0-9_]{0,32})$/.exec(input.value.slice(0, caret));
 		if (!match) return close();
@@ -57,19 +78,27 @@
 	}
 
 	function select(user: Suggestion) {
-		if (start === null) return;
+		if (start === null || !input) return;
+		const el = input;
 		const caret = input.selectionStart ?? value.length;
 		const inserted = `@${user.username} `;
 		value = value.slice(0, start) + inserted + value.slice(caret);
 		const position = start + inserted.length;
 		close();
-		input.focus();
+		el.focus();
 		// wait for the value to reach the DOM before moving the caret
-		requestAnimationFrame(() => input.setSelectionRange(position, position));
+		requestAnimationFrame(() => el.setSelectionRange(position, position));
 	}
 
 	function onKeydown(e: KeyboardEvent) {
-		if (!open) return;
+		if (!open) {
+			// Enter sends, like the single line input this used to be (posts don't keep newlines)
+			if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+				e.preventDefault();
+				input?.form?.requestSubmit();
+			}
+			return;
+		}
 		if (e.key === 'ArrowDown') {
 			active = (active + 1) % suggestions.length;
 		} else if (e.key === 'ArrowUp') {
@@ -86,11 +115,12 @@
 </script>
 
 <div class="relative w-full">
-	<input
+	<!-- prettier-ignore -->
+	<textarea
 		bind:this={input}
 		bind:value
-		class="input"
-		type="text"
+		class="input block max-h-[40vh] w-full resize-none overflow-y-auto wrap-anywhere"
+		rows="1"
 		{name}
 		{required}
 		{placeholder}
@@ -101,12 +131,12 @@
 		aria-controls={listId}
 		aria-autocomplete="list"
 		aria-activedescendant={open ? `${listId}-${active}` : undefined}
-		on:input={detect}
-		on:click={detect}
-		on:keydown={onKeydown}
-		on:keyup={(e) => (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && detect()}
-		on:blur={close}
-	/>
+		oninput={detect}
+		onclick={detect}
+		onkeydown={onKeydown}
+		onkeyup={(e) => (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && detect()}
+		onblur={close}
+	></textarea>
 	{#if open}
 		<ul
 			id={listId}
@@ -120,8 +150,11 @@
 					role="option"
 					aria-selected={i === active}
 					class="flex cursor-pointer items-center gap-2.5 p-2.5 {i === active ? 'bg-black' : ''}"
-					on:mousedown|preventDefault={() => select(user)}
-					on:mouseenter={() => (active = i)}
+					onmousedown={(e) => {
+						e.preventDefault();
+						select(user);
+					}}
+					onmouseenter={() => (active = i)}
 				>
 					<img
 						class="aspect-square max-w-none rounded-full object-cover"
