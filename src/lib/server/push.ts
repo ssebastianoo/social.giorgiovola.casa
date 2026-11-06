@@ -137,9 +137,10 @@ async function deliver(profileId: number, payload: object) {
 		})
 		.from(push_subscriptions)
 		.innerJoin(sessions, eq(sessions.token, push_subscriptions.session_token))
+		// bots notify nobody: their owner would get a push for everything the bot receives
 		.where(
 			sql`${sessions.user_id} IN (
-				SELECT COALESCE(owner_id, id) FROM users WHERE id = ${profileId}
+				SELECT COALESCE(owner_id, id) FROM users WHERE id = ${profileId} AND NOT bot
 				UNION SELECT account_id FROM identity_members WHERE identity_id = ${profileId}
 			)`
 		);

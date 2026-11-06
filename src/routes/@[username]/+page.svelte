@@ -116,7 +116,15 @@
 		<div class="flex w-full justify-between">
 			<div>
 				<h2>{profile.name}</h2>
-				<p>@{profile.username}</p>
+				<p>
+					@{profile.username}
+					{#if data.bot}
+						<span
+							class="ml-1 rounded-full border border-accent px-2 align-middle text-[0.75em] text-accent"
+							>bot</span
+						>
+					{/if}
+				</p>
 				{#if bio}
 					<p class="mt-2 break-words whitespace-pre-line">{bio}</p>
 				{/if}

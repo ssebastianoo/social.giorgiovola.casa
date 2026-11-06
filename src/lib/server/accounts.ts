@@ -43,7 +43,8 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
 		.where(
 			or(
 				inArray(users.id, accountIds),
-				inArray(users.owner_id, accountIds),
+				// bots are owned too, but only used through the bot API
+				and(inArray(users.owner_id, accountIds), eq(users.bot, false)),
 				// shared identities stop showing up while their owner is banned
 				sharedIds.length > 0
 					? and(inArray(users.id, sharedIds), isNull(owner.banned_at))
@@ -85,11 +86,17 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
 export async function findSessionFor(locals: App.Locals, userId: number) {
 	const owner = alias(users, 'owner');
 	const [target] = await db
-		.select({ id: users.id, owner_id: users.owner_id, owner_banned_at: owner.banned_at })
+		.select({
+			id: users.id,
+			owner_id: users.owner_id,
+			bot: users.bot,
+			owner_banned_at: owner.banned_at
+		})
 		.from(users)
 		.leftJoin(owner, eq(owner.id, users.owner_id))
 		.where(eq(users.id, userId));
-	if (!target) return null;
+	// bots are only driven by the bot API
+	if (!target || target.bot) return null;
 	if (target.owner_id === null) {
 		const session = locals.sessions.find((s) => s.accountId === target.id);
 		return session ? { session, actingId: null } : null;

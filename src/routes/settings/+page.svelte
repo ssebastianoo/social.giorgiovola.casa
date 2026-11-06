@@ -1,5 +1,7 @@
 <script lang="ts">
+	import Avatar from '#lib/components/Avatar.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import { page } from '$app/state';
 	import type { ActionData, PageData } from './$types';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -23,6 +25,20 @@
 	let renaming = $state<string | null>(null);
 
 	const canAdd = $derived(data.passkeys.length < data.maxPasskeys);
+	const canAddBot = $derived(data.bots.length < data.maxBots);
+	// only in the response that created it: the token is never shown again
+	const botToken = $derived(form?.botToken ?? null);
+	// only some failures of createBot echo the fields back
+	const botValues = $derived(
+		(form as { botValues?: { name: string; username: string } } | null)?.botValues ?? null
+	);
+	let copied = $state(false);
+
+	async function copyToken(token: string) {
+		await navigator.clipboard.writeText(token);
+		copied = true;
+		setTimeout(() => (copied = false), 2000);
+	}
 
 	onMount(() => {
 		supported = browserSupportsWebAuthn();
@@ -82,6 +98,12 @@
 			busy = false;
 		}
 	}
+
+	const confirmAction =
+		(message: string): SubmitFunction =>
+		({ cancel }) => {
+			if (!confirm(message)) cancel();
+		};
 
 	// enhance submits even when onsubmit calls preventDefault, so the confirm goes through cancel()
 	const confirmDelete =
@@ -184,5 +206,107 @@
 		</form>
 	{:else}
 		<p class={hintClass}>You reached the limit of {data.maxPasskeys} passkeys.</p>
+	{/if}
+</section>
+
+<section class={sectionClass}>
+	<h2>OAuth</h2>
+	<p class={hintClass}>
+		Bots are profiles you drive from your own code through the bot API: they can post, reply, like,
+		follow people and track their mentions and the posts of who they follow. Every bot has a secret
+		token; send it as <code>Authorization: Bearer &lt;token&gt;</code>.
+	</p>
+
+	{#if botToken}
+		<div class="flex flex-col gap-2.5 rounded-[10px] bg-black/70 p-2.5">
+			<p>
+				Token for <b>@{botToken.username}</b>. Copy it now: you won't be able to see it again.
+			</p>
+			<code class="break-all select-all">{botToken.token}</code>
+			<div class="flex items-center gap-2.5">
+				<Button size="sm" onclick={() => copyToken(botToken.token)}>
+					{copied ? 'Copied' : 'Copy token'}
+				</Button>
+			</div>
+			<p class={hintClass}>
+				Try it: <code class="break-all"
+					>curl -H "Authorization: Bearer {botToken.token}" {page.url.origin}/api/bot/me</code
+				>
+			</p>
+		</div>
+	{/if}
+
+	{#if data.bots.length > 0}
+		<ul class="flex flex-col gap-2">
+			{#each data.bots as bot (bot.id)}
+				<li class="flex items-center gap-2.5 rounded-md border border-line p-2">
+					<Avatar size={45} user={bot} />
+					<div class="flex min-w-0 flex-1 flex-col">
+						<a class="truncate font-bold text-inherit" href="/@{bot.username}">
+							{bot.name} <span class="opacity-80">@{bot.username}</span>
+						</a>
+						<span class="text-[0.8em] text-muted">
+							Created {date(bot.created_at)} · {bot.last_used_at
+								? `last used ${date(bot.last_used_at)}`
+								: 'never used'}
+						</span>
+					</div>
+					<div class="flex items-center gap-1.5">
+						<form
+							method="POST"
+							action="?/regenerateToken"
+							use:enhance={confirmAction(
+								`Regenerate the token of @${bot.username}? The current one stops working right away.`
+							)}
+						>
+							<input type="hidden" name="id" value={bot.id} />
+							<Button type="submit">New token</Button>
+						</form>
+						<form
+							method="POST"
+							action="?/deleteBot"
+							use:enhance={confirmAction(
+								`Delete @${bot.username} and all of its posts? This can't be undone.`
+							)}
+						>
+							<input type="hidden" name="id" value={bot.id} />
+							<Button variant="danger" type="submit">Delete</Button>
+						</form>
+					</div>
+				</li>
+			{/each}
+		</ul>
+	{:else}
+		<p class={hintClass}>You have no bots yet.</p>
+	{/if}
+
+	{#if canAddBot}
+		<form class="mt-2.5 flex flex-col gap-3" method="POST" action="?/createBot" use:enhance>
+			<h3>Create a bot</h3>
+			<input
+				class="input"
+				type="text"
+				name="name"
+				placeholder="Display name"
+				maxlength="64"
+				value={botValues?.name ?? ''}
+				required
+			/>
+			<input
+				class="input"
+				type="text"
+				name="username"
+				placeholder="Username (a-z, 0-9, _)"
+				pattern={'[a-zA-Z0-9_]{1,32}'}
+				maxlength="32"
+				value={botValues?.username ?? ''}
+				autocapitalize="none"
+				autocomplete="off"
+				required
+			/>
+			<Button class="self-start" type="submit">Create bot</Button>
+		</form>
+	{:else}
+		<p class={hintClass}>You reached the limit of {data.maxBots} bots.</p>
 	{/if}
 </section>

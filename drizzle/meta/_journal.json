@@ -141,6 +141,13 @@
       "when": 1793924939358,
       "tag": "0019_shared_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793955858689,
+      "tag": "0020_bots",
+      "breakpoints": true
     }
   ]
 }

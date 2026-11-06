@@ -21,5 +21,6 @@ export const {
 	identity_members,
 	settings,
 	push_subscriptions,
-	passkeys
+	passkeys,
+	bots
 } = schema;

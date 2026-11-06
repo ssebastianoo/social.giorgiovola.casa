@@ -27,6 +27,33 @@ Data lives in the `postgres-data`, `avatars` and `uploads` docker volumes (`uplo
 - **Identities:** extra profiles that belong to an account and have no email or password (up to 10 per account). Create and delete them at `/accounts`. They post, like and get notifications on their own, and the owning account is never shown publicly. Deleting an identity also deletes its posts. An identity can be shared with up to 10 other accounts (*Share* at `/accounts`): they can switch to it and use it like you do, and get its notifications on their devices, but only the owner can delete it or change who it is shared with. They can give it back with *Leave*.
 - **Passkeys:** optional. Add them at `/settings` (avatar menu → *Settings*) to sign in with a fingerprint, face, screen lock or security key instead of the password, which keeps working either way. Passkeys belong to the account, not its identities, and are bound to the hostname of `PUBLIC_URL`, so changing the domain invalidates them.
 
+## bots
+
+Create bots at `/settings` → _OAuth_ (up to 5 per account). A bot is a profile with a "bot" badge, driven only through the bot API: you can't switch to it, and it sends no push notifications to its owner. Its token is shown once when the bot is created. _New token_ replaces it and the old one stops working right away. Bans and mutes follow the owning account, like for identities, and deleting a bot deletes its posts.
+
+Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 60 likes and 30 follows a minute.
+
+| method           | path                              |                                                                                                                |
+| ---------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GET`            | `/api/bot/me`                     | the bot's profile and follow counts                                                                            |
+| `POST`           | `/api/bot/posts`                  | post `{ "content": "…" }`, or reply with `{ "content": "…", "reply_to": 12 }` (text only, max 2000 characters) |
+| `GET` / `DELETE` | `/api/bot/posts/:id`              | read a post / delete one of the bot's own posts                                                                |
+| `PUT` / `DELETE` | `/api/bot/posts/:id/like`         | like / unlike (both are idempotent)                                                                            |
+| `GET`            | `/api/bot/users/:username`        | a profile, and whether the bot follows it                                                                      |
+| `PUT` / `DELETE` | `/api/bot/users/:username/follow` | follow / unfollow                                                                                              |
+| `GET`            | `/api/bot/mentions`               | posts that mention the bot or reply to its posts                                                               |
+| `GET`            | `/api/bot/feed`                   | posts and replies by the profiles the bot follows                                                              |
+| `GET`            | `/api/bot/stream`                 | server-sent events: `mention` and `post` (from a followed profile), each with the post as data                 |
+
+`mentions` and `feed` return posts oldest first. `?limit=` is 1–100 (default 20). Without `?after=` you get the most recent ones. Pass the id of the last post you handled as `?after=<id>` to get only newer ones, for example to catch up after the stream disconnects.
+
+```
+curl -H "Authorization: Bearer $TOKEN" https://example.com/api/bot/mentions?after=120
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"content":"hello!","reply_to":121}' https://example.com/api/bot/posts
+curl -N -H "Authorization: Bearer $TOKEN" https://example.com/api/bot/stream
+```
+
 ## moderation
 There are three roles: users, mods and admins.
 - **Mods** delete posts and replies, ban and mute users, and unban and unmute them from the panel at `/admin`. Banned users are signed out and can't sign in; muted users can't post, reply or send messages. Bans and mutes apply to the whole account, identities included: a muted owner's shared identities are muted for everyone using them, and a banned owner's ones stop working.

@@ -40,6 +40,9 @@ export const users = pgTable(
 		// identities: extra profiles owned by an account, usable only by switching to them
 		// from the owning account (see src/routes/accounts)
 		owner_id: integer('owner_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+		// bots are owned like identities but driven by the bot API (see bots below), never by
+		// switching to them
+		bot: boolean('bot').notNull().default(false),
 		// moderation lives on accounts, identities follow the account that owns them
 		role: text('role', { enum: ['user', 'mod', 'admin'] })
 			.notNull()
@@ -292,3 +295,15 @@ export const passkeys = pgTable(
 	},
 	(t) => [index('passkeys_user_id').on(t.user_id)]
 );
+
+// API credentials of a bot profile (users.bot). Only a hash of the token is stored: it is shown
+// once when created or regenerated (see src/lib/server/bots.ts).
+export const bots = pgTable('bots', {
+	user_id: integer('user_id')
+		.primaryKey()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	// sha256 hex of the bearer token
+	token_hash: text('token_hash').notNull().unique(),
+	created_at: timestamptz('created_at').notNull().defaultNow(),
+	last_used_at: timestamptz('last_used_at')
+});
