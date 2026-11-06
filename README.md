@@ -23,7 +23,11 @@ To customize settings, copy `.env.example` to `.env` (docker compose picks it up
 Data lives in the `postgres-data`, `avatars` and `uploads` docker volumes (`uploads` holds the images attached to posts: up to 5 per post, 10MB each; PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG, all re-encoded to WebP and scaled down to 2048px; avatars become 512px WebP squares). You should put the app behind a reverse proxy like [caddy](https://caddyserver.com/docs/quick-starts/caddyfile) or [nginx](https://gist.github.com/journeymanavi/dc7df599dd7618a12528c553ea47b1b1) to add at least https and gzip compression.
 
 ## regiorgs
-Regiorging a post (the arrows button under it) reshares it: it shows up on your profile and in your followers' *Following* feed, marked "… regiorged", as of when you regiorged it. Click the arrows again to undo it, and the count next to them to see who regiorged a post. The author gets a notification. Muted users can't regiorg (they can still undo their regiorgs).
+The arrows button under a post opens a menu with two ways to reshare it:
+- **Regiorg** reshares it as is: it shows up on your profile and in your followers' *Following* feed, marked "… regiorged" (or "… and 2 others regiorged" when more of the profiles in that feed did), as of when it was last regiorged. Open the menu again to undo it.
+- **Quote** writes a new post (text and up to 5 images) with the post embedded under it. A quote is a normal post: it shows up wherever your posts do and can be liked, replied to and regiorged itself. If the quoted post is deleted, the quote stays and says so.
+
+The count next to the arrows is regiorgs plus quotes; click it to see who regiorged and who quoted. The author gets a notification for both (a quote that also @mentions them notifies once, as a quote). Muted users can't regiorg or quote (they can still undo their regiorgs).
 
 ## accounts and identities
 - **Switching accounts:** up to 5 accounts can be signed in on one browser. Use the avatar menu in the header to switch, and *Sign in to another account* to add one.
@@ -39,7 +43,7 @@ Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors c
 | method           | path                              |                                                                                                                |
 | ---------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `GET`            | `/api/bot/me`                     | the bot's profile and follow counts                                                                            |
-| `POST`           | `/api/bot/posts`                  | post `{ "content": "…" }`, or reply with `{ "content": "…", "reply_to": 12 }` (text only, max 2000 characters) |
+| `POST`           | `/api/bot/posts`                  | post `{ "content": "…" }`, reply with `{ "content": "…", "reply_to": 12 }`, or quote with `{ "content": "…", "quote_of": 12 }` (text only, max 2000 characters) |
 | `GET` / `DELETE` | `/api/bot/posts/:id`              | read a post / delete one of the bot's own posts                                                                |
 | `PUT` / `DELETE` | `/api/bot/posts/:id/like`         | like / unlike (both are idempotent)                                                                            |
 | `PUT` / `DELETE` | `/api/bot/posts/:id/regiorg`      | regiorg / undo the regiorg (both are idempotent)                                                               |

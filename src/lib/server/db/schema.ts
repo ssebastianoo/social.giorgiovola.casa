@@ -76,20 +76,28 @@ export const sessions = pgTable('sessions', {
 	created_at: timestamptz('created_at').notNull().defaultNow()
 });
 
-export const posts = pgTable('posts', {
-	id: serial('id').primaryKey(),
-	user_id: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
-	// may be empty when the post has images
-	content: text('content').notNull(),
-	// URL paths of the attached uploads (see src/lib/server/images.ts)
-	images: text('images')
-		.array()
-		.notNull()
-		.default(sql`'{}'::text[]`),
-	created_at: timestamptz('created_at').notNull().defaultNow(),
-	edited_at: timestamptz('edited_at'),
-	reply_to: integer('reply_to').references((): AnyPgColumn => posts.id, { onDelete: 'cascade' })
-});
+export const posts = pgTable(
+	'posts',
+	{
+		id: serial('id').primaryKey(),
+		user_id: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+		// may be empty when the post has images
+		content: text('content').notNull(),
+		// URL paths of the attached uploads (see src/lib/server/images.ts)
+		images: text('images')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		created_at: timestamptz('created_at').notNull().defaultNow(),
+		edited_at: timestamptz('edited_at'),
+		reply_to: integer('reply_to').references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
+		// a quote regiorg: the post this one quotes. Deleting the quoted post keeps the quote, which
+		// then shows the quoted post as unavailable (is_quote stays true)
+		quote_of: integer('quote_of').references((): AnyPgColumn => posts.id, { onDelete: 'set null' }),
+		is_quote: boolean('is_quote').notNull().default(false)
+	},
+	(t) => [index('posts_quote_of').on(t.quote_of)]
+);
 
 // Hashtags of a post, lowercased and without the "#". Written by the post API with
 // extractHashtags (src/lib/hashtags.ts), which is the one definition of what a hashtag is.
@@ -151,8 +159,9 @@ export const inbox = pgTable(
 		// ratioed_by_you: the recipient's reply (post_id) got more likes than the sender's post
 		// follow: the sender followed the recipient, post_id is null
 		// regiorg: the sender regiorged the recipient's post
+		// quote: the sender's post (post_id) quotes the recipient's post
 		type: text('type', {
-			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow', 'regiorg']
+			enum: ['mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow', 'regiorg', 'quote']
 		}).notNull(),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		read_at: timestamptz('read_at'),
@@ -168,7 +177,7 @@ export const inbox = pgTable(
 			.where(sql`${t.type} = 'follow'`),
 		check(
 			'inbox_type_check',
-			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow', 'regiorg')`
+			sql`${t.type} IN ('mention', 'reply', 'like', 'ratio', 'ratioed_by_you', 'follow', 'regiorg', 'quote')`
 		)
 	]
 );

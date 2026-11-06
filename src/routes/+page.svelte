@@ -63,7 +63,7 @@
 			aria-current={data.feed === 'following' ? 'page' : undefined}>Following</a
 		>
 	</nav>
-	<PostComposer on:created={(e: CustomEvent<Post>) => add(e.detail)} />
+	<PostComposer oncreated={add} />
 {:else}
 	<form class="mb-5 flex">
 		<input class="input" type="text" placeholder="Log in to post" disabled />

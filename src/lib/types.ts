@@ -57,6 +57,17 @@ export type FollowListEntry = Pick<User, 'username' | 'name' | 'avatar'> & {
 	self: boolean;
 };
 
+/** The post a quote regiorg quotes, as shown inside the quote. */
+export type QuotedPost = {
+	id: number;
+	user: Pick<User, 'username' | 'name' | 'avatar'>;
+	content: string;
+	images: string[];
+	created_at: Date;
+	/** it quotes another post itself (that one isn't shown) */
+	is_quote: boolean;
+};
+
 export type Post = {
 	id: number;
 	user: User | PublicUser;
@@ -70,8 +81,15 @@ export type Post = {
 	regiorgs: number;
 	/** the viewer regiorged it */
 	regiorged?: boolean;
-	/** in a timeline: the profile whose regiorg put the post there */
-	regiorged_by?: { username: string; name: string } | null;
+	/**
+	 * in a timeline: the profile whose (latest) regiorg put the post there, and how many other
+	 * profiles of that timeline regiorged it too
+	 */
+	regiorged_by?: { username: string; name: string; others?: number } | null;
+	/** quote regiorgs of this post */
+	quotes: number;
+	/** a quote regiorg: the quoted post, `{ deleted: true }` once it is gone; null otherwise */
+	quote: QuotedPost | { deleted: true } | null;
 	replies_count: number;
 	reply_to: {
 		username: string;
@@ -88,7 +106,8 @@ export type NotificationType =
 	| 'ratio'
 	| 'ratioed_by_you'
 	| 'follow'
-	| 'regiorg';
+	| 'regiorg'
+	| 'quote';
 
 export type Notification = {
 	id: number;

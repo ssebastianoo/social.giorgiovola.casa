@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db, posts, users } from '#lib/server/db/index.js';
-import { createPost, deletePost } from '#lib/server/posts.js';
+import { checkPostRefs, createPost, deletePost } from '#lib/server/posts.js';
 import { LIMITS, parseId } from '#lib/server/validation.js';
 import {
 	ImageError,
@@ -39,7 +39,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		} catch {
 			return new Response('Upload too big or invalid', { status: 400 });
 		}
-		body = { content: form.get('content'), reply_to: form.get('reply_to') || null };
+		body = {
+			content: form.get('content'),
+			reply_to: form.get('reply_to') || null,
+			quote_of: form.get('quote_of') || null
+		};
 		files = form.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
 	} else {
 		body = await readJson(request);
@@ -76,13 +80,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		uploads.push({ buffer, ext });
 	}
 
-	let reply_to: number | null = null;
-	if (body.reply_to != null) {
-		reply_to = parseId(body.reply_to);
-		if (reply_to === null) return new Response('Invalid reply_to', { status: 400 });
-		const parent = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, reply_to));
-		if (parent.length === 0) return new Response('Post not found', { status: 404 });
-	}
+	const reply_to = body.reply_to != null ? parseId(body.reply_to) : null;
+	if (body.reply_to != null && reply_to === null)
+		return new Response('Invalid reply_to', { status: 400 });
+	const quote_of = body.quote_of != null ? parseId(body.quote_of) : null;
+	if (body.quote_of != null && quote_of === null)
+		return new Response('Invalid quote_of', { status: 400 });
+	const refError = await checkPostRefs(reply_to, quote_of);
+	if (refError) return new Response(refError.message, { status: refError.status });
 
 	let optimized: Buffer[];
 	try {
@@ -97,7 +102,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	let post;
 	try {
-		post = await createPost(locals.user, { content, images, reply_to });
+		post = await createPost(locals.user, { content, images, reply_to, quote_of });
 	} catch (e) {
 		await removeUploads(images);
 		throw e;

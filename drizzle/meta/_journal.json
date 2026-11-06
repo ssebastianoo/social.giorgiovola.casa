@@ -155,6 +155,13 @@
       "when": 1793961460003,
       "tag": "0021_regiorgs",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793964572707,
+      "tag": "0022_quote_regiorgs",
+      "breakpoints": true
     }
   ]
 }

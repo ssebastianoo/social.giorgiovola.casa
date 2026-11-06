@@ -9,7 +9,7 @@ import { imagesOfPostTrees, removeUploads } from './images.js';
 import { publishDeleted, publishLikes, publishPost, publishRegiorg } from './realtime.js';
 
 export type GetPostsOptions = {
-	loggedUser?: User | null;
+	loggedUser?: Pick<User, 'id'> | null;
 	reply_to?: number | null;
 	postId?: number | null;
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
@@ -85,6 +85,19 @@ export async function getPosts({
 			// correlated subqueries: the table names are written out so they can't be mis-qualified
 			replies_count: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id)`,
 			regiorgs: sql<number>`(SELECT COUNT(*)::int FROM regiorgs r WHERE r.post_id = posts.id)`,
+			quotes: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.quote_of = posts.id)`,
+			quote: sql<Post['quote']>`CASE WHEN posts.is_quote THEN COALESCE((
+				SELECT jsonb_build_object(
+					'id', p.id,
+					'content', p.content,
+					'images', p.images,
+					'created_at', p.created_at,
+					'is_quote', p.is_quote,
+					'user', jsonb_build_object('username', u.username, 'name', u.name, 'avatar', u.avatar)
+				)
+				FROM posts p INNER JOIN users u ON p.user_id = u.id
+				WHERE p.id = posts.quote_of
+			), '{"deleted": true}'::jsonb) END`,
 			reply_to: sql<Post['reply_to']>`(
 				SELECT jsonb_build_object(
 					'username', u.username,
@@ -128,7 +141,7 @@ export async function getPosts({
 }
 
 export type TimelineOptions = {
-	loggedUser?: User | null;
+	loggedUser?: Pick<User, 'id'> | null;
 	/** whose posts and regiorgs: a condition on a user id column */
 	authors: (userId: SQL) => SQL;
 	/** leave out their replies (regiorged replies still show) */
@@ -150,9 +163,10 @@ export async function getTimeline({
 	offset = 0
 }: TimelineOptions) {
 	const entries = (await db.execute(sql`
-		SELECT t.post_id, u.username, u.name
+		SELECT t.post_id, u.username, u.name, t.regiorgers
 		FROM (
-			SELECT DISTINCT ON (e.post_id) e.post_id, e.regiorger_id, e.at
+			SELECT DISTINCT ON (e.post_id) e.post_id, e.regiorger_id, e.at,
+				COUNT(e.regiorger_id) OVER (PARTITION BY e.post_id)::int AS regiorgers
 			FROM (
 				SELECT p.id AS post_id, NULL::int AS regiorger_id, p.created_at AS at
 				FROM posts p
@@ -167,7 +181,12 @@ export async function getTimeline({
 		LEFT JOIN users u ON u.id = t.regiorger_id
 		ORDER BY t.at DESC, t.post_id DESC
 		LIMIT ${limit} OFFSET ${offset}
-	`)) as unknown as { post_id: number; username: string | null; name: string | null }[];
+	`)) as unknown as {
+		post_id: number;
+		username: string | null;
+		name: string | null;
+		regiorgers: number;
+	}[];
 	if (entries.length === 0) return [];
 
 	const found = await getPosts({
@@ -181,7 +200,9 @@ export async function getTimeline({
 	return entries.flatMap((e): Post[] => {
 		const post = byId.get(e.post_id);
 		if (!post) return [];
-		const regiorged_by = e.username ? { username: e.username, name: e.name ?? e.username } : null;
+		const regiorged_by = e.username
+			? { username: e.username, name: e.name ?? e.username, others: e.regiorgers - 1 }
+			: null;
 		return [{ ...post, regiorged_by }];
 	});
 }
@@ -197,50 +218,53 @@ export const profileAuthor = (username: string) => (column: SQL) =>
 	sql`${column} = (SELECT u.id FROM users u WHERE u.username = ${username})`;
 
 /**
- * Writes a post (or a reply, when `reply_to` is set) by `user` with its hashtags, then tells
- * everyone about it. The input must already be validated and `reply_to` must exist.
+ * Checks the `reply_to` and `quote_of` of a new post: an error message and status, or null when
+ * they are fine. A post can't both reply and quote.
+ */
+export async function checkPostRefs(reply_to: number | null, quote_of: number | null) {
+	if (reply_to !== null && quote_of !== null)
+		return { status: 400, message: "A post can't both reply and quote" };
+	const ref = reply_to ?? quote_of;
+	if (ref === null) return null;
+	const found = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, ref));
+	return found.length === 0 ? { status: 404, message: 'Post not found' } : null;
+}
+
+/**
+ * Writes a post (or a reply, when `reply_to` is set, or a quote regiorg, when `quote_of` is set)
+ * by `user` with its hashtags, then tells everyone about it. The input must already be validated
+ * (see checkPostRefs).
  */
 export async function createPost(
 	user: Pick<User, 'id' | 'username' | 'name' | 'avatar'>,
 	{
 		content,
 		images = [],
-		reply_to
-	}: { content: string; images?: string[]; reply_to: number | null }
+		reply_to,
+		quote_of = null
+	}: { content: string; images?: string[]; reply_to: number | null; quote_of?: number | null }
 ) {
 	// the post and its hashtags together, so a post never shows up without its tags
 	const created = await db.transaction(async (tx) => {
 		const [row] = await tx
 			.insert(posts)
-			.values({ user_id: user.id, content, images, reply_to })
-			.returning({
-				content: posts.content,
-				images: posts.images,
-				created_at: posts.created_at,
-				edited_at: posts.edited_at,
-				id: posts.id
-			});
+			.values({
+				user_id: user.id,
+				content,
+				images,
+				reply_to,
+				quote_of,
+				is_quote: quote_of !== null
+			})
+			.returning({ id: posts.id });
 		const tags = extractHashtags(content);
 		if (tags.length)
 			await tx.insert(post_hashtags).values(tags.map((tag) => ({ post_id: row.id, tag })));
 		return row;
 	});
 
-	let parentRef: { id: number; username: string; likes: number } | null = null;
-	if (reply_to !== null) {
-		const [parent] = await db
-			.select({
-				id: posts.id,
-				username: users.username,
-				likes: sql<number>`(SELECT COUNT(*)::int FROM likes l WHERE l.post_id = posts.id)`
-			})
-			.from(posts)
-			.innerJoin(users, eq(posts.user_id, users.id))
-			.where(eq(posts.id, reply_to));
-		parentRef = parent ?? null;
-	}
-	const { id, username, name, avatar } = user;
-	const post = { ...created, reply_to: parentRef, user: { id, username, name, avatar } };
+	// read back like everywhere else, with the quoted post and the counts
+	const [post] = await getPosts({ postId: created.id, loggedUser: user });
 
 	void publishPost(post.id);
 	if (!reply_to && DISCORD_WEBHOOK_URL) {
@@ -271,11 +295,11 @@ export async function deletePost(postId: number) {
 	const deleted = await db
 		.delete(posts)
 		.where(eq(posts.id, postId))
-		.returning({ id: posts.id, reply_to: posts.reply_to });
+		.returning({ id: posts.id, reply_to: posts.reply_to, quote_of: posts.quote_of });
 	if (deleted.length === 0) return false;
 
 	await removeUploads(images);
-	publishDeleted(postId, deleted[0].reply_to);
+	publishDeleted(postId, deleted[0].reply_to, deleted[0].quote_of);
 	return true;
 }
 

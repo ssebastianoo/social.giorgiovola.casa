@@ -7,6 +7,8 @@
 	import { goto } from '$app/navigation';
 	import Likes from './Likes.svelte';
 	import Avatar from './Avatar.svelte';
+	import PostComposer from './PostComposer.svelte';
+	import QuoteCard from './QuoteCard.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
 	import { markMentionSeen } from '#lib/mentions.js';
@@ -38,15 +40,25 @@
 	const dialogContentClass =
 		'flex w-[calc(85%+2px)] max-w-[392px] flex-col gap-2.5 rounded-md border border-accent bg-background/80 p-5';
 	// which list of users is open
-	let showing: 'likes' | 'regiorgs' | null = $state(null);
+	let showing: 'likes' | 'regiorgs' | 'quotes' | null = $state(null);
 	let isModalOpen = $state(false);
 	let popup: HTMLDivElement | undefined = $state();
+	let toast = $state('Link copied!');
+	// the regiorg button opens a menu: regiorg (or undo it) and quote
+	let menuOpen = $state(false);
+	let menu: HTMLDivElement | undefined = $state();
+	let quoting = $state(false);
+	let quoteDialog: HTMLDialogElement | undefined = $state();
+	let regiorgBusy = false;
 
 	// writable derived: follow the post, overwritten by the buttons and realtime counts
 	let liked = $derived(post.liked ?? false);
 	let likes = $derived(post.likes);
 	let regiorged = $derived(post.regiorged ?? false);
 	let regiorgs = $derived(post.regiorgs ?? 0);
+	let quotes = $derived(post.quotes ?? 0);
+	// the quoted post, marked deleted when it goes away under the viewer
+	let quote = $derived(post.quote ?? null);
 	let repliesCount = $derived(post.replies_count);
 	// the parent's likes decide whether this reply ratios it
 	let parentLikes = $derived(post.reply_to?.likes ?? 0);
@@ -105,8 +117,10 @@
 			if (c.likes !== undefined) likes = c.likes;
 			if (c.replies_count !== undefined) repliesCount = c.replies_count;
 			if (c.regiorgs !== undefined) regiorgs = c.regiorgs;
+			if (c.quotes !== undefined) quotes = c.quotes;
 		});
 		const offDeleted = onRealtime('post_deleted', ({ id }) => {
+			if (quote && !('deleted' in quote) && quote.id === id) quote = { deleted: true };
 			// the open post vanished under the viewer
 			if (id === post.id && isPostOpen) goto('/');
 		});
@@ -169,27 +183,107 @@
 	}
 
 	async function toggleRegiorg() {
-		const res = await fetch('/api/posts/regiorg', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				id: post.id
-			})
-		});
-		if (res.ok) {
-			const data = await res.json();
-			regiorged = data.regiorged;
-			// absolute count, like for likes
-			regiorgs = data.regiorgs;
-		} else if (res.status !== 401) alert((await res.text()) || 'Could not regiorg');
+		menuOpen = false;
+		if (regiorgBusy) return;
+		regiorgBusy = true;
+		// optimistic: the button and count change right away, and go back if it fails
+		const before = { regiorged, regiorgs };
+		regiorged = !before.regiorged;
+		regiorgs = Math.max(0, before.regiorgs + (regiorged ? 1 : -1));
+		try {
+			const res = await fetch('/api/posts/regiorg', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					id: post.id
+				})
+			});
+			if (res.ok) {
+				const data = await res.json();
+				regiorged = data.regiorged;
+				// absolute count, like for likes
+				regiorgs = data.regiorgs;
+			} else {
+				({ regiorged, regiorgs } = before);
+				if (res.status !== 401) alert((await res.text()) || 'Could not regiorg');
+			}
+		} catch {
+			({ regiorged, regiorgs } = before);
+		} finally {
+			regiorgBusy = false;
+		}
+	}
+
+	function openRegiorgMenu() {
+		if (!$user) return goto('/login');
+		menuOpen = !menuOpen;
+	}
+
+	function startQuote() {
+		menuOpen = false;
+		quoting = true;
+	}
+
+	// what the quote composer shows of this post
+	const asQuoted = $derived({
+		id: post.id,
+		user: post.user,
+		content: post.content,
+		images: post.images ?? [],
+		created_at: post.created_at,
+		is_quote: !!post.quote
+	});
+
+	// the menu closes on a click elsewhere or Escape
+	$effect(() => {
+		if (!menuOpen) return;
+		const onPointer = (e: PointerEvent) => {
+			if (menu && !menu.contains(e.target as Node)) menuOpen = false;
+		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') menuOpen = false;
+		};
+		document.addEventListener('pointerdown', onPointer, true);
+		document.addEventListener('keydown', onKey);
+		return () => {
+			document.removeEventListener('pointerdown', onPointer, true);
+			document.removeEventListener('keydown', onKey);
+		};
+	});
+
+	// the quote composer: focus its input when it opens, close it with Escape
+	$effect(() => {
+		if (!quoting) return;
+		quoteDialog?.querySelector('input')?.focus();
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') quoting = false;
+		};
+		document.addEventListener('keydown', onKey);
+		return () => document.removeEventListener('keydown', onKey);
+	});
+
+	// the tabs of the regiorgs dialog
+	const listTabs = $derived([
+		['regiorgs', 'Regiorgs', regiorgs],
+		['quotes', 'Quotes', quotes]
+	] as const);
+
+	function onQuoted() {
+		quoting = false;
+		showToast('Quote posted!');
 	}
 
 	function sharePost(post: Post) {
+		navigator.clipboard.writeText(`${window.location.origin}/@${post.user.username}/${post.id}`);
+		showToast('Link copied!');
+	}
+
+	function showToast(message: string) {
 		if (!popup) return;
 		const el = popup;
-		navigator.clipboard.writeText(`${window.location.origin}/@${post.user.username}/${post.id}`);
+		toast = message;
 		el.style.top = '90px';
 		el.style.visibility = 'visible';
 		setTimeout(() => {
@@ -207,7 +301,7 @@
 	class="invisible fixed top-[-100px] left-1/2 z-999 w-[calc(80%+42px)] max-w-[442px] -translate-x-1/2 rounded-[5px] border border-accent bg-black/10 p-5 text-center backdrop-blur-[2px] transition-all duration-400 ease-[cubic-bezier(0.86,0,0.07,1)]"
 	bind:this={popup}
 >
-	<p>Link copied!</p>
+	<p>{toast}</p>
 </div>
 
 <dialog class={dialogClass} open={isModalOpen}>
@@ -243,7 +337,24 @@
 		<div class="flex h-full items-center justify-center">
 			<div class={dialogContentClass}>
 				<div class="flex items-center justify-between">
-					<h3>{showing === 'likes' ? 'Users who liked' : 'Users who regiorged'}</h3>
+					{#if showing === 'likes'}
+						<h3>Users who liked</h3>
+					{:else}
+						<nav class="flex gap-5">
+							{#each listTabs as [kind, label, count]}
+								<button
+									class="cursor-pointer border-b-2 pb-[5px] font-bold outline-none {showing === kind
+										? 'border-accent'
+										: 'border-transparent opacity-60 hover:opacity-100'}"
+									aria-current={showing === kind ? 'page' : undefined}
+									onclick={(e) => {
+										e.stopPropagation();
+										showing = kind;
+									}}>{label} <span class="font-medium text-muted">{count}</span></button
+								>
+							{/each}
+						</nav>
+					{/if}
 					<button
 						class="flex cursor-pointer outline-none"
 						aria-label="Close"
@@ -264,12 +375,50 @@
 					</button>
 				</div>
 				<div class="max-h-[calc(var(--fh)-160px)] cursor-pointer overflow-auto hover:underline">
-					<Likes postId={post.id} kind={showing} />
+					{#key showing}
+						<Likes postId={post.id} kind={showing} />
+					{/key}
 				</div>
 			</div>
 		</div>
 	{/if}
 </dialog>
+{#if quoting}
+	<dialog class={dialogClass} open bind:this={quoteDialog}>
+		<div
+			class="flex h-full items-center justify-center"
+			role="presentation"
+			onclick={(e) => {
+				// a click on the backdrop closes it
+				if (e.target === e.currentTarget) quoting = false;
+			}}
+		>
+			<div
+				class="flex w-[calc(100%-40px)] max-w-[560px] flex-col gap-2.5 rounded-md border border-accent bg-background/80 p-5"
+			>
+				<div class="flex items-center justify-between">
+					<h3>Quote @{post.user.username}</h3>
+					<button
+						class="flex cursor-pointer outline-none"
+						aria-label="Close"
+						onclick={() => (quoting = false)}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							height="1.6em"
+							viewBox="0 0 384 512"
+							fill="#bb5353"
+							><path
+								d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"
+							/></svg
+						>
+					</button>
+				</div>
+				<PostComposer quoteOf={asQuoted} placeholder="Add a comment" oncreated={onQuoted} />
+			</div>
+		</div>
+	</dialog>
+{/if}
 <div class="flex flex-col gap-2.5">
 	<div class="flex flex-col gap-2.5">
 		{#if post.regiorged_by}
@@ -291,7 +440,12 @@
 						d="M7 23l-4-4 4-4"
 					/><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
 				>
-				{post.regiorged_by.username === $user?.username ? 'You' : post.regiorged_by.name} regiorged
+				{post.regiorged_by.username === $user?.username ? 'You' : post.regiorged_by.name}
+				{#if post.regiorged_by.others}
+					and {post.regiorged_by.others}
+					{post.regiorged_by.others === 1 ? 'other' : 'others'}
+				{/if}
+				regiorged
 			</a>
 		{/if}
 		{#if post.reply_to && (showReplyTo || post.regiorged_by)}
@@ -310,7 +464,9 @@
 			onkeypress={() => {
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
-			onclick={() => {
+			onclick={(e) => {
+				// links inside the post (the quoted post, mentions…) go where they point
+				if ((e.target as Element).closest('a')) return;
 				// allow dragging to select text
 				const selection = getSelection();
 				if (selection && selection.type === 'Range') return;
@@ -381,6 +537,9 @@
 							{/each}
 						</div>
 					{/if}
+					{#if quote}
+						<QuoteCard {quote} />
+					{/if}
 				</div>
 				<div class="mt-2.5 flex w-full items-center gap-2.5">
 					<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 0 512 512"
@@ -391,39 +550,68 @@
 						/></svg
 					>
 					<p>{repliesCount ? repliesCount : '0'}</p>
-					<button
-						onclick={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							toggleRegiorg();
-						}}
-						class="group flex cursor-pointer items-center outline-none"
-						title={regiorged ? 'undo regiorg' : 'regiorg'}
-						aria-pressed={regiorged}
-					>
-						<svg
-							height="19px"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							xmlns="http://www.w3.org/2000/svg"
-							class="{regiorged ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
-								? ''
-								: `transition-[stroke] duration-100 ease-in-out ${
-										!regiorged && $user ? 'group-hover:stroke-accent' : ''
-								  }`}"
-							><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path
-								d="M7 23l-4-4 4-4"
-							/><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
+					<div class="relative flex" bind:this={menu}>
+						<button
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								openRegiorgMenu();
+							}}
+							class="group flex cursor-pointer items-center outline-none"
+							title={regiorged ? 'Regiorged' : 'Regiorg or quote'}
+							aria-label="Regiorg or quote"
+							aria-haspopup="menu"
+							aria-expanded={menuOpen}
 						>
-					</button>
+							<svg
+								height="19px"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								xmlns="http://www.w3.org/2000/svg"
+								class="{regiorged ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
+									? ''
+									: `transition-[stroke] duration-100 ease-in-out ${
+											!regiorged && $user ? 'group-hover:stroke-accent' : ''
+									  }`}"
+								><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path
+									d="M7 23l-4-4 4-4"
+								/><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg
+							>
+						</button>
+						{#if menuOpen}
+							<div
+								class="absolute top-full left-0 z-50 mt-[5px] flex w-max flex-col rounded-[5px] border border-accent bg-background p-[5px]"
+								role="menu"
+							>
+								<button
+									role="menuitem"
+									class="cursor-pointer rounded-[5px] px-2.5 py-[5px] text-left outline-none hover:bg-white/5 focus-visible:bg-white/5 {regiorged
+										? 'text-danger'
+										: ''}"
+									onclick={(e) => {
+										e.stopPropagation();
+										toggleRegiorg();
+									}}>{regiorged ? 'Undo regiorg' : 'Regiorg'}</button
+								>
+								<button
+									role="menuitem"
+									class="cursor-pointer rounded-[5px] px-2.5 py-[5px] text-left outline-none hover:bg-white/5 focus-visible:bg-white/5"
+									onclick={(e) => {
+										e.stopPropagation();
+										startQuote();
+									}}>Quote</button
+								>
+							</div>
+						{/if}
+					</div>
 					<div class="cursor-pointer hover:underline">
 						<div
 							role="button"
 							tabindex="0"
-							title="Users who regiorged"
+							title="Regiorgs and quotes"
 							onkeypress={(e) => {
 								e.stopPropagation();
 								showing = 'regiorgs';
@@ -433,7 +621,7 @@
 								showing = 'regiorgs';
 							}}
 						>
-							{regiorgs ? regiorgs : '0'}
+							{regiorgs + quotes}
 						</div>
 					</div>
 					<button

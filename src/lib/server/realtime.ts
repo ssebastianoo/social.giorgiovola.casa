@@ -226,6 +226,7 @@ export async function publishPost(postId: number) {
 			const replies_count = await db.$count(posts, eq(posts.reply_to, post.reply_to.id));
 			broadcast('counts', { id: post.reply_to.id, replies_count });
 		}
+		if (post.quote && !('deleted' in post.quote)) await publishQuotes(post.quote.id);
 		// the inbox triggers already ran: notify whoever received something from this post
 		const received = await db
 			.selectDistinct({ user_id: inbox.user_id })
@@ -238,13 +239,21 @@ export async function publishPost(postId: number) {
 	}
 }
 
-export function publishDeleted(postId: number, replyTo: number | null) {
+/** The quote count of a post changed. */
+async function publishQuotes(postId: number) {
+	const quotes = await db.$count(posts, eq(posts.quote_of, postId));
+	broadcast('counts', { id: postId, quotes });
+}
+
+export function publishDeleted(postId: number, replyTo: number | null, quoteOf: number | null) {
 	broadcast('post_deleted', { id: postId });
 	if (replyTo !== null) {
 		db.$count(posts, eq(posts.reply_to, replyTo))
 			.then((replies_count) => broadcast('counts', { id: replyTo, replies_count }))
 			.catch((e) => console.error('realtime: publishDeleted failed', e));
 	}
+	if (quoteOf !== null)
+		publishQuotes(quoteOf).catch((e) => console.error('realtime: publishDeleted failed', e));
 }
 
 export async function publishLikes(postId: number, ownerId: number | null, total?: number) {

@@ -29,8 +29,7 @@
 		})
 	);
 
-	function onCreated(e: CustomEvent<PostType>) {
-		const post = e.detail;
+	function onCreated(post: PostType) {
 		if (!replies.some((r) => r.id === post.id)) replies = [...replies, post];
 	}
 </script>
@@ -44,7 +43,7 @@
 {:then}
 	<div class="mt-5">
 		{#if $user}
-			<PostComposer replyTo={data.post.id} on:created={onCreated} />
+			<PostComposer replyTo={data.post.id} oncreated={onCreated} />
 		{/if}
 		<Posts scrollToNew={true} loadReplies={true} replies={true} posts={replies} />
 	</div>

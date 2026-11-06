@@ -85,7 +85,7 @@
 		<p>
 			{push === 'on'
 				? 'Push notifications are on for this browser.'
-				: 'Get a notification on this device when someone likes, regiorgs, replies, mentions, follows or messages you.'}
+				: 'Get a notification on this device when someone likes, regiorgs, quotes, replies, mentions, follows or messages you.'}
 		</p>
 		<Button disabled={pushBusy} onclick={togglePush}>
 			{push === 'on' ? 'Turn off' : 'Turn on'}
@@ -142,6 +142,20 @@
 							regiorged
 							<a href={`/@${$user?.username}/${notification.post.id}`}>your post</a>
 						</p>
+					{:else if notification.type === 'quote'}
+						<p>
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							<a href={`/@${notification.sender.username}/${notification.post.id}`}>quoted</a>
+							your post
+						</p>
+						{#if notification.post.content}
+							<p class="text-muted">
+								{notification.post.content.slice(
+									0,
+									100
+								)}{#if notification.post.content.length > 100}...{/if}
+							</p>
+						{/if}
 					{:else if notification.type === 'mention'}
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>

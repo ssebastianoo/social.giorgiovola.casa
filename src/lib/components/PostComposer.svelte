@@ -1,26 +1,38 @@
 <script lang="ts">
-	import { createEventDispatcher, onMount } from 'svelte';
-	import type { Post } from '#lib/types.js';
+	import { onMount } from 'svelte';
+	import type { Post, QuotedPost } from '#lib/types.js';
 	import MentionInput from './MentionInput.svelte';
+	import QuoteCard from './QuoteCard.svelte';
 
-	/** Set to reply to a post instead of creating a top level one. */
-	export let replyTo: number | null = null;
+	type Props = {
+		/** Set to reply to a post instead of creating a top level one. */
+		replyTo?: number | null;
+		/** Set to quote a post (a quote regiorg): it is shown under the input. */
+		quoteOf?: QuotedPost | null;
+		placeholder?: string;
+		oncreated?: (post: Post) => void;
+	};
+
+	let {
+		replyTo = null,
+		quoteOf = null,
+		placeholder = 'twitter sucks',
+		oncreated
+	}: Props = $props();
 
 	const MAX_IMAGES = 5;
 	const MAX_BYTES = 10 * 1024 * 1024;
 	const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i;
 
-	const dispatch = createEventDispatcher<{ created: Post }>();
-
 	type Attachment = { file: File; url: string };
 
-	let content = '';
-	let attachments: Attachment[] = [];
-	let error: string | null = null;
-	let sending = false;
-	let dragging = false;
+	let content = $state('');
+	let attachments: Attachment[] = $state([]);
+	let error: string | null = $state(null);
+	let sending = $state(false);
+	let dragging = $state(false);
 	let dragDepth = 0;
-	let fileInput: HTMLInputElement;
+	let fileInput: HTMLInputElement | undefined = $state();
 	let errorTimeout: ReturnType<typeof setTimeout>;
 
 	function showError(message: string) {
@@ -64,6 +76,7 @@
 	}
 
 	function onFilesSelected() {
+		if (!fileInput) return;
 		addFiles(Array.from(fileInput.files ?? []));
 		// lets the same file be picked again after removing it
 		fileInput.value = '';
@@ -125,6 +138,7 @@
 			const body = new FormData();
 			body.set('content', content);
 			if (replyTo !== null) body.set('reply_to', String(replyTo));
+			if (quoteOf) body.set('quote_of', String(quoteOf.id));
 			for (const { file } of attachments) body.append('images', file);
 
 			const res = await fetch('/api/posts', { method: 'POST', body });
@@ -132,7 +146,7 @@
 				const post: Post = await res.json();
 				content = '';
 				clearAttachments();
-				dispatch('created', post);
+				oncreated?.(post);
 			} else if (res.status === 400 || res.status === 403) {
 				showError(await res.text());
 			} else if (res.status === 413) {
@@ -166,16 +180,19 @@
 	</div>
 {/if}
 
-<form class="mb-5 flex flex-col gap-2.5" on:submit|preventDefault={submit} on:paste={onPaste}>
+<form
+	class="mb-5 flex flex-col gap-2.5"
+	onsubmit={(e) => {
+		e.preventDefault();
+		submit();
+	}}
+	onpaste={onPaste}
+>
 	<div class="flex">
-		<MentionInput
-			bind:value={content}
-			required={attachments.length === 0}
-			placeholder="twitter sucks"
-		/>
+		<MentionInput bind:value={content} required={attachments.length === 0} {placeholder} />
 		<input
 			bind:this={fileInput}
-			on:change={onFilesSelected}
+			onchange={onFilesSelected}
 			type="file"
 			accept="image/*"
 			multiple
@@ -186,7 +203,7 @@
 			title="Attach images"
 			aria-label="Attach images"
 			disabled={attachments.length >= MAX_IMAGES}
-			on:click={() => fileInput.click()}
+			onclick={() => fileInput?.click()}
 			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none disabled:cursor-default disabled:opacity-40"
 			><svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -223,12 +240,15 @@
 						type="button"
 						title="Remove"
 						aria-label="Remove image"
-						on:click={() => removeAttachment(attachment)}
+						onclick={() => removeAttachment(attachment)}
 						class="absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-background/80 text-[0.8rem] leading-none outline-none hover:bg-danger"
 						>×</button
 					>
 				</div>
 			{/each}
 		</div>
+	{/if}
+	{#if quoteOf}
+		<QuoteCard quote={quoteOf} link={false} />
 	{/if}
 </form>

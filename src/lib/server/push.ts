@@ -103,7 +103,8 @@ function payloadFor(row: Row) {
 		ratioed_by_you: 'got ratioed by your reply',
 		// follows go through sendFollowPush
 		follow: 'followed you',
-		regiorg: 'regiorged your post'
+		regiorg: 'regiorged your post',
+		quote: 'quoted your post'
 	};
 	const verb = verbs[row.type];
 	// likes and regiorgs are of the recipient's own post: no need to quote it back
