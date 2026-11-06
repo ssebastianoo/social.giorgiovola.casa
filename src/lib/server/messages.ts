@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { db, blocks, messages, users } from './db/index.js';
 import type { ChatMessage, ChatPeer, Conversation } from '#lib/types.js';
+import { linkedPosts } from './linkedPosts.js';
 
 const THREAD_PAGE = 30;
 const PREVIEW_LENGTH = 200;
@@ -53,6 +54,23 @@ export async function findPeer(username: string): Promise<(ChatPeer & Party) | n
 	return peer ?? null;
 }
 
+type Row = { id: number; content: string; images: string[]; created_at: Date };
+
+const toChatMessage = (row: Row, sender: string, recipient: string) => ({
+	id: row.id,
+	sender,
+	recipient,
+	content: row.content,
+	images: row.images,
+	created_at: row.created_at
+});
+
+/** Fills `linked_post` with the post each message links to, if any. */
+async function withLinkedPosts(found: Omit<ChatMessage, 'linked_post'>[]): Promise<ChatMessage[]> {
+	const linked = await linkedPosts(found.map((m) => m.content));
+	return found.map((m, i) => ({ ...m, linked_post: linked[i] }));
+}
+
 /** A page of a conversation, oldest first: the latest messages, or the ones before `before`. */
 export async function getThread(me: Party, peer: Party, before?: number | null) {
 	const rows = await db
@@ -70,36 +88,20 @@ export async function getThread(me: Party, peer: Party, before?: number | null) 
 
 	return {
 		hasMore: rows.length > THREAD_PAGE,
-		messages: rows
-			.slice(0, THREAD_PAGE)
-			.reverse()
-			.map(
-				(row): ChatMessage => ({
-					id: row.id,
-					sender: row.sender_id === me.id ? me.username : peer.username,
-					recipient: row.sender_id === me.id ? peer.username : me.username,
-					content: row.content,
-					images: row.images,
-					created_at: row.created_at
-				})
-			)
+		messages: await withLinkedPosts(
+			rows
+				.slice(0, THREAD_PAGE)
+				.reverse()
+				.map((row) =>
+					row.sender_id === me.id
+						? toChatMessage(row, me.username, peer.username)
+						: toChatMessage(row, peer.username, me.username)
+				)
+		)
 	};
 }
 
 type ListOptions = { afterId: number | null; limit: number };
-
-const toChatMessage = (
-	row: { id: number; content: string; images: string[]; created_at: Date },
-	sender: string,
-	recipient: string
-): ChatMessage => ({
-	id: row.id,
-	sender,
-	recipient,
-	content: row.content,
-	images: row.images,
-	created_at: row.created_at
-});
 
 /**
  * A conversation for the bot API, oldest first: the messages after `afterId`, or the latest
@@ -119,10 +121,12 @@ export async function getThreadFrom(me: Party, peer: Party, { afterId, limit }: 
 		.orderBy(afterId === null ? desc(messages.id) : asc(messages.id))
 		.limit(limit);
 	if (afterId === null) rows.reverse();
-	return rows.map((row) =>
-		row.sender_id === me.id
-			? toChatMessage(row, me.username, peer.username)
-			: toChatMessage(row, peer.username, me.username)
+	return withLinkedPosts(
+		rows.map((row) =>
+			row.sender_id === me.id
+				? toChatMessage(row, me.username, peer.username)
+				: toChatMessage(row, peer.username, me.username)
+		)
 	);
 }
 
@@ -144,7 +148,7 @@ export async function getReceived(me: Party, { afterId, limit }: ListOptions) {
 		.orderBy(afterId === null ? desc(messages.id) : asc(messages.id))
 		.limit(limit);
 	if (afterId === null) rows.reverse();
-	return rows.map((row) => toChatMessage(row, row.sender, me.username));
+	return withLinkedPosts(rows.map((row) => toChatMessage(row, row.sender, me.username)));
 }
 
 export async function sendMessage(
@@ -157,7 +161,10 @@ export async function sendMessage(
 		.insert(messages)
 		.values({ sender_id: me.id, recipient_id: peer.id, content, images })
 		.returning({ id: messages.id, created_at: messages.created_at });
-	return { ...row, sender: me.username, recipient: peer.username, content, images };
+	const [message] = await withLinkedPosts([
+		{ ...row, sender: me.username, recipient: peer.username, content, images }
+	]);
+	return message;
 }
 
 /**

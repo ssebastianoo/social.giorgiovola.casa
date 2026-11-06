@@ -17,6 +17,7 @@
 	import { openImage } from '#lib/imageViewer.svelte.js';
 	import { profileHover } from '#lib/profileCard.svelte.js';
 	import { modal } from '#lib/modal.js';
+	import { openShare, postUrl } from '#lib/share.svelte.js';
 
 	type Props = {
 		post: Post;
@@ -53,6 +54,13 @@
 	// the menu opens upwards when there is no room for it below the button
 	let menuUp = $state(false);
 	let menu: HTMLDivElement | undefined = $state();
+	// the share button opens a menu too: send via message, copy link, the system share sheet
+	let shareOpen = $state(false);
+	let shareUp = $state(false);
+	let shareMenu: HTMLDivElement | undefined = $state();
+	let shareButton: HTMLButtonElement | undefined = $state();
+	// the system share sheet, where there is one (mostly phones)
+	let canNativeShare = $state(false);
 	let quoting = $state(false);
 	let regiorgBusy = false;
 
@@ -270,6 +278,7 @@
 		showing = null;
 		isModalOpen = false;
 		menuOpen = false;
+		shareOpen = false;
 		quoting = false;
 	});
 
@@ -311,10 +320,89 @@
 		showToast('Quote posted!');
 	}
 
-	function sharePost(post: Post) {
-		navigator.clipboard.writeText(`${window.location.origin}/@${post.user.username}/${post.id}`);
-		showToast('Link copied!');
+	const url = () => postUrl({ id: post.id, username: post.user.username });
+
+	function toggleShareMenu() {
+		if (!shareOpen && shareMenu) {
+			// about the menu's height, plus room for mobile browser bars
+			shareUp = shareMenu.getBoundingClientRect().bottom + 180 > window.innerHeight;
+			canNativeShare = typeof navigator.share === 'function';
+		}
+		shareOpen = !shareOpen;
 	}
+
+	function closeShareMenu() {
+		shareOpen = false;
+		shareButton?.focus();
+	}
+
+	function sendViaMessage() {
+		// the picker gives focus back to whatever had it, the menu item is about to go
+		closeShareMenu();
+		openShare({ id: post.id, username: post.user.username, notify: showToast });
+	}
+
+	async function copyLink() {
+		shareOpen = false;
+		try {
+			await navigator.clipboard.writeText(url());
+			showToast('Link copied!');
+		} catch {
+			// the clipboard api needs a secure origin, the old way works without one
+			const field = document.createElement('textarea');
+			field.value = url();
+			field.style.position = 'fixed';
+			field.style.opacity = '0';
+			document.body.append(field);
+			field.select();
+			const ok = document.execCommand('copy');
+			field.remove();
+			showToast(ok ? 'Link copied!' : 'Could not copy the link');
+		}
+	}
+
+	async function nativeShare() {
+		shareOpen = false;
+		try {
+			await navigator.share({ url: url() });
+		} catch {
+			// cancelled
+		}
+	}
+
+	// the share menu closes on a click elsewhere, Escape or Tab, and arrows move between its items
+	$effect(() => {
+		if (!shareOpen) return;
+		const items = () => [...(shareMenu?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+		// focus moves into the menu so it can be used from the keyboard and screen readers
+		queueMicrotask(() => items()[0]?.focus());
+		const onPointer = (e: PointerEvent) => {
+			if (shareMenu && !shareMenu.contains(e.target as Node)) shareOpen = false;
+		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				closeShareMenu();
+			} else if (e.key === 'Tab') {
+				shareOpen = false;
+			} else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+				e.preventDefault();
+				const list = items();
+				const i = list.indexOf(document.activeElement as HTMLElement);
+				const next = e.key === 'ArrowDown' ? i + 1 : i - 1;
+				list[(next + list.length) % list.length]?.focus();
+			}
+		};
+		document.addEventListener('pointerdown', onPointer, true);
+		document.addEventListener('keydown', onKey);
+		return () => {
+			document.removeEventListener('pointerdown', onPointer, true);
+			document.removeEventListener('keydown', onKey);
+		};
+	});
+
+	const shareItemClass =
+		'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[5px] px-2.5 py-[5px] text-left text-inherit outline-none hover:bg-white/5 hover:no-underline focus-visible:bg-white/5 sm:min-h-9';
 
 	function showToast(message: string) {
 		if (!popup) return;
@@ -746,36 +834,141 @@
 								?.username}'s post ({likes} vs {parentLikes})">RATIO {percent}%</span
 						>
 					{/if}
-					<svg
-						onclick={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							sharePost(post);
-						}}
-						onkeypress={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							sharePost(post);
-						}}
-						class="group outline-none select-none [-webkit-tap-highlight-color:transparent]"
-						role="button"
-						tabindex="0"
-						height="28px"
-						viewBox="0 -0.5 25 25"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							class={$isMobile ? '' : 'group-hover:fill-foreground'}
-							fill-rule="evenodd"
-							clip-rule="evenodd"
-							d="M14.734 15.8974L19.22 12.1374C19.3971 11.9927 19.4998 11.7761 19.4998 11.5474C19.4998 11.3187 19.3971 11.1022 19.22 10.9574L14.734 7.19743C14.4947 6.9929 14.1598 6.94275 13.8711 7.06826C13.5824 7.19377 13.3906 7.47295 13.377 7.78743V9.27043C7.079 8.17943 5.5 13.8154 5.5 16.9974C6.961 14.5734 10.747 10.1794 13.377 13.8154V15.3024C13.3888 15.6178 13.5799 15.8987 13.8689 16.0254C14.158 16.1521 14.494 16.1024 14.734 15.8974Z"
-							stroke="#d9d9d9"
-							stroke-width="0.9"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						/>
-					</svg>
+					<div class="relative flex" bind:this={shareMenu}>
+						<button
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								toggleShareMenu();
+							}}
+							class="group flex cursor-pointer items-center outline-none select-none [-webkit-tap-highlight-color:transparent]"
+							aria-label="Share post"
+							title="Share"
+							aria-haspopup="menu"
+							aria-expanded={shareOpen}
+							bind:this={shareButton}
+						>
+							<svg
+								height="28px"
+								viewBox="0 -0.5 25 25"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									class={$isMobile ? '' : 'group-hover:fill-foreground'}
+									fill-rule="evenodd"
+									clip-rule="evenodd"
+									d="M14.734 15.8974L19.22 12.1374C19.3971 11.9927 19.4998 11.7761 19.4998 11.5474C19.4998 11.3187 19.3971 11.1022 19.22 10.9574L14.734 7.19743C14.4947 6.9929 14.1598 6.94275 13.8711 7.06826C13.5824 7.19377 13.3906 7.47295 13.377 7.78743V9.27043C7.079 8.17943 5.5 13.8154 5.5 16.9974C6.961 14.5734 10.747 10.1794 13.377 13.8154V15.3024C13.3888 15.6178 13.5799 15.8987 13.8689 16.0254C14.158 16.1521 14.494 16.1024 14.734 15.8974Z"
+									stroke="#d9d9d9"
+									stroke-width="0.9"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								/>
+							</svg>
+						</button>
+						{#if shareOpen}
+							<!-- drawn over the share button, like the regiorgio menu. the keys are handled on the
+							document, the click only keeps a tap on its padding from opening the post -->
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<div
+								class="absolute right-0 {shareUp
+									? 'bottom-0'
+									: 'top-0'} z-50 flex w-max min-w-48 flex-col rounded-[5px] border border-accent bg-background p-[5px]"
+								role="menu"
+								aria-label="Share post"
+								tabindex="-1"
+								onclick={stop}
+							>
+								{#if $user}
+									<button
+										role="menuitem"
+										class={shareItemClass}
+										onclick={(e) => {
+											e.stopPropagation();
+											sendViaMessage();
+										}}
+										><svg
+											height="18px"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="#d9d9d9"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											xmlns="http://www.w3.org/2000/svg"
+											aria-hidden="true"
+											><path
+												d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4-.9L3 20l1.1-4A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"
+											/></svg
+										>Send via message</button
+									>
+								{:else}
+									<a role="menuitem" class={shareItemClass} href="/login" onclick={stop}
+										><svg
+											height="18px"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="#d9d9d9"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											xmlns="http://www.w3.org/2000/svg"
+											aria-hidden="true"
+											><path
+												d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4-.9L3 20l1.1-4A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"
+											/></svg
+										>Log in to send via message</a
+									>
+								{/if}
+								<button
+									role="menuitem"
+									class={shareItemClass}
+									onclick={(e) => {
+										e.stopPropagation();
+										copyLink();
+									}}
+									><svg
+										height="18px"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="#d9d9d9"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										xmlns="http://www.w3.org/2000/svg"
+										aria-hidden="true"
+										><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path
+											d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+										/></svg
+									>Copy link</button
+								>
+								{#if canNativeShare}
+									<button
+										role="menuitem"
+										class={shareItemClass}
+										onclick={(e) => {
+											e.stopPropagation();
+											nativeShare();
+										}}
+										><svg
+											height="18px"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="#d9d9d9"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											xmlns="http://www.w3.org/2000/svg"
+											aria-hidden="true"
+											><path d="M12 15V3" /><path d="M7 8l5-5 5 5" /><path
+												d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"
+											/></svg
+										>Share via…</button
+									>
+								{/if}
+							</div>
+						{/if}
+					</div>
 					{#if canPin}
 						<button
 							class="group flex cursor-pointer items-center outline-none"

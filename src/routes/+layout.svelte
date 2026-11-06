@@ -9,6 +9,7 @@
 	import Loading from '#lib/components/Loading.svelte';
 	import ImageViewer from '#lib/components/ImageViewer.svelte';
 	import ProfileCard from '#lib/components/ProfileCard.svelte';
+	import ShareDialog from '#lib/components/ShareDialog.svelte';
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
 	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
@@ -76,6 +77,7 @@
 <Header />
 <ImageViewer />
 <ProfileCard />
+<ShareDialog />
 <svelte:head>
 	{#if page.route.id === '/@[username]/[post]' && !page.error}
 		<!-- Primary Meta Tags -->

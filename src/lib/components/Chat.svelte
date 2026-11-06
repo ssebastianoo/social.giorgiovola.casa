@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import Avatar from './Avatar.svelte';
+	import QuoteCard from './QuoteCard.svelte';
 	import { onRealtime } from '#lib/realtime.js';
 	import { isMobile } from '#lib/store.js';
 	import type { ChatMessage, ChatPeer } from '#lib/types.js';
@@ -371,6 +372,12 @@
 									rel="noopener noreferrer nofollow">{part}</a
 								>{:else}{part}{/if}{/each}
 					</p>
+				{/if}
+				{#if message.linked_post}
+					<!-- on its own dark ground, so it reads the same in both bubble colors -->
+					<div class="rounded-[5px] bg-background text-foreground">
+						<QuoteCard quote={message.linked_post} />
+					</div>
 				{/if}
 				<div class="flex items-center justify-end gap-2 text-[0.7rem]">
 					{#if mine}
