@@ -33,6 +33,16 @@
 		(form as { botValues?: { name: string; username: string } } | null)?.botValues ?? null
 	);
 	let copied = $state(false);
+	// the bot whose profile form is open
+	let editingBot = $state<number | null>(null);
+
+	// keeps the form open when the server refuses the changes, so they can be fixed
+	const saveBot: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			await update({ reset: false });
+			if (result.type === 'success') editingBot = null;
+		};
 
 	async function copyToken(token: string) {
 		await navigator.clipboard.writeText(token);
@@ -214,7 +224,8 @@
 	<p class={hintClass}>
 		Bots are profiles you drive from your own code through the bot API: they can post, reply, like,
 		follow people and track their mentions and the posts of who they follow. Every bot has a secret
-		token; send it as <code>Authorization: Bearer &lt;token&gt;</code>.
+		token; send it as <code>Authorization: Bearer &lt;token&gt;</code>. The full API guide, written
+		so you can hand it to an AI agent, is at <a href="/api.txt">/api.txt</a>.
 	</p>
 
 	{#if botToken}
@@ -239,40 +250,132 @@
 	{#if data.bots.length > 0}
 		<ul class="flex flex-col gap-2">
 			{#each data.bots as bot (bot.id)}
-				<li class="flex items-center gap-2.5 rounded-md border border-line p-2">
-					<Avatar size={45} user={bot} />
-					<div class="flex min-w-0 flex-1 flex-col">
-						<a class="truncate font-bold text-inherit" href="/@{bot.username}">
-							{bot.name} <span class="opacity-80">@{bot.username}</span>
-						</a>
-						<span class="text-[0.8em] text-muted">
-							Created {date(bot.created_at)} · {bot.last_used_at
-								? `last used ${date(bot.last_used_at)}`
-								: 'never used'}
-						</span>
+				<li class="flex flex-col gap-2.5 rounded-md border border-line p-2">
+					<div class="flex items-center gap-2.5">
+						<Avatar size={45} user={bot} />
+						<div class="flex min-w-0 flex-1 flex-col">
+							<a class="truncate font-bold text-inherit" href="/@{bot.username}">
+								{bot.name} <span class="opacity-80">@{bot.username}</span>
+							</a>
+							<span class="text-[0.8em] text-muted">
+								Created {date(bot.created_at)} · {bot.last_used_at
+									? `last used ${date(bot.last_used_at)}`
+									: 'never used'}
+							</span>
+						</div>
+						<div class="flex items-center gap-1.5">
+							<Button
+								onclick={() => (editingBot = editingBot === bot.id ? null : bot.id)}
+								aria-expanded={editingBot === bot.id}
+							>
+								Edit
+							</Button>
+							<form
+								method="POST"
+								action="?/regenerateToken"
+								use:enhance={confirmAction(
+									`Regenerate the token of @${bot.username}? The current one stops working right away.`
+								)}
+							>
+								<input type="hidden" name="id" value={bot.id} />
+								<Button type="submit">New token</Button>
+							</form>
+							<form
+								method="POST"
+								action="?/deleteBot"
+								use:enhance={confirmAction(
+									`Delete @${bot.username} and all of its posts? This can't be undone.`
+								)}
+							>
+								<input type="hidden" name="id" value={bot.id} />
+								<Button variant="danger" type="submit">Delete</Button>
+							</form>
+						</div>
 					</div>
-					<div class="flex items-center gap-1.5">
+					{#if editingBot === bot.id}
 						<form
+							class="flex flex-col gap-2.5"
 							method="POST"
-							action="?/regenerateToken"
-							use:enhance={confirmAction(
-								`Regenerate the token of @${bot.username}? The current one stops working right away.`
-							)}
+							action="?/editBot"
+							enctype="multipart/form-data"
+							use:enhance={saveBot}
 						>
 							<input type="hidden" name="id" value={bot.id} />
-							<Button type="submit">New token</Button>
+							<div class="flex flex-col">
+								<label class="text-[0.8em] opacity-80" for="bot-avatar-{bot.id}">Picture</label>
+								<input
+									class="border-b border-line outline-none file:mr-1 file:cursor-pointer file:rounded-sm file:border file:border-line file:px-1.5"
+									id="bot-avatar-{bot.id}"
+									name="avatar"
+									type="file"
+									accept="image/*"
+								/>
+							</div>
+							{#if bot.avatar}
+								<label class="flex items-center gap-1.5 text-[0.85em]">
+									<input type="checkbox" name="removeAvatar" value="1" />
+									Remove the current picture
+								</label>
+							{/if}
+							<div class="flex flex-col">
+								<label class="text-[0.8em] opacity-80" for="bot-name-{bot.id}">Name</label>
+								<input
+									class="border-b border-line outline-none"
+									id="bot-name-{bot.id}"
+									name="name"
+									type="text"
+									maxlength="64"
+									value={bot.name}
+									required
+								/>
+							</div>
+							<div class="flex flex-col">
+								<label class="text-[0.8em] opacity-80" for="bot-username-{bot.id}">Username</label>
+								<input
+									class="border-b border-line outline-none"
+									id="bot-username-{bot.id}"
+									name="username"
+									type="text"
+									maxlength="32"
+									value={bot.username}
+									autocapitalize="none"
+									autocomplete="off"
+									required
+								/>
+							</div>
+							<div class="flex flex-col">
+								<label class="text-[0.8em] opacity-80" for="bot-bio-{bot.id}">Bio</label>
+								<!-- prettier 2 would self-close it -->
+								<!-- prettier-ignore -->
+								<textarea
+									class="resize-none border-b border-line outline-none"
+									id="bot-bio-{bot.id}"
+									name="bio"
+									rows="3"
+									maxlength="160"
+									placeholder="What this bot does"
+									value={bot.bio}
+								></textarea>
+							</div>
+							<div class="flex flex-col">
+								<label class="text-[0.8em] opacity-80" for="bot-website-{bot.id}">Website</label>
+								<input
+									class="border-b border-line outline-none"
+									id="bot-website-{bot.id}"
+									name="website"
+									type="text"
+									inputmode="url"
+									maxlength="200"
+									placeholder="github.com/you/your-bot"
+									value={bot.website}
+								/>
+							</div>
+							<div class="flex items-center gap-1.5">
+								<Button type="submit">Save</Button>
+								<Button onclick={() => (editingBot = null)}>Cancel</Button>
+							</div>
 						</form>
-						<form
-							method="POST"
-							action="?/deleteBot"
-							use:enhance={confirmAction(
-								`Delete @${bot.username} and all of its posts? This can't be undone.`
-							)}
-						>
-							<input type="hidden" name="id" value={bot.id} />
-							<Button variant="danger" type="submit">Delete</Button>
-						</form>
-					</div>
+					{/if}
 				</li>
 			{/each}
 		</ul>

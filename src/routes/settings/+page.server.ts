@@ -4,6 +4,7 @@ import { and, asc, count, eq, sql } from 'drizzle-orm';
 import { bots, db, passkeys, users } from '#lib/server/db/index.js';
 import { MAX_BOTS, listBots, newToken } from '#lib/server/bots.js';
 import { removeAvatarFiles } from '#lib/server/accounts.js';
+import { updateProfile } from '#lib/server/profile.js';
 import { imagesOfPostTrees, removeUploads } from '#lib/server/images.js';
 import { hit, isLimited } from '#lib/server/ratelimit.js';
 import { closeBotStreams } from '#lib/server/realtime.js';
@@ -133,6 +134,47 @@ export const actions = {
 			.where(eq(bots.user_id, bot.id));
 		closeBotStreams([bot.id]);
 		return { botToken: { id: bot.id, username: bot.username, token } };
+	},
+
+	/** Edits a bot's profile: name, username, bio, website and avatar. */
+	editBot: async ({ request, locals }) => {
+		const accountId = locals.accountId;
+		if (!accountId) return fail(401, { error: 'You are not signed in.' });
+		const key = `bots:${accountId}`;
+		if (isLimited(key, MAX_BOT_ACTIONS))
+			return fail(429, { error: 'Too many attempts, try again in a minute.' });
+		hit(key, BOT_WINDOW_MS);
+
+		const data = await request.formData();
+		const bot = await ownedBot(accountId, parseId(data.get('id')));
+		if (!bot) return fail(404, { error: 'Bot not found.' });
+		const field = (name: string) => {
+			const value = data.get(name);
+			return typeof value === 'string' ? value : '';
+		};
+		const file = data.get('avatar');
+		const avatar =
+			file instanceof File && file.size > 0
+				? Buffer.from(await file.arrayBuffer())
+				: data.get('removeAvatar')
+				? null
+				: undefined;
+
+		const result = await updateProfile(
+			bot.id,
+			bot.username,
+			{
+				name: field('name'),
+				username: field('username'),
+				bio: field('bio'),
+				website: field('website')
+			},
+			avatar
+		);
+		if ('error' in result) return fail(400, { error: result.error, editedBot: bot.id });
+		// the stream matches mentions against the username it was opened with
+		if (result.profile.username !== bot.username) closeBotStreams([bot.id]);
+		return { editedBot: bot.id, saved: true };
 	},
 
 	/** Permanently deletes a bot with its posts. */

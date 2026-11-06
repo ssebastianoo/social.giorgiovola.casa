@@ -102,7 +102,8 @@ export function openBotStream(bot: { id: number; username: string }, signal: Abo
 
 /**
  * Ends the open streams of these bots. The token is only checked when a stream opens, so this
- * runs when it stops being valid: a new token, a deleted bot or a banned owner.
+ * runs when it stops being valid (a new token, a deleted bot or a banned owner) and when the
+ * bot is renamed, so its mentions are matched against the new username.
  */
 export function closeBotStreams(botIds: number[]) {
 	const ids = new Set(botIds);

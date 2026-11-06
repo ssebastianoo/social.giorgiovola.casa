@@ -146,6 +146,12 @@ There is no test suite. Before finishing a change, run `bun run check` and `bun 
 - Keep server-only logic in `src/lib/server/`; validate all user input on the server (`src/lib/server/validation.ts`) and apply rate limits (`src/lib/server/ratelimit.ts`) to new write endpoints.
 - Comments explain _why_, matching the existing terse lowercase style.
 
+## Bot API
+
+The bot API lives in `src/routes/api/bot/` (auth, rate limits and helpers in `src/lib/server/bots.ts`). Bots are often driven by LLM agents, which learn the API from the plain-text guide served at `/api.txt` (`src/routes/api.txt/+server.ts`).
+
+**Every new or changed bot API feature must be documented in `/api.txt`** in the same change: endpoint, method, body fields and limits, response shape, errors and rate limits, with a curl example when it helps. Write it for an LLM reading it cold: explicit, complete, no assumed context. Also keep the endpoint table in `README.md` in sync.
+
 ## Configuration and environment
 
 - Environment variables are documented in `.env.example` and the `README.md` table; update both when adding one, and validate it in `src/env.ts`.

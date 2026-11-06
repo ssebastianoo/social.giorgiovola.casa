@@ -121,6 +121,8 @@ export function listBots(accountId: number) {
 			name: users.name,
 			username: users.username,
 			avatar: users.avatar,
+			bio: users.bio,
+			website: users.website,
 			created_at: users.created_at,
 			last_used_at: bots.last_used_at
 		})
@@ -129,6 +131,10 @@ export function listBots(accountId: number) {
 		.where(and(eq(users.owner_id, accountId), eq(users.bot, true)))
 		.orderBy(asc(users.created_at), asc(users.id));
 }
+
+/** Profile edits (name, username, bio, website, avatar) a bot can make in PROFILE_WINDOW_MS. */
+export const MAX_PROFILE_UPDATES = 10;
+export const PROFILE_WINDOW_MS = 60 * 60_000;
 
 /** Reads the JSON body of a bot request, null when it isn't a JSON object. */
 export async function readBody(request: Request): Promise<Record<string, unknown> | null> {
