@@ -27,14 +27,16 @@
 
 {#if users}
 	{#if users.length > 0}
-		<div class="flex w-75 flex-col items-start gap-3.75 overflow-auto">
+		<div class="flex w-full flex-col items-start gap-3.75 overflow-x-hidden overflow-y-auto">
 			{#each users as user}
 				<a
 					href={user.id ? `/@${user.username}/${user.id}` : `/@${user.username}`}
 					class="flex w-full items-center gap-2.5 text-foreground"
 				>
-					<Avatar {user} size={45} clickable={false} />
-					<div class="min-w-0">
+					<div class="shrink-0">
+						<Avatar {user} size={45} clickable={false} />
+					</div>
+					<div class="min-w-0 flex-1">
 						<h3>{user.name}</h3>
 						<span>@{user.username}</span>
 						{#if user.content}

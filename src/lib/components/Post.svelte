@@ -4,7 +4,7 @@
 	import type { Post } from '#lib/types.js';
 	import Posts from './Posts.svelte';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import Likes from './Likes.svelte';
 	import Avatar from './Avatar.svelte';
 	import PostComposer from './PostComposer.svelte';
@@ -231,6 +231,15 @@
 		menuOpen = false;
 		quoting = true;
 	}
+
+	// moving from one post page to another reuses this component with the new post: whatever
+	// was open belonged to the old one
+	afterNavigate(() => {
+		showing = null;
+		isModalOpen = false;
+		menuOpen = false;
+		quoting = false;
+	});
 
 	// what the quote composer shows of this post
 	const asQuoted = $derived({
