@@ -52,7 +52,7 @@ async function ownedIdentity(locals: App.Locals, id: number | null) {
 	const [identity] = await db
 		.select({ id: users.id, username: users.username })
 		.from(users)
-		.where(and(eq(users.id, id), eq(users.owner_id, locals.accountId)));
+		.where(and(eq(users.id, id), eq(users.owner_id, locals.accountId), eq(users.bot, false)));
 	return identity ?? null;
 }
 
@@ -125,7 +125,7 @@ export const actions = {
 				const [{ n }] = await tx
 					.select({ n: count() })
 					.from(users)
-					.where(eq(users.owner_id, accountId));
+					.where(and(eq(users.owner_id, accountId), eq(users.bot, false)));
 				if (n >= MAX_IDENTITIES) return null;
 				const [identity] = await tx
 					.insert(users)
@@ -154,7 +154,7 @@ export const actions = {
 		const images = await imagesOfPostTrees(sql`user_id = ${id}`);
 		const deleted = await db
 			.delete(users)
-			.where(and(eq(users.id, id), eq(users.owner_id, locals.accountId)))
+			.where(and(eq(users.id, id), eq(users.owner_id, locals.accountId), eq(users.bot, false)))
 			.returning({ id: users.id });
 		if (deleted.length === 0) return fail(404, { error: 'Identity not found.' });
 		await removeAvatarFiles(id);

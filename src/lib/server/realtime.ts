@@ -1,9 +1,9 @@
 import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
-import { db, inbox, likes, posts } from './db/index.js';
+import { db, follows, inbox, likes, posts } from './db/index.js';
 import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
 import { sendFollowPush, sendMessagePush, sendPush } from './push';
-import type { ChatMessage } from '#lib/types.js';
+import type { ChatMessage, Post } from '#lib/types.js';
 
 /**
  * In-process hub for server-sent events. One instance per server process, so this assumes a
@@ -23,29 +23,28 @@ const HEARTBEAT_MS = 8000;
 const frame = (event: string, data: unknown) =>
 	`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
-/** Registers a client; returns the stream body and a cleanup. */
-export function openStream(userId: number | null, signal: AbortSignal) {
+/** An event stream body: `register` adds the client to a hub and returns how to remove it. */
+function eventStream(signal: AbortSignal, register: (send: (chunk: string) => void) => () => void) {
 	let cleanup = () => {};
-	const body = new ReadableStream<Uint8Array>({
+	return new ReadableStream<Uint8Array>({
 		start(controller) {
-			const client: Client = {
-				userId,
-				send: (chunk) => {
-					try {
-						controller.enqueue(encoder.encode(chunk));
-					} catch {
-						cleanup();
-					}
+			const send = (chunk: string) => {
+				try {
+					controller.enqueue(encoder.encode(chunk));
+				} catch {
+					cleanup();
 				}
 			};
 			// comments keep proxies and the runtime's idle timeout from closing a quiet stream
-			const heartbeat = setInterval(() => client.send(': ping\n\n'), HEARTBEAT_MS);
+			const heartbeat = setInterval(() => send(': ping\n\n'), HEARTBEAT_MS);
 			let closed = false;
+			send('retry: 3000\n\n');
+			const unregister = register(send);
 			cleanup = () => {
 				if (closed) return;
 				closed = true;
 				clearInterval(heartbeat);
-				clients.delete(client);
+				unregister();
 				try {
 					controller.close();
 				} catch {
@@ -53,15 +52,80 @@ export function openStream(userId: number | null, signal: AbortSignal) {
 				}
 			};
 			signal.addEventListener('abort', cleanup);
-			clients.add(client);
-			client.send('retry: 3000\n\n');
-			if (userId !== null) void sendUnreadCount(client);
+			// the request may have gone away while the stream was being set up
+			if (signal.aborted) cleanup();
 		},
 		cancel() {
 			cleanup();
 		}
 	});
-	return body;
+}
+
+/** Registers a client; returns the stream body. */
+export function openStream(userId: number | null, signal: AbortSignal) {
+	return eventStream(signal, (send) => {
+		const client: Client = { userId, send };
+		clients.add(client);
+		if (userId !== null) void sendUnreadCount(client);
+		return () => clients.delete(client);
+	});
+}
+
+type BotClient = {
+	botId: number;
+	/** matches a mention of the bot, like the mention trigger does */
+	mention: RegExp;
+	send: (chunk: string) => void;
+};
+
+const botClients = new Set<BotClient>();
+
+/** The bot API stream: `mention` and `post` (by a followed profile) events. */
+export function openBotStream(bot: { id: number; username: string }, signal: AbortSignal) {
+	return eventStream(signal, (send) => {
+		// usernames are [a-z0-9_], nothing to escape
+		const client: BotClient = {
+			botId: bot.id,
+			mention: new RegExp(`@${bot.username}(\\s|$)`),
+			send
+		};
+		botClients.add(client);
+		send(frame('ready', { id: bot.id, username: bot.username }));
+		return () => botClients.delete(client);
+	});
+}
+
+/** Whether a post mentions this bot or replies to one of its posts. */
+export const mentionsBot = (
+	post: Post,
+	mention: RegExp,
+	parentAuthor: number | null,
+	botId: number
+) => mention.test(post.content) || parentAuthor === botId;
+
+async function publishToBots(post: Post) {
+	if (botClients.size === 0) return;
+	const authorId = (post.user as { id?: number }).id;
+	const connected = [...new Set([...botClients].map((c) => c.botId))];
+	const [followers, parent] = await Promise.all([
+		authorId
+			? db
+					.select({ id: follows.follower_id })
+					.from(follows)
+					.where(and(eq(follows.followed_id, authorId), inArray(follows.follower_id, connected)))
+			: [],
+		post.reply_to
+			? db.select({ user_id: posts.user_id }).from(posts).where(eq(posts.id, post.reply_to.id))
+			: []
+	]);
+	const following = new Set(followers.map((f) => f.id));
+	const parentAuthor = parent[0]?.user_id ?? null;
+	for (const client of [...botClients]) {
+		if (client.botId === authorId) continue;
+		if (mentionsBot(post, client.mention, parentAuthor, client.botId))
+			client.send(frame('mention', post));
+		if (following.has(client.botId)) client.send(frame('post', post));
+	}
 }
 
 async function unreadCount(userId: number): Promise<number> {
@@ -143,6 +207,7 @@ export async function publishPost(postId: number) {
 		const [post] = await getPosts({ postId });
 		if (!post) return;
 		broadcast('post', post);
+		void publishToBots(post).catch((e) => console.error('realtime: publishToBots failed', e));
 		if (post.reply_to) {
 			const replies_count = await db.$count(posts, eq(posts.reply_to, post.reply_to.id));
 			broadcast('counts', { id: post.reply_to.id, replies_count });

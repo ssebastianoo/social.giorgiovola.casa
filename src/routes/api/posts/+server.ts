@@ -1,22 +1,17 @@
 import type { RequestHandler } from './$types';
 import { eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { db, post_hashtags, posts, users } from '#lib/server/db/index.js';
-import { extractHashtags } from '#lib/hashtags.js';
-import { DISCORD_WEBHOOK_URL } from '$app/env/private';
-import { PUBLIC_URL } from '$app/env/public';
-import { getAvatar } from '#lib/utils.js';
+import { db, posts, users } from '#lib/server/db/index.js';
+import { createPost, deletePost } from '#lib/server/posts.js';
 import { LIMITS, parseId } from '#lib/server/validation.js';
 import {
 	ImageError,
 	POST_IMAGE_SIZE,
-	imagesOfPostTrees,
 	removeUploads,
 	saveUpload,
 	sniffImage,
 	toWebp
 } from '#lib/server/images.js';
-import { publishPost, publishDeleted } from '#lib/server/realtime.js';
 import { actionsLimited, mutedMessage, canDeletePostOf } from '#lib/server/moderation.js';
 
 async function readJson(request: Request): Promise<Record<string, unknown> | null> {
@@ -100,65 +95,12 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	}
 	const images = await Promise.all(optimized.map(saveUpload));
 
-	let created;
+	let post;
 	try {
-		const user_id = locals.user.id;
-		// the post and its hashtags together, so a post never shows up without its tags
-		created = await db.transaction(async (tx) => {
-			const [row] = await tx
-				.insert(posts)
-				.values({ user_id, content, images, reply_to })
-				.returning({
-					content: posts.content,
-					images: posts.images,
-					created_at: posts.created_at,
-					edited_at: posts.edited_at,
-					id: posts.id
-				});
-			const tags = extractHashtags(content);
-			if (tags.length)
-				await tx.insert(post_hashtags).values(tags.map((tag) => ({ post_id: row.id, tag })));
-			return row;
-		});
+		post = await createPost(locals.user, { content, images, reply_to });
 	} catch (e) {
 		await removeUploads(images);
 		throw e;
-	}
-
-	let parentRef: { id: number; username: string; likes: number } | null = null;
-	if (reply_to !== null) {
-		const [parent] = await db
-			.select({
-				id: posts.id,
-				username: users.username,
-				likes: sql<number>`(SELECT COUNT(*)::int FROM likes l WHERE l.post_id = posts.id)`
-			})
-			.from(posts)
-			.innerJoin(users, eq(posts.user_id, users.id))
-			.where(eq(posts.id, reply_to));
-		parentRef = parent ?? null;
-	}
-	const { id, username, name, avatar } = locals.user;
-	const post = { ...created, reply_to: parentRef, user: { id, username, name, avatar } };
-
-	void publishPost(post.id);
-	if (!reply_to && DISCORD_WEBHOOK_URL) {
-		// a broken webhook shouldn't make posting fail
-		try {
-			await fetch(DISCORD_WEBHOOK_URL + '?wait=false', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					content: `${PUBLIC_URL}/@${post.user.username}/${post.id}`,
-					username: post.user.name,
-					avatar_url: getAvatar(post.user, 512, true)
-				})
-			});
-		} catch (e) {
-			console.error('Discord webhook failed', e);
-		}
 	}
 	return new Response(JSON.stringify(post), {
 		headers: { 'Content-Type': 'application/json' }
@@ -189,15 +131,6 @@ export const DELETE: RequestHandler = async ({ locals, request }) => {
 		if (actionsLimited(locals.user.id)) return new Response('Too many requests', { status: 429 });
 	}
 
-	// replies go with the post: collect the images of the whole thread first
-	const images = await imagesOfPostTrees(sql`id = ${postId}`);
-	const deleted = await db
-		.delete(posts)
-		.where(eq(posts.id, postId))
-		.returning({ id: posts.id, reply_to: posts.reply_to });
-	if (deleted.length === 0) return new Response('Post not found', { status: 404 });
-
-	await removeUploads(images);
-	publishDeleted(postId, deleted[0].reply_to);
+	if (!(await deletePost(postId))) return new Response('Post not found', { status: 404 });
 	return new Response('Post deleted');
 };

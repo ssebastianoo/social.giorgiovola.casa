@@ -22,7 +22,8 @@ export const load = (async ({ params, locals, depends }) => {
 			website: usersTable.website,
 			created_at: usersTable.created_at,
 			email: usersTable.email,
-			owner_id: usersTable.owner_id
+			owner_id: usersTable.owner_id,
+			bot: usersTable.bot
 		})
 		.from(usersTable)
 		.where(eq(usersTable.username, username));
@@ -92,6 +93,7 @@ export const load = (async ({ params, locals, depends }) => {
 	return {
 		user,
 		bio: users[0].bio,
+		bot: users[0].bot,
 		website: users[0].website,
 		posts,
 		follow,
