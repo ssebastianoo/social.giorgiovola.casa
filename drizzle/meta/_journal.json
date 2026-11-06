@@ -169,6 +169,13 @@
       "when": 1793975113852,
       "tag": "0023_pinned_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793980707241,
+      "tag": "0024_ratio_min_likes",
+      "breakpoints": true
     }
   ]
 }
