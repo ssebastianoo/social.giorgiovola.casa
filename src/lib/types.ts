@@ -94,6 +94,8 @@ export type Post = {
 	quotes: number;
 	/** a quote regiorg: the quoted post, `{ deleted: true }` once it is gone; null otherwise */
 	quote: QuotedPost | { deleted: true } | null;
+	/** the first post on this instance linked in the content, shown like a quote */
+	linked_post?: QuotedPost | null;
 	replies_count: number;
 	reply_to: {
 		username: string;
