@@ -120,9 +120,9 @@
 				await readNotification(notification);
 			}}
 		>
-			<div class="flex gap-2.5">
-				<Avatar user={notification.sender} size={50} />
-				<div class="flex flex-col justify-center">
+			<div class="flex min-w-0 gap-2.5">
+				<div class="shrink-0"><Avatar user={notification.sender} size={50} /></div>
+				<div class="flex min-w-0 flex-col justify-center wrap-anywhere">
 					{#if notification.type === 'follow'}
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
@@ -191,7 +191,7 @@
 			</div>
 			{#if !notification.read_at}
 				<Button
-					class="size-8"
+					class="size-8 shrink-0"
 					aria-label="Mark as read"
 					onkeypress={async (e) => {
 						e.stopPropagation();
