@@ -169,6 +169,8 @@
 	}
 
 	// own top-level posts can be pinned from the profile
+	let isPinned = $derived(post.pinned ?? false);
+	// only from the profile, where the pinned state is shown
 	const canPin = $derived(
 		!!$user &&
 			$user.username === post.user.username &&
@@ -187,8 +189,9 @@
 			})
 		});
 		if (!res.ok) return alert((await res.text()) || 'Could not pin');
+		isPinned = (await res.json()).pinned;
+		showToast(isPinned ? 'Pinned to your profile!' : 'Unpinned!');
 		await invalidate('app:posts');
-		showToast((await res.json()).pinned ? 'Pinned to your profile!' : 'Unpinned!');
 	}
 
 	async function toggleLike() {
@@ -762,6 +765,32 @@
 							stroke-linejoin="round"
 						/>
 					</svg>
+					{#if canPin}
+						<button
+							class="group flex cursor-pointer items-center outline-none"
+							aria-label={isPinned ? 'Unpin post' : 'Pin post'}
+							title={isPinned ? 'Unpin from profile' : 'Pin to profile'}
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								togglePin();
+							}}
+						>
+							<svg
+								height="17px"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								xmlns="http://www.w3.org/2000/svg"
+								class="{isPinned ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
+									? ''
+									: 'transition-[stroke] duration-100 ease-in-out group-hover:stroke-accent'}"
+								><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg
+							>
+						</button>
+					{/if}
 					{#if $user && ($user.username === post.user.username || page.data.role !== 'user')}
 						<button
 							class="group flex cursor-pointer items-center outline-none"

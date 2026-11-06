@@ -85,6 +85,7 @@ export async function getPosts({
 			// correlated subqueries: the table names are written out so they can't be mis-qualified
 			replies_count: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id)`,
 			regiorgs: sql<number>`(SELECT COUNT(*)::int FROM regiorgs r WHERE r.post_id = posts.id)`,
+			pinned: sql<boolean>`EXISTS (SELECT 1 FROM users pu WHERE pu.pinned_post_id = posts.id)`,
 			quotes: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.quote_of = posts.id)`,
 			quote: sql<Post['quote']>`CASE WHEN posts.is_quote THEN COALESCE((
 				SELECT jsonb_build_object(

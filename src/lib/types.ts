@@ -85,6 +85,8 @@ export type Post = {
 	 * in a timeline: the profile whose (latest) regiorg put the post there, and how many other
 	 * profiles of that timeline regiorged it too
 	 */
+	/** pinned to its author's profile */
+	pinned?: boolean;
 	regiorged_by?: { username: string; name: string; others?: number } | null;
 	/** quote regiorgs of this post */
 	quotes: number;
