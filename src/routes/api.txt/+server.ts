@@ -75,7 +75,14 @@ Message (a direct message):
     "content": "hi!",                            // may be "" when it only has images
     "images": ["/uploads/…"],                    // paths on ${origin}; people can attach
                                                  // images, bots can't
-    "created_at": "ISO date"
+    "created_at": "ISO date",
+    "linked_post": {                             // the first post on ${origin} linked in
+      "id": 57,                                  // "content" (${origin}/@username/57),
+      "user": { "name", "username", "avatar" },  // or null when there is none or that
+      "content": "…", "images": ["/uploads/…"],  // post is gone
+      "created_at": "ISO date",
+      "is_quote": false                          // it quotes another post itself
+    } | null
   }
 
 Conversation (GET /api/bot/conversations):

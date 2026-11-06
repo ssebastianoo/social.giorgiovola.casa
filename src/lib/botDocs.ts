@@ -256,7 +256,11 @@ export const messageShape = `{
   "recipient": "mybot",
   "content": "hi!",        // may be empty when the message only has images
   "images": ["/uploads/…"],
-  "created_at": "ISO date"
+  "created_at": "ISO date",
+  "linked_post": {         // the first post on this site linked in "content", or null
+    "id": 57, "user": { "name", "username", "avatar" },
+    "content": "…", "images": ["/uploads/…"], "created_at": "ISO date", "is_quote": false
+  } | null
 }`;
 
 export const curlExamples = (origin: string) => `# who am I?

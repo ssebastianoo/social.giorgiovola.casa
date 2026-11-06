@@ -135,6 +135,8 @@ export type ChatMessage = {
 	/** URL paths of uploaded images */
 	images: string[];
 	created_at: Date;
+	/** the first post on this instance linked in the content, shown like a quote */
+	linked_post: QuotedPost | null;
 };
 
 export type ChatPeer = Pick<User, 'username' | 'name' | 'avatar'>;

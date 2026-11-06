@@ -1,5 +1,11 @@
 import type { RequestHandler } from './$types';
-import { deleteMessage, findPeer, getBlock, sendMessage } from '#lib/server/messages.js';
+import {
+	deleteMessage,
+	findPeer,
+	getBlock,
+	getConversations,
+	sendMessage
+} from '#lib/server/messages.js';
 import { publishMessage, publishMessageDeleted } from '#lib/server/realtime.js';
 import { hit, isLimited } from '#lib/server/ratelimit.js';
 import { mutedMessage } from '#lib/server/moderation.js';
@@ -18,6 +24,15 @@ import {
 const WINDOW_MS = 60_000;
 const MAX_MESSAGES = 20;
 const MAX_IMAGE_MESSAGES = 5;
+// people offered first when sharing a post by message
+const RECENT_PEERS = 8;
+
+/** The people you talked to most recently, newest first. */
+export const GET: RequestHandler = async ({ locals }) => {
+	if (!locals.user) return new Response('Unauthorized', { status: 401 });
+	const conversations = await getConversations(locals.user.id);
+	return Response.json(conversations.slice(0, RECENT_PEERS).map((c) => c.peer));
+};
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) return new Response('Unauthorized', { status: 401 });
