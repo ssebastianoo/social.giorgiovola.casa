@@ -4,7 +4,7 @@
 	import type { Post } from '#lib/types.js';
 	import Posts from './Posts.svelte';
 	import { page } from '$app/state';
-	import { afterNavigate, goto } from '$app/navigation';
+	import { afterNavigate, goto, invalidate } from '$app/navigation';
 	import Likes from './Likes.svelte';
 	import Avatar from './Avatar.svelte';
 	import PostComposer from './PostComposer.svelte';
@@ -24,6 +24,8 @@
 		showReplyTo?: boolean;
 		isPostOpen?: boolean;
 		showThread?: boolean;
+		/** shown at the top of its author's profile */
+		pinned?: boolean;
 		onpostdeleted?: (id: number) => void;
 	};
 
@@ -33,6 +35,7 @@
 		showReplyTo = false,
 		isPostOpen = false,
 		showThread = false,
+		pinned = false,
 		onpostdeleted
 	}: Props = $props();
 
@@ -163,6 +166,29 @@
 			return await goto('/');
 		}
 		onpostdeleted?.(post.id);
+	}
+
+	// own top-level posts can be pinned from the profile
+	const canPin = $derived(
+		!!$user &&
+			$user.username === post.user.username &&
+			!post.reply_to &&
+			page.route.id === '/@[username]'
+	);
+
+	async function togglePin() {
+		const res = await fetch('/api/posts/pin', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				id: post.id
+			})
+		});
+		if (!res.ok) return alert((await res.text()) || 'Could not pin');
+		await invalidate('app:posts');
+		showToast((await res.json()).pinned ? 'Pinned to your profile!' : 'Unpinned!');
 	}
 
 	async function toggleLike() {
@@ -434,6 +460,22 @@
 {/if}
 <div class="flex flex-col gap-2.5">
 	<div class="flex flex-col gap-2.5">
+		{#if pinned}
+			<p class="ml-0.75 flex items-center gap-[5px] text-[0.85em] text-muted">
+				<svg
+					class="stroke-muted"
+					height="14px"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					xmlns="http://www.w3.org/2000/svg"
+					aria-hidden="true"><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg
+				>
+				Pinned
+			</p>
+		{/if}
 		{#if post.regiorged_by}
 			<a
 				class="ml-0.75 flex items-center gap-[5px] text-[0.85em] text-muted"

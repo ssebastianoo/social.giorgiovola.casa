@@ -162,6 +162,13 @@
       "when": 1793964572707,
       "tag": "0022_quote_regiorgs",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793975113852,
+      "tag": "0023_pinned_posts",
+      "breakpoints": true
     }
   ]
 }
