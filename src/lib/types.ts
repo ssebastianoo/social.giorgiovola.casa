@@ -14,6 +14,8 @@ export type User = {
 export type SwitcherProfile = Pick<User, 'id' | 'name' | 'username' | 'avatar'> & {
 	unread: number;
 	active: boolean;
+	/** username of the account that shared this identity, null when it is not shared with you */
+	sharedBy: string | null;
 };
 
 export type SwitcherAccount = SwitcherProfile & {

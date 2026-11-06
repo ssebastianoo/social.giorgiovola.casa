@@ -5,7 +5,7 @@ import { db, inbox, posts, push_subscriptions, sessions, settings, users } from 
 import { PUBLIC_URL } from '$app/env/public';
 import type { ChatMessage, NotificationType } from '#lib/types.js';
 
-/** Web push: sends a system notification to the browsers subscribed by the recipient's account. */
+/** Web push: sends a system notification to the browsers subscribed by the recipient's account(s). */
 
 type Vapid = { publicKey: string; privateKey: string };
 
@@ -84,7 +84,7 @@ type Row = {
 	sender_username: string | null;
 	recipient_username: string;
 	identity: boolean;
-	account_id: number;
+	recipient_id: number;
 };
 
 /** Whether the notification's post belongs to the recipient (else to the sender). */
@@ -106,7 +106,7 @@ function payloadFor(row: Row) {
 	};
 	const verb = verbs[row.type];
 	let body = row.type === 'like' || !row.content ? verb : `${verb}: ${clip(row.content)}`;
-	// identities share the owner's devices: say which profile it is for
+	// identities share the devices of the accounts using them: say which profile it is for
 	if (row.identity) body += ` (@${row.recipient_username})`;
 	// the link matches the notifications page: likes and ratios won point at the recipient's own post
 	const owner = recipientOwnsPost(row.type) ? row.recipient_username : row.sender_username;
@@ -118,8 +118,11 @@ function payloadFor(row: Row) {
 	};
 }
 
-/** Sends a notification to every browser subscribed by this account. */
-async function deliver(accountId: number, payload: object) {
+/**
+ * Sends a notification to every browser subscribed by an account that can use this profile:
+ * the account itself, or the owner of an identity and the accounts it is shared with.
+ */
+async function deliver(profileId: number, payload: object) {
 	const keys = await getVapid();
 	const options = {
 		vapidDetails: { subject: subject(), ...keys },
@@ -134,7 +137,12 @@ async function deliver(accountId: number, payload: object) {
 		})
 		.from(push_subscriptions)
 		.innerJoin(sessions, eq(sessions.token, push_subscriptions.session_token))
-		.where(eq(sessions.user_id, accountId));
+		.where(
+			sql`${sessions.user_id} IN (
+				SELECT COALESCE(owner_id, id) FROM users WHERE id = ${profileId}
+				UNION SELECT account_id FROM identity_members WHERE identity_id = ${profileId}
+			)`
+		);
 	const message = JSON.stringify(payload);
 	await Promise.all(
 		subs.map(async (sub) => {
@@ -168,9 +176,9 @@ export async function sendMessagePush(
 			.where(eq(users.id, recipientId));
 		if (!recipient) return;
 		let body = message.content ? clip(message.content) : '📷 Photo';
-		// identities share the owner's devices: say which profile it is for
+		// identities share the devices of the accounts using them: say which profile it is for
 		if (recipient.owner_id !== null) body += ` (@${message.recipient})`;
-		await deliver(recipient.owner_id ?? recipient.id, {
+		await deliver(recipient.id, {
 			title: senderName,
 			body,
 			url: `/messages/${message.sender}`,
@@ -263,7 +271,7 @@ export async function sendPush(postId: number, types?: NotificationType[]) {
 				sender_username: sender.username,
 				recipient_username: recipient.username,
 				identity: sql<boolean>`${recipient.owner_id} IS NOT NULL`,
-				account_id: sql<number>`COALESCE(${recipient.owner_id}, ${recipient.id})`
+				recipient_id: recipient.id
 			})
 			.from(claimed)
 			.innerJoin(recipient, eq(recipient.id, claimed.user_id))
@@ -272,7 +280,7 @@ export async function sendPush(postId: number, types?: NotificationType[]) {
 			.where(sql`${claimed.user_id} IS DISTINCT FROM ${claimed.sender_id}`);
 		if (rows.length === 0) return;
 
-		for (const row of rows) await deliver(row.account_id, payloadFor(row));
+		for (const row of rows) await deliver(row.recipient_id, payloadFor(row));
 	} catch (e) {
 		console.error('push: sendPush failed', e);
 	}
