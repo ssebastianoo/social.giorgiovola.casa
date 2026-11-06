@@ -1,13 +1,10 @@
 import type { RequestHandler } from './$types';
 import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { db, sessions, users } from '#lib/server/db/index.js';
-import fs from 'fs';
-import { AVATAR_SIZE, ImageError, sniffImage, toWebp } from '#lib/server/images.js';
-import { removeAvatarFiles } from '#lib/server/accounts.js';
+import { normalizeBio, saveAvatar } from '#lib/server/profile.js';
 import { hashPassword } from '#lib/server/password.js';
 import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
-	LIMITS,
 	isUniqueViolation,
 	parseWebsite,
 	validateBio,
@@ -38,13 +35,7 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	const username = field('username').trim().toLowerCase();
 	const password = identity ? '' : field('password');
 	const avatar = data.get('avatar');
-	// collapse runs of blank lines so a bio can't push the profile down the page
-	const bio = data.has('bio')
-		? field('bio')
-				.replace(/\r\n?/g, '\n')
-				.replace(/\n{3,}/g, '\n\n')
-				.trim()
-		: null;
+	const bio = data.has('bio') ? normalizeBio(field('bio')) : null;
 
 	const website = data.has('website') ? parseWebsite(field('website')) : null;
 	if (website && 'error' in website) return bad(website.error);
@@ -80,23 +71,9 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 	let avatarPath: string | null = null;
 
 	if (avatar instanceof File && avatar.size > 0) {
-		if (avatar.size > LIMITS.avatarBytes) return bad('Avatar too big, max size is 10mb');
-		const buffer = Buffer.from(await avatar.arrayBuffer());
-		const ext = sniffImage(buffer);
-		if (!ext) {
-			return bad('Unsupported avatar type, use PNG, JPEG, GIF, WebP, AVIF, BMP, ICO or SVG');
-		}
-		let webp: Buffer;
-		try {
-			webp = await toWebp(buffer, ext, { size: AVATAR_SIZE, square: true });
-		} catch (e) {
-			if (e instanceof ImageError) return bad(e.message);
-			throw e;
-		}
-		// avatars used to keep their uploaded format: drop any older file first
-		await removeAvatarFiles(me.id);
-		avatarPath = `/avatars/${me.id}.webp`;
-		await fs.promises.writeFile(`static${avatarPath}`, webp);
+		const saved = await saveAvatar(me.id, Buffer.from(await avatar.arrayBuffer()));
+		if ('error' in saved) return bad(saved.error);
+		avatarPath = saved.avatar;
 	}
 
 	const crypt = password ? await hashPassword(password) : null;
@@ -110,7 +87,7 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 				username,
 				...(bio !== null ? { bio } : {}),
 				...(website ? { website: website.website } : {}),
-				...(avatarPath ? { avatar: avatarPath + '?hash=' + Date.now() } : {}),
+				...(avatarPath ? { avatar: avatarPath } : {}),
 				...(crypt ? { password: crypt.hash, salt: crypt.salt } : {}),
 				...(email !== null ? { email } : {})
 			})

@@ -107,6 +107,7 @@ The schema is `src/lib/server/db/schema.ts`; migrations are managed by drizzle-k
 For things drizzle can't model (triggers, functions, data fixes) create a custom migration: `bunx drizzle-kit generate --custom --name <name>` and write the SQL by hand (see `drizzle/0001_notification_triggers.sql`).
 
 Notes:
+
 - Migrations are applied automatically on container start (`bun migrate.ts`, see the `Dockerfile` `CMD`) and are expected to be a no-op when up to date. Migrations must therefore be safe to run against production data — avoid destructive changes without a data-preserving path.
 - `migrate.ts` also baselines legacy databases created before migrations existed; don't remove that logic.
 - Migrations ship in the Docker image (`COPY drizzle ./drizzle`), so they must be committed.
@@ -125,16 +126,16 @@ bun run dev
 
 Scripts (`package.json`):
 
-| command              | purpose                                      |
-| -------------------- | -------------------------------------------- |
-| `bun run dev`        | Vite dev server                              |
-| `bun run build`      | production build (`build/`)                 |
-| `bun run preview`    | preview the production build                 |
-| `bun run check`      | `svelte-kit sync` + `svelte-check` (types)   |
-| `bun run lint`       | Prettier check + ESLint                      |
-| `bun run format`     | Prettier write                               |
-| `bun run db:generate`| generate a drizzle migration                 |
-| `bun run db:migrate` | apply pending migrations                     |
+| command               | purpose                                    |
+| --------------------- | ------------------------------------------ |
+| `bun run dev`         | Vite dev server                            |
+| `bun run build`       | production build (`build/`)                |
+| `bun run preview`     | preview the production build               |
+| `bun run check`       | `svelte-kit sync` + `svelte-check` (types) |
+| `bun run lint`        | Prettier check + ESLint                    |
+| `bun run format`      | Prettier write                             |
+| `bun run db:generate` | generate a drizzle migration               |
+| `bun run db:migrate`  | apply pending migrations                   |
 
 There is no test suite. Before finishing a change, run `bun run check` and `bun run format` (and `bun run lint` if relevant) and fix anything you introduced.
 
@@ -143,7 +144,13 @@ There is no test suite. Before finishing a change, run `bun run check` and `bun 
 - Prettier: tabs, single quotes, no trailing commas, print width 100 (`.prettierrc`).
 - Import local modules with the `.js` extension where the existing code does (e.g. `#lib/store.js`).
 - Keep server-only logic in `src/lib/server/`; validate all user input on the server (`src/lib/server/validation.ts`) and apply rate limits (`src/lib/server/ratelimit.ts`) to new write endpoints.
-- Comments explain *why*, matching the existing terse lowercase style.
+- Comments explain _why_, matching the existing terse lowercase style.
+
+## Bot API
+
+The bot API lives in `src/routes/api/bot/` (auth, rate limits and helpers in `src/lib/server/bots.ts`). Bots are often driven by LLM agents, which learn the API from the plain-text guide served at `/api.txt` (`src/routes/api.txt/+server.ts`).
+
+**Every new or changed bot API feature must be documented in `/api.txt`** in the same change: endpoint, method, body fields and limits, response shape, errors and rate limits, with a curl example when it helps. Write it for an LLM reading it cold: explicit, complete, no assumed context. Also keep the endpoint table in `README.md` in sync.
 
 ## Configuration and environment
 
