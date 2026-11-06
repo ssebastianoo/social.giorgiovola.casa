@@ -7,7 +7,8 @@
 	import { goto } from '$app/navigation';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ModerationControls from '#lib/components/ModerationControls.svelte';
-	import { websiteLabel } from '#lib/utils.js';
+	import { getAvatar, websiteLabel } from '#lib/utils.js';
+	import { openImage } from '#lib/imageViewer.svelte.js';
 
 	let { data }: PageProps = $props();
 
@@ -118,7 +119,14 @@
 	<p class="mb-5 rounded-[5px] bg-danger p-[5px]">{error}</p>
 {/if}
 <div class="mb-5 flex gap-2.5">
-	<Avatar size={60} user={profile} clickable={false} />
+	<button
+		type="button"
+		class="shrink-0 cursor-zoom-in self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent"
+		aria-label="Expand {profile.name}'s avatar"
+		onclick={() => openImage([getAvatar(profile, 1024)])}
+	>
+		<Avatar size={60} user={profile} clickable={false} />
+	</button>
 
 	{#if !editing}
 		<div class="flex w-full justify-between">
