@@ -1,11 +1,15 @@
 import { PUBLIC_URL } from '$app/env/public';
 import type { Post, User } from './types';
 
-/** A reply ratios its parent when it has more likes than the parent. Replying to yourself never does. */
+/** keep in sync with the notify_like trigger (drizzle/0024_ratio_min_likes.sql) */
+export const RATIO_MIN_LIKES = 3;
+
+/** A reply ratios its parent when it has at least 3 likes and more than the parent. Replying to yourself never does. */
 export function isRatio(post: Pick<Post, 'likes' | 'reply_to' | 'user'>) {
 	return (
 		post.reply_to != null &&
 		post.user.username !== post.reply_to.username &&
+		post.likes >= RATIO_MIN_LIKES &&
 		post.likes > (post.reply_to.likes ?? 0)
 	);
 }
