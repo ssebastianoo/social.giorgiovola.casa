@@ -16,6 +16,7 @@
 	import { hashtagHref, parseHashtag } from '#lib/hashtags.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
 	import { profileHover } from '#lib/profileCard.svelte.js';
+	import { modal } from '#lib/modal.js';
 
 	type Props = {
 		post: Post;
@@ -50,7 +51,6 @@
 	let menuUp = $state(false);
 	let menu: HTMLDivElement | undefined = $state();
 	let quoting = $state(false);
-	let quoteDialog: HTMLDialogElement | undefined = $state();
 	let regiorgBusy = false;
 
 	// writable derived: follow the post, overwritten by the buttons and realtime counts
@@ -268,17 +268,6 @@
 		};
 	});
 
-	// the quote composer: focus its input when it opens, close it with Escape
-	$effect(() => {
-		if (!quoting) return;
-		quoteDialog?.querySelector('input')?.focus();
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') quoting = false;
-		};
-		document.addEventListener('keydown', onKey);
-		return () => document.removeEventListener('keydown', onKey);
-	});
-
 	// the tabs of the regiorgs dialog
 	const listTabs = $derived([
 		['regiorgs', 'Regiorgios', regiorgs],
@@ -319,9 +308,14 @@
 	<p>{toast}</p>
 </div>
 
-<dialog class={dialogClass} open={isModalOpen}>
+<dialog
+	class={dialogClass}
+	open={isModalOpen}
+	aria-modal="true"
+	use:modal={{ open: isModalOpen, onclose: () => (isModalOpen = false) }}
+>
 	<div class="flex h-full items-center justify-center">
-		<div class={dialogContentClass}>
+		<div class={dialogContentClass} data-modal-panel>
 			<p>
 				Are you sure you want to delete this post{$user && $user.username !== post.user.username
 					? ' as a moderator'
@@ -347,10 +341,15 @@
 		</div>
 	</div>
 </dialog>
-<dialog class={dialogClass} open={showing !== null}>
+<dialog
+	class={dialogClass}
+	open={showing !== null}
+	aria-modal="true"
+	use:modal={{ open: showing !== null, onclose: () => (showing = null) }}
+>
 	{#if showing}<!--  we don't want to render the component until the dialog is open -->
 		<div class="flex h-full items-center justify-center">
-			<div class={dialogContentClass}>
+			<div class={dialogContentClass} data-modal-panel>
 				<div class="flex items-center justify-between">
 					{#if showing === 'likes'}
 						<h3>Users who liked</h3>
@@ -399,16 +398,15 @@
 	{/if}
 </dialog>
 {#if quoting}
-	<dialog class={dialogClass} open bind:this={quoteDialog}>
-		<div
-			class="flex h-full items-center justify-center"
-			role="presentation"
-			onclick={(e) => {
-				// a click on the backdrop closes it
-				if (e.target === e.currentTarget) quoting = false;
-			}}
-		>
+	<dialog
+		class={dialogClass}
+		open
+		aria-modal="true"
+		use:modal={{ open: true, onclose: () => (quoting = false) }}
+	>
+		<div class="flex h-full items-center justify-center">
 			<div
+				data-modal-panel
 				class="flex w-[calc(100%-40px)] max-w-[560px] flex-col gap-2.5 rounded-md border border-accent bg-background/80 p-5"
 			>
 				<div class="flex items-center justify-between">
