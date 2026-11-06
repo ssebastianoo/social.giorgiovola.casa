@@ -89,7 +89,7 @@ type Row = {
 
 /** Whether the notification's post belongs to the recipient (else to the sender). */
 export const recipientOwnsPost = (type: NotificationType) =>
-	type === 'like' || type === 'ratioed_by_you';
+	type === 'like' || type === 'ratioed_by_you' || type === 'regiorg';
 
 const clip = (text: string, max = 140) => (text.length > max ? `${text.slice(0, max)}…` : text);
 
@@ -102,10 +102,15 @@ function payloadFor(row: Row) {
 		ratio: 'ratioed your post',
 		ratioed_by_you: 'got ratioed by your reply',
 		// follows go through sendFollowPush
-		follow: 'followed you'
+		follow: 'followed you',
+		regiorg: 'regiorged your post'
 	};
 	const verb = verbs[row.type];
-	let body = row.type === 'like' || !row.content ? verb : `${verb}: ${clip(row.content)}`;
+	// likes and regiorgs are of the recipient's own post: no need to quote it back
+	let body =
+		row.type === 'like' || row.type === 'regiorg' || !row.content
+			? verb
+			: `${verb}: ${clip(row.content)}`;
 	// identities share the devices of the accounts using them: say which profile it is for
 	if (row.identity) body += ` (@${row.recipient_username})`;
 	// the link matches the notifications page: likes and ratios won point at the recipient's own post

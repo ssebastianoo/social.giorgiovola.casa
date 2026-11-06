@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, users as usersTable } from '#lib/server/db/index.js';
 import { error } from '@sveltejs/kit';
 import type { User } from '#lib/types.js';
-import { getPosts } from '#lib/server/posts.js';
+import { getTimeline, profileAuthor } from '#lib/server/posts.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 import { getFollowedBy, getFollowStats } from '#lib/server/follows.js';
 import { canModerate, findTarget, isStaff } from '#lib/server/moderation.js';
@@ -59,10 +59,9 @@ export const load = (async ({ params, locals, depends }) => {
 
 	const viewerId = locals.user?.id;
 	const [posts, follow, followedBy] = await Promise.all([
-		getPosts({
+		getTimeline({
 			loggedUser: locals.user,
-			fromUser: user,
-			order: 'DESC',
+			authors: profileAuthor(username),
 			limit: PAGE_SIZE
 		}),
 		getFollowStats(users[0].id, viewerId),
@@ -104,12 +103,11 @@ export const load = (async ({ params, locals, depends }) => {
 }) satisfies PageServerLoad;
 
 export const actions = {
-	// infinite scroll of the profile's posts
+	// infinite scroll of the profile's posts and regiorgs
 	async default({ params, locals, request }) {
-		const posts = await getPosts({
+		const posts = await getTimeline({
 			loggedUser: locals.user,
-			fromUser: { username: params.username.toLowerCase() },
-			order: 'DESC',
+			authors: profileAuthor(params.username.toLowerCase()),
 			limit: PAGE_SIZE,
 			offset: await pageOffset(request)
 		});

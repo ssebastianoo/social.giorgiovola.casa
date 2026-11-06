@@ -14,6 +14,7 @@ export const {
 	posts,
 	post_hashtags,
 	likes,
+	regiorgs,
 	inbox,
 	messages,
 	blocks,

@@ -1,16 +1,10 @@
 import type { PageServerLoad } from './$types';
-import { getPosts } from '#lib/server/posts.js';
+import { followedAuthors, getPosts, getTimeline } from '#lib/server/posts.js';
 import { followedUsernames } from '#lib/server/follows.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 import type { Actions, Cookies } from '@sveltejs/kit';
 
 type Feed = 'all' | 'following';
-
-const criteria = {
-	excludeReplies: true,
-	order: 'DESC',
-	limit: PAGE_SIZE
-} as const;
 
 // the chosen feed is remembered in a cookie, so the home page opens on it next time
 function pickFeed(url: URL, cookies: Cookies, user: App.Locals['user']): Feed {
@@ -24,14 +18,26 @@ function pickFeed(url: URL, cookies: Cookies, user: App.Locals['user']): Feed {
 	return cookies.get('feed') === 'following' ? 'following' : 'all';
 }
 
+// "all" already has every post, so only the following feed brings in regiorgs
+function feedPosts(feed: Feed, loggedUser: App.Locals['user'], offset = 0) {
+	if (feed === 'following')
+		return getTimeline({
+			loggedUser,
+			authors: followedAuthors(loggedUser!.id),
+			excludeReplies: true,
+			limit: PAGE_SIZE,
+			offset
+		});
+	return getPosts({ loggedUser, excludeReplies: true, order: 'DESC', limit: PAGE_SIZE, offset });
+}
+
 export const load = (async ({ locals, depends, url, cookies }) => {
 	depends('app:posts');
 
 	const feed = pickFeed(url, cookies, locals.user);
-	const followedBy = feed === 'following' ? locals.user!.id : null;
 	const [posts, following] = await Promise.all([
-		getPosts({ ...criteria, loggedUser: locals.user, followedBy }),
-		followedBy != null ? followedUsernames(followedBy) : null
+		feedPosts(feed, locals.user),
+		feed === 'following' ? followedUsernames(locals.user!.id) : null
 	]);
 
 	return {
@@ -45,14 +51,6 @@ export const actions = {
 	// infinite scroll; the Posts component posts to the current URL, feed param included
 	async default({ locals, request, url, cookies }) {
 		const feed = pickFeed(url, cookies, locals.user);
-		const posts = await getPosts({
-			...criteria,
-			loggedUser: locals.user,
-			followedBy: feed === 'following' ? locals.user!.id : null,
-			offset: await pageOffset(request)
-		});
-		return {
-			posts
-		};
+		return { posts: await feedPosts(feed, locals.user, await pageOffset(request)) };
 	}
 } satisfies Actions;

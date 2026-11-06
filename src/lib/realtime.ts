@@ -4,7 +4,9 @@ import type { ChatMessage, Post } from './types';
 export type RealtimeEvents = {
 	post: Post;
 	post_deleted: { id: number };
-	counts: { id: number; likes?: number; replies_count?: number };
+	counts: { id: number; likes?: number; replies_count?: number; regiorgs?: number };
+	/** someone regiorged a post: the post, with `regiorged_by` set */
+	regiorg: Post;
 	notifications: { count: number };
 	message: ChatMessage;
 	message_deleted: { id: number };
@@ -37,6 +39,7 @@ export function connectRealtime() {
 		'post',
 		'post_deleted',
 		'counts',
+		'regiorg',
 		'notifications',
 		'message',
 		'message_deleted',

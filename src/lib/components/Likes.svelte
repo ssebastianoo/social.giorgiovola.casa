@@ -1,13 +1,14 @@
 <script lang="ts">
-	import type { User } from '#lib/types.js';
+	import type { UserResult } from '#lib/types.js';
 	import { onMount } from 'svelte';
 	import Avatar from './Avatar.svelte';
 
-	export let postId: number;
-	let users: User[] | null = null;
+	// the users who liked or regiorged a post
+	let { postId, kind = 'likes' }: { postId: number; kind?: 'likes' | 'regiorgs' } = $props();
+	let users: UserResult[] | null = $state(null);
 
 	onMount(async () => {
-		const res = await fetch(`/api/posts/${postId}/likes`);
+		const res = await fetch(`/api/posts/${postId}/${kind}`);
 		if (res.ok) {
 			users = await res.json();
 		}
@@ -28,8 +29,8 @@
 			{/each}
 		</div>
 	{:else}
-		<div>No likes yet</div>
+		<div>{kind === 'likes' ? 'No likes yet' : 'No regiorgs yet'}</div>
 	{/if}
 {:else}
-	Loading likes...
+	Loading {kind}...
 {/if}
