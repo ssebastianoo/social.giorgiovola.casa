@@ -100,7 +100,9 @@ function payloadFor(row: Row) {
 		reply: 'replied to your post',
 		mention: 'mentioned you in a post',
 		ratio: 'ratioed your post',
-		ratioed_by_you: 'got ratioed by your reply'
+		ratioed_by_you: 'got ratioed by your reply',
+		// follows go through sendFollowPush
+		follow: 'followed you'
 	};
 	const verb = verbs[row.type];
 	let body = row.type === 'like' || !row.content ? verb : `${verb}: ${clip(row.content)}`;
@@ -186,6 +188,49 @@ export async function sendMessagePush(
 		});
 	} catch (e) {
 		console.error('push: sendMessagePush failed', e);
+	}
+}
+
+/** Notifies `followedId` of a new follower, once: the inbox row is claimed like in sendPush. */
+export async function sendFollowPush(followerId: number, followedId: number) {
+	try {
+		const claimed = await db
+			.update(inbox)
+			.set({ pushed_at: sql`NOW()` })
+			.where(
+				and(
+					eq(inbox.type, 'follow'),
+					eq(inbox.user_id, followedId),
+					eq(inbox.sender_id, followerId),
+					isNull(inbox.pushed_at),
+					gt(inbox.created_at, sql`NOW() - INTERVAL '1 minute'`)
+				)
+			)
+			.returning({ id: inbox.id });
+		if (claimed.length === 0) return;
+		const found = await db
+			.select({
+				id: users.id,
+				name: users.name,
+				username: users.username,
+				owner_id: users.owner_id
+			})
+			.from(users)
+			.where(inArray(users.id, [followerId, followedId]));
+		const sender = found.find((u) => u.id === followerId);
+		const recipient = found.find((u) => u.id === followedId);
+		if (!sender || !recipient) return;
+		let body = 'followed you';
+		// identities share the owner's devices: say which profile it is for
+		if (recipient.owner_id !== null) body += ` (@${recipient.username})`;
+		await deliver(recipient.owner_id ?? recipient.id, {
+			title: sender.name,
+			body,
+			url: `/@${sender.username}`,
+			tag: `follow:${sender.username}:${recipient.username}`
+		});
+	} catch (e) {
+		console.error('push: sendFollowPush failed', e);
 	}
 }
 

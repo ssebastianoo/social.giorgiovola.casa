@@ -51,7 +51,9 @@
 			}
 		}
 		if (redirect) {
-			if (notification.type === 'like' || notification.type === 'ratioed_by_you') {
+			if (notification.type === 'follow' || !notification.post) {
+				goto(`/@${notification.sender.username}`);
+			} else if (notification.type === 'like' || notification.type === 'ratioed_by_you') {
 				goto(`/@${$user?.username}/${notification.post.id}`);
 			} else {
 				goto(`/@${notification.sender.username}/${notification.post.id}`);
@@ -79,7 +81,7 @@
 		<p>
 			{push === 'on'
 				? 'Push notifications are on for this browser.'
-				: 'Get a notification on this device when someone likes, replies, mentions or messages you.'}
+				: 'Get a notification on this device when someone likes, replies, mentions, follows or messages you.'}
 		</p>
 		<Button disabled={pushBusy} onclick={togglePush}>
 			{push === 'on' ? 'Turn off' : 'Turn on'}
@@ -117,7 +119,14 @@
 			<div class="flex gap-2.5">
 				<Avatar user={notification.sender} size={50} />
 				<div class="flex flex-col justify-center">
-					{#if notification.type === 'like'}
+					{#if notification.type === 'follow'}
+						<p>
+							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
+							followed you
+						</p>
+					{:else if !notification.post}
+						<!-- the post was deleted along with the notification, so this can't happen -->
+					{:else if notification.type === 'like'}
 						<p>
 							<a href={`/@${notification.sender.username}`}>@{notification.sender.username}</a>
 							liked

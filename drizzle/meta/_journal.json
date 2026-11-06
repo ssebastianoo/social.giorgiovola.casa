@@ -110,8 +110,36 @@
     {
       "idx": 15,
       "version": "7",
-      "when": 1793919495020,
-      "tag": "0015_shared_identities",
+      "when": 1793918919882,
+      "tag": "0015_follow_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793919350408,
+      "tag": "0016_user_website",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793922594193,
+      "tag": "0017_hashtags",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793922601918,
+      "tag": "0018_backfill_hashtags",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793924939358,
+      "tag": "0019_shared_identities",
       "breakpoints": true
     }
   ]

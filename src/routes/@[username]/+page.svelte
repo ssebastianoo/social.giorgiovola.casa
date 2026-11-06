@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ModerationControls from '#lib/components/ModerationControls.svelte';
+	import { websiteLabel } from '#lib/utils.js';
 
 	let { data }: PageProps = $props();
 
@@ -15,7 +16,20 @@
 	// writable derived: reset on navigation, updated by the follow button
 	let follow = $derived(data.follow);
 	let bio = $derived(data.bio);
+	let website = $derived(data.website);
 	let followBusy = $state(false);
+
+	const nf = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
+
+	// "A, B, and 3 others", like the profile card
+	const followedByText = $derived.by(() => {
+		const { users, total } = data.followedBy;
+		const names = users.map((u) => u.name);
+		const rest = total - names.length;
+		if (rest > 0) return `${names.join(', ')}, and ${rest} other${rest === 1 ? '' : 's'}`;
+		if (names.length > 1) return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+		return names[0] ?? '';
+	});
 
 	// identities have no email or password of their own
 	let identity = $derived(profile.owner_id !== null);
@@ -106,10 +120,38 @@
 				{#if bio}
 					<p class="mt-2 break-words whitespace-pre-line">{bio}</p>
 				{/if}
+				{#if website}
+					<a
+						class="mt-1 block break-all"
+						href={website}
+						target="_blank"
+						rel="noopener noreferrer nofollow ugc">{websiteLabel(website)}</a
+					>
+				{/if}
 				<p class="mt-1 flex gap-3 text-[0.9em] text-muted">
-					<span><b class="text-foreground">{follow.followers}</b> followers</span>
-					<span><b class="text-foreground">{follow.following}</b> following</span>
+					<a class="text-inherit" href="/@{profile.username}/following"
+						><b class="text-foreground">{nf.format(follow.following)}</b> following</a
+					>
+					<a class="text-inherit" href="/@{profile.username}/followers"
+						><b class="text-foreground">{nf.format(follow.followers)}</b>
+						{follow.followers === 1 ? 'follower' : 'followers'}</a
+					>
 				</p>
+				{#if data.followedBy.total > 0}
+					<a
+						class="mt-2 flex items-center gap-2.5 text-[0.85em] text-muted"
+						href="/@{profile.username}/followers/known"
+					>
+						<span class="flex shrink-0">
+							{#each data.followedBy.users as u, i (u.username)}
+								<span class="rounded-full ring-2 ring-background {i > 0 ? '-ml-2' : ''}">
+									<Avatar size={24} user={u} clickable={false} />
+								</span>
+							{/each}
+						</span>
+						<span>Followed by {followedByText}</span>
+					</a>
+				{/if}
 			</div>
 			{#if $user && $user.id === profile.id}
 				<div class="flex gap-2.5">
@@ -184,6 +226,19 @@
 					placeholder="A few words about you"
 					value={bio}
 				></textarea>
+			</div>
+			<div class="flex flex-col">
+				<label class="text-[0.8em] opacity-80" for="website">Website</label>
+				<input
+					class="border-b border-[#ccc] outline-none"
+					id="website"
+					name="website"
+					type="text"
+					inputmode="url"
+					maxlength="200"
+					placeholder="giorgiovola.casa"
+					value={website}
+				/>
 			</div>
 			{#if !identity}
 				<div class="flex flex-col">

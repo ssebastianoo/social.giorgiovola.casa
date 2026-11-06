@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { Post, User } from '#lib/types.js';
-import { db, follows, likes, posts, users } from './db/index.js';
+import { db, follows, likes, post_hashtags, posts, users } from './db/index.js';
 
 export type GetPostsOptions = {
 	loggedUser?: User | null;
@@ -10,6 +10,8 @@ export type GetPostsOptions = {
 	excludeReplies?: boolean;
 	/** only posts by profiles this user follows, and their own */
 	followedBy?: number | null;
+	/** only posts with this (normalized) hashtag, replies included */
+	hashtag?: string | null;
 	order?: 'ASC' | 'DESC';
 	/** replies that ratio their parent come first (then `order`) */
 	ratioFirst?: boolean;
@@ -24,6 +26,7 @@ export async function getPosts({
 	fromUser,
 	excludeReplies,
 	followedBy,
+	hashtag,
 	order,
 	ratioFirst,
 	limit,
@@ -42,6 +45,11 @@ export async function getPosts({
 			? sql`(${posts.user_id} = ${followedBy} OR ${posts.user_id} IN (
 					SELECT ${follows.followed_id} FROM ${follows} WHERE ${follows.follower_id} = ${followedBy}
 				))`
+			: undefined,
+		hashtag != null
+			? sql`${posts.id} IN (
+					SELECT ${post_hashtags.post_id} FROM ${post_hashtags} WHERE ${post_hashtags.tag} = ${hashtag}
+				)`
 			: undefined
 	];
 

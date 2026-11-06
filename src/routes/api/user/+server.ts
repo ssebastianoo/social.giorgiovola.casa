@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from '#lib/server/session.js';
 import {
 	LIMITS,
 	isUniqueViolation,
+	parseWebsite,
 	validateBio,
 	validateEmail,
 	validateName,
@@ -44,6 +45,9 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 				.replace(/\n{3,}/g, '\n\n')
 				.trim()
 		: null;
+
+	const website = data.has('website') ? parseWebsite(field('website')) : null;
+	if (website && 'error' in website) return bad(website.error);
 
 	if (!name || !username || email === '') {
 		return bad('Missing fields');
@@ -105,6 +109,7 @@ export const PATCH: RequestHandler = async ({ locals, request, cookies }) => {
 				name,
 				username,
 				...(bio !== null ? { bio } : {}),
+				...(website ? { website: website.website } : {}),
 				...(avatarPath ? { avatar: avatarPath + '?hash=' + Date.now() } : {}),
 				...(crypt ? { password: crypt.hash, salt: crypt.salt } : {}),
 				...(email !== null ? { email } : {})

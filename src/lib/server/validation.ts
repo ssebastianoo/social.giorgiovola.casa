@@ -3,6 +3,7 @@ export const LIMITS = {
 	messageContent: 2000,
 	name: 64,
 	bio: 160,
+	website: 200,
 	username: 32,
 	email: 254,
 	passwordMin: 8,
@@ -35,6 +36,34 @@ export function validateName(name: string): string | null {
 	if (!name.trim() || name.length > LIMITS.name)
 		return `Name must be between 1 and ${LIMITS.name} characters.`;
 	return null;
+}
+
+/**
+ * Normalizes a profile website: https:// is added when no scheme is given, and only http(s) URLs
+ * with a dotted host are accepted (no javascript:, no intranet names). Empty clears it.
+ */
+export function parseWebsite(raw: string): { website: string } | { error: string } {
+	const value = raw.trim();
+	if (!value) return { website: '' };
+	if (value.length > LIMITS.website)
+		return { error: `Website must be at most ${LIMITS.website} characters.` };
+	const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`;
+	let url: URL;
+	try {
+		url = new URL(withScheme);
+	} catch {
+		return { error: 'Invalid website.' };
+	}
+	if (
+		(url.protocol !== 'https:' && url.protocol !== 'http:') ||
+		url.username ||
+		url.password ||
+		!/^[^.]+(\.[^.]+)+$/.test(url.hostname)
+	)
+		return { error: 'Website must be an http or https address.' };
+	if (url.href.length > LIMITS.website)
+		return { error: `Website must be at most ${LIMITS.website} characters.` };
+	return { website: url.href };
 }
 
 export function validateBio(bio: string): string | null {

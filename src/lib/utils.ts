@@ -44,3 +44,7 @@ export function isHttpLink(word: string) {
 		return false;
 	}
 }
+
+/** A profile website without the scheme, "www." or a trailing slash: example.com/blog */
+export const websiteLabel = (url: string) =>
+	url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
