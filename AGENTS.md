@@ -161,4 +161,4 @@ The bot API lives in `src/routes/api/bot/` (auth, rate limits and helpers in `sr
 
 ## Git
 
-- Main branch for PRs is `master`. Keep commits focused, and include migration files with the schema change that caused them.
+- Main branch for PRs is `main`. Keep commits focused, and include migration files with the schema change that caused them.
