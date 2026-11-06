@@ -42,7 +42,7 @@ export default defineConfig(({ mode }) => ({
 					'connect-src': ['self', 'cloudflareinsights.com'],
 					// posts embed external images; `*` is valid CSP but missing from SvelteKit's Source type.
 					// `*` doesn't cover blob:, which the composer needs for previews of attached files
-					// @ts-expect-error
+					// @ts-expect-error `*` missing from the Source type
 					'img-src': ['*', 'blob:'],
 					'base-uri': ['self'],
 					'frame-ancestors': ['none'],

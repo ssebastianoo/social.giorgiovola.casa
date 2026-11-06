@@ -13,7 +13,7 @@
 
 	const empty: Record<Kind, string> = {
 		likes: 'No likes yet',
-		regiorgs: 'No regiorgs yet',
+		regiorgs: 'No regiorgios yet',
 		quotes: 'No quotes yet'
 	};
 

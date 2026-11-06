@@ -18,6 +18,14 @@ module.exports = {
 		es2017: true,
 		node: true
 	},
+	rules: {
+		// `.catch(() => {})` is the intended way to ignore best-effort failures
+		'@typescript-eslint/no-empty-function': ['error', { allow: ['arrowFunctions'] }],
+		'@typescript-eslint/ban-ts-comment': [
+			'error',
+			{ 'ts-ignore': 'allow-with-description', 'ts-expect-error': 'allow-with-description' }
+		]
+	},
 	overrides: [
 		{
 			files: ['*.svelte'],
