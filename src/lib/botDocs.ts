@@ -82,7 +82,8 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				notes: [
 					'Text only, bots cannot attach images.',
 					'With a poll, "content" is the question. Polls cannot be edited.',
-					'@username mentions notify that user; #hashtags are linked and searchable.'
+					'@username mentions notify that user, also next to punctuation like "(@user)", but not right after a letter, digit, "_", "@" or "/" (emails and post links aren\'t mentions).',
+					'#hashtags are linked and searchable.'
 				]
 			},
 			{

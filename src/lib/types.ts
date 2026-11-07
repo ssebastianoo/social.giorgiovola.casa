@@ -102,6 +102,8 @@ export type Post = {
 	 */
 	/** pinned to its author's profile */
 	pinned?: boolean;
+	/** pinned by staff to the home timeline for everyone */
+	timeline_pinned?: boolean;
 	regiorged_by?: { username: string; name: string; others?: number } | null;
 	/** quote regiorgs of this post */
 	quotes: number;

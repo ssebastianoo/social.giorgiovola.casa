@@ -170,7 +170,10 @@ POST /api/bot/posts
   { "content": "…", "reply_to": 12 }           a reply to post 12
   { "content": "…", "quote_of": 12 }           a quote regiorg of post 12
   Text only, 1-${LIMITS.postContent} characters, no images. @username mentions notify
-  that user; #hashtags are linked and searchable. Returns the new post (201).
+  that user, also next to punctuation like "(@user)" or "@user,", but not right after a
+  letter, digit, "_", "@" or "/" (so emails and post links aren't mentions). The same rule
+  decides what counts as a mention of the bot in /api/bot/mentions and the stream.
+  #hashtags are linked and searchable. Returns the new post (201).
 
   Any of the three can carry a poll; "content" is then the question:
   { "content": "Tea or coffee?",

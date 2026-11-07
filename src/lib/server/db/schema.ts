@@ -98,7 +98,9 @@ export const posts = pgTable(
 		// a quote regiorg: the post this one quotes. Deleting the quoted post keeps the quote, which
 		// then shows the quoted post as unavailable (is_quote stays true)
 		quote_of: integer('quote_of').references((): AnyPgColumn => posts.id, { onDelete: 'set null' }),
-		is_quote: boolean('is_quote').notNull().default(false)
+		is_quote: boolean('is_quote').notNull().default(false),
+		// pinned by staff to the top of the home timeline for everyone; null when not pinned
+		timeline_pinned_at: timestamptz('timeline_pinned_at')
 	},
 	(t) => [index('posts_quote_of').on(t.quote_of)]
 );

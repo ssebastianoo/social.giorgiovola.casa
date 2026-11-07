@@ -190,10 +190,10 @@ export async function botPosts(
 	return afterId === null ? list.reverse() : list;
 }
 
-/** Posts that mention the bot or reply to one of its posts (its own posts aside). */
+/** Posts that mention the bot (same rule as MENTION_RE in #lib/mentions.ts) or reply to one of its posts (its own posts aside). */
 export const mentionsOf = (bot: Pick<User, 'id' | 'username'>) =>
 	sql`${posts.user_id} <> ${bot.id} AND (
-		${posts.content} ~ ${`@${bot.username}(\\s|$)`}
+		${posts.content} ~ ${`(?<![a-zA-Z0-9_@/])@${bot.username}(?![a-zA-Z0-9_])`}
 		OR ${posts.reply_to} IN (SELECT p.id FROM posts p WHERE p.user_id = ${bot.id})
 	)`;
 

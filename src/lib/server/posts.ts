@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import type { Post, User } from '#lib/types.js';
 import { extractHashtags } from '#lib/hashtags.js';
 import { getAvatar } from '#lib/utils.js';
@@ -16,6 +16,8 @@ export type GetPostsOptions = {
 	postId?: number | null;
 	fromUser?: (Partial<User> & (Pick<User, 'id'> | Pick<User, 'username'>)) | null;
 	excludeReplies?: boolean;
+	/** leave out the posts pinned to the home timeline (shown separately) */
+	excludeTimelinePinned?: boolean;
 	/** only posts by profiles this user follows, and their own */
 	followedBy?: number | null;
 	/** only posts with this (normalized) hashtag, replies included */
@@ -37,6 +39,7 @@ export async function getPosts({
 	postId,
 	fromUser,
 	excludeReplies,
+	excludeTimelinePinned,
 	followedBy,
 	hashtag,
 	afterId,
@@ -55,6 +58,7 @@ export async function getPosts({
 			? eq(users.username, fromUser.username)
 			: undefined,
 		excludeReplies ? sql`${posts.reply_to} IS NULL` : undefined,
+		excludeTimelinePinned ? sql`${posts.timeline_pinned_at} IS NULL` : undefined,
 		followedBy != null
 			? sql`(${posts.user_id} = ${followedBy} OR ${posts.user_id} IN (
 					SELECT ${follows.followed_id} FROM ${follows} WHERE ${follows.follower_id} = ${followedBy}
@@ -89,6 +93,7 @@ export async function getPosts({
 			replies_count: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.reply_to = posts.id)`,
 			regiorgs: sql<number>`(SELECT COUNT(*)::int FROM regiorgs r WHERE r.post_id = posts.id)`,
 			pinned: sql<boolean>`EXISTS (SELECT 1 FROM users pu WHERE pu.pinned_post_id = posts.id)`,
+			timeline_pinned: sql<boolean>`(${posts.timeline_pinned_at} IS NOT NULL)`,
 			quotes: sql<number>`(SELECT COUNT(*)::int FROM posts AS p WHERE p.quote_of = posts.id)`,
 			quote: sql<Post['quote']>`CASE WHEN posts.is_quote THEN COALESCE((
 				SELECT jsonb_build_object(
@@ -181,6 +186,8 @@ export type TimelineOptions = {
 	excludeReplies?: boolean;
 	/** leave this post out (the pinned post, shown separately) */
 	excludeId?: number | null;
+	/** leave out the posts pinned to the home timeline (shown separately) */
+	excludeTimelinePinned?: boolean;
 	limit: number;
 	offset?: number;
 };
@@ -195,9 +202,16 @@ export async function getTimeline({
 	authors,
 	excludeReplies,
 	excludeId,
+	excludeTimelinePinned,
 	limit,
 	offset = 0
 }: TimelineOptions) {
+	const exclusions = [
+		excludeId != null ? sql`t.post_id <> ${excludeId}` : undefined,
+		excludeTimelinePinned
+			? sql`t.post_id NOT IN (SELECT id FROM posts WHERE timeline_pinned_at IS NOT NULL)`
+			: undefined
+	].filter((c) => c !== undefined);
 	const entries = (await db.execute(sql`
 		SELECT t.post_id, u.username, u.name, t.regiorgers
 		FROM (
@@ -215,7 +229,7 @@ export async function getTimeline({
 			ORDER BY e.post_id, e.at DESC
 		) t
 		LEFT JOIN users u ON u.id = t.regiorger_id
-		${excludeId != null ? sql`WHERE t.post_id <> ${excludeId}` : sql``}
+		${exclusions.length ? sql`WHERE ${sql.join(exclusions, sql` AND `)}` : sql``}
 		ORDER BY t.at DESC, t.post_id DESC
 		LIMIT ${limit} OFFSET ${offset}
 	`)) as unknown as {
@@ -425,6 +439,57 @@ export async function setPinned(userId: number, postId: number, pinned: boolean)
 			.update(users)
 			.set({ pinned_post_id: null })
 			.where(and(eq(users.id, userId), eq(users.pinned_post_id, postId)));
+	return { pinned };
+}
+
+/** How many posts can be pinned to the home timeline at once. */
+export const MAX_TIMELINE_PINS = 3;
+
+/** The posts pinned to the home timeline, the most recently pinned first. */
+export async function getTimelinePinned(loggedUser: Pick<User, 'id'> | null | undefined) {
+	const ids = await db
+		.select({ id: posts.id })
+		.from(posts)
+		.where(isNotNull(posts.timeline_pinned_at))
+		.orderBy(desc(posts.timeline_pinned_at));
+	if (ids.length === 0) return [];
+	const found = await getPosts({
+		loggedUser,
+		where: inArray(
+			posts.id,
+			ids.map((r) => r.id)
+		)
+	});
+	const byId = new Map(found.map((p) => [p.id, p]));
+	return ids.flatMap((r) => byId.get(r.id) ?? []);
+}
+
+/**
+ * Pins a top-level post to the home timeline for everyone, or unpins it. Callers must check the
+ * viewer is staff. An error message and status when it can't be done.
+ */
+export async function setTimelinePinned(postId: number, pinned: boolean) {
+	const [post] = await db
+		.select({ reply_to: posts.reply_to, pinned_at: posts.timeline_pinned_at })
+		.from(posts)
+		.where(eq(posts.id, postId));
+	if (!post) return { status: 404, message: 'Post not found' } as const;
+	if (post.reply_to !== null) return { status: 400, message: "Replies can't be pinned" } as const;
+	if (pinned && post.pinned_at === null) {
+		const total = await db.$count(posts, isNotNull(posts.timeline_pinned_at));
+		if (total >= MAX_TIMELINE_PINS)
+			return {
+				status: 409,
+				message: `At most ${MAX_TIMELINE_PINS} posts can be pinned, unpin one first`
+			} as const;
+	}
+	// re-pinning keeps the original pin time, so the order of the pins doesn't change
+	if (pinned)
+		await db
+			.update(posts)
+			.set({ timeline_pinned_at: sql`COALESCE(${posts.timeline_pinned_at}, NOW())` })
+			.where(eq(posts.id, postId));
+	else await db.update(posts).set({ timeline_pinned_at: null }).where(eq(posts.id, postId));
 	return { pinned };
 }
 
