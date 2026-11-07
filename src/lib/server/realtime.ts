@@ -84,7 +84,10 @@ type BotClient = {
 
 const botClients = new Set<BotClient>();
 
-/** The bot API stream: `mention`, `post` (by a followed profile) and `message` (DM) events. */
+/**
+ * The bot API stream: `mention`, `post` (by a followed profile), `message` (DM) and
+ * `group_message` (in a group the bot is in) events.
+ */
 export function openBotStream(bot: { id: number; username: string }, signal: AbortSignal) {
 	return eventStream(signal, (send, close) => {
 		// usernames are [a-z0-9_], nothing to escape. same rule as MENTION_RE (#lib/mentions.ts)
@@ -248,6 +251,13 @@ function sendTo(userIds: number[], event: string, data: unknown) {
 	}
 }
 
+/** Sends a chunk to the open streams of these bots, if any of them is one. */
+function sendToBots(userIds: number[], chunk: string) {
+	if (botClients.size === 0) return;
+	const targets = new Set(userIds);
+	for (const client of [...botClients]) if (targets.has(client.botId)) client.send(chunk);
+}
+
 /**
  * Someone is writing a message: in a direct conversation (`groupId` null) to `recipients`' only
  * member, else in that group. Sent to the web streams only: bots don't get typing events.
@@ -274,6 +284,8 @@ export async function publishGroupMessage(
 	try {
 		sendTo(members, 'group_message', message);
 		const others = members.filter((id) => id !== senderId);
+		// like for direct messages, a bot doesn't hear back what it sent
+		sendToBots(others, frame('group_message', message));
 		for (const id of others) await pushUnreadMessages(id);
 		await sendGroupMessagePush(others, message, groupName);
 	} catch (e) {
@@ -303,7 +315,11 @@ export async function publishGroupUpdated(
 	events: GroupMessage[] = []
 ) {
 	try {
-		for (const event of events) sendTo(members, 'group_message', event);
+		for (const event of events) {
+			sendTo(members, 'group_message', event);
+			// bots learn this way that they were added to (or removed from) a group
+			sendToBots(members, frame('group_message', event));
+		}
 		sendTo(members, 'group_updated', { id: groupId });
 		for (const id of members) await pushUnreadMessages(id);
 	} catch (e) {

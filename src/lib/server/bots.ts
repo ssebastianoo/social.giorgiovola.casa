@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { and, asc, eq, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { bots, db, posts, users } from './db/index.js';
+import { getGroup, type GroupState } from './groups.js';
 import { getPosts } from './posts.js';
 import { hit, isLimited } from './ratelimit.js';
 import { parseId } from './validation.js';
@@ -200,3 +201,13 @@ export const mentionsOf = (bot: Pick<User, 'id' | 'username'>) =>
 /** Posts by the profiles the bot follows. */
 export const followedBy = (bot: Pick<User, 'id'>) =>
 	sql`${posts.user_id} IN (SELECT f.followed_id FROM follows f WHERE f.follower_id = ${bot.id})`;
+
+/** A group the bot is in, or a 404: a missing group and one the bot isn't in look the same. */
+export async function botGroup(
+	bot: Pick<User, 'id'>,
+	rawId: string
+): Promise<GroupState | Response> {
+	const id = parseId(rawId);
+	const group = id === null ? null : await getGroup(id, bot.id);
+	return group ?? json(404, 'Group not found');
+}

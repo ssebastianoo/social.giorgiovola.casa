@@ -68,8 +68,8 @@ export function parseUsernames(raw: unknown): string[] | null {
 }
 
 /**
- * Who `meId` may bring into a group, by username: existing profiles that aren't bots and with no
- * block either way. Returns their ids, or the error to send back.
+ * Who `meId` may bring into a group, by username: existing profiles (bots included) with no block
+ * either way. Returns their ids, or the error to send back.
  */
 export async function resolveNewMembers(
 	meId: number,
@@ -78,8 +78,6 @@ export async function resolveNewMembers(
 	const found = await findProfiles(usernames);
 	const missing = usernames.find((u) => !found.some((f) => f.username === u));
 	if (missing) return new Response(`User not found: @${missing}`, { status: 404 });
-	const bot = found.find((f) => f.bot);
-	if (bot) return new Response(`Bots can't join group chats (@${bot.username})`, { status: 400 });
 	const blocked = await blockedAmong(
 		meId,
 		found.map((f) => f.id)
@@ -167,7 +165,7 @@ export async function memberIds(groupId: number) {
 	return rows.map((r) => r.id);
 }
 
-/** Profiles by username, with what decides whether they can join a group. */
+/** Profiles by username. */
 export async function findProfiles(usernames: string[]) {
 	if (usernames.length === 0) return [];
 	return db
@@ -407,6 +405,23 @@ export async function getGroupThread(groupId: number, before?: number | null) {
 		hasMore: rows.length > THREAD_PAGE,
 		messages: await toGroupMessages(rows.slice(0, THREAD_PAGE).reverse())
 	};
+}
+
+/**
+ * A group's messages for the bot API, oldest first: the latest `limit`, or the ones after
+ * `afterId`. Events are included, check `kind`.
+ */
+export async function getGroupMessagesFrom(
+	groupId: number,
+	{ afterId, limit }: { afterId: number | null; limit: number }
+) {
+	const rows = await selectMessages(
+		and(
+			eq(group_messages.group_id, groupId),
+			afterId !== null ? gt(group_messages.id, afterId) : undefined
+		)
+	).limit(limit);
+	return toGroupMessages(rows.reverse());
 }
 
 /** Sends a message; `replyTo` must be a message of this group (see isGroupMessage). */
