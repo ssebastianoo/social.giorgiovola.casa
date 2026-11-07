@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import Avatar from './Avatar.svelte';
+	import LoadingScreen from './LoadingScreen.svelte';
 	import QuoteCard from './QuoteCard.svelte';
 	import { onRealtime } from '#lib/realtime.js';
 	import { isMobile, user } from '#lib/store.js';
@@ -72,8 +73,9 @@
 	let textarea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
 	let content = $state('');
-	/** messages on their way to the server */
-	let sending = $state(0);
+	/** messages on their way to the server, shown at the bottom until they land */
+	let pending = $state<(Draft & { key: number; text: string })[]>([]);
+	let pendingKey = 0;
 	/** the visible height, which shrinks while the on-screen keyboard is open */
 	let viewportHeight = $state<number | null>(null);
 	let loadingOlder = false;
@@ -602,7 +604,7 @@
 	// messages go out one at a time, in order, while the input is already free for the next one
 	let outbox = Promise.resolve();
 
-	function send() {
+	async function send() {
 		const text = content.trim();
 		if (!text && attachments.length === 0) return;
 		const draft: Draft = { content, replyingTo, attachments };
@@ -612,11 +614,15 @@
 		attachments = [];
 		error = null;
 		resetTyping(typingTarget);
-		sending++;
-		outbox = outbox.then(() => post(draft, text)).finally(() => sending--);
+		const key = pendingKey++;
+		pending = [...pending, { ...draft, key, text }];
+		outbox = outbox.then(() => post(draft, text, key));
+		await tick();
+		scrollToBottom();
 	}
 
-	async function post(draft: Draft, text: string) {
+	async function post(draft: Draft, text: string, key: number) {
+		const settle = () => (pending = pending.filter((p) => p.key !== key));
 		try {
 			const body = new FormData();
 			if (groupId === null) body.set('to', peerUsername);
@@ -625,8 +631,11 @@
 			for (const { file } of draft.attachments) body.append('images', file);
 			const res = await fetch(sendUrl, { method: 'POST', body });
 			if (res.ok) {
+				const message = await res.json();
+				settle();
+				// the pending bubble showed these until now
 				for (const a of draft.attachments) URL.revokeObjectURL(a.url);
-				await add([await res.json()], true);
+				await add([message], true);
 				return;
 			}
 			showError(
@@ -639,6 +648,7 @@
 		} catch {
 			showError('Could not send the message, check your connection.');
 		}
+		settle();
 		// give back what didn't go out, without overwriting what was typed since
 		if (!content.trim()) content = draft.content;
 		attachments = [...draft.attachments, ...attachments];
@@ -1242,7 +1252,51 @@
 				</div>
 			{/if}
 		{:else}
-			<p class="m-auto text-center text-muted">Say hi to {group?.name ?? peer?.name}.</p>
+			{#if pending.length === 0}
+				<p class="m-auto text-center text-muted">Say hi to {group?.name ?? peer?.name}.</p>
+			{/if}
+		{/each}
+		{#each pending as draft (draft.key)}
+			<!-- on its way: dimmed, with the loading mark where the time goes -->
+			<div class="flex max-w-[85%] flex-col items-end self-end opacity-70" aria-busy="true">
+				<div class="flex min-w-0 flex-col gap-1.5 rounded-[10px] bg-accent p-2.5 text-background">
+					{#if draft.replyingTo}
+						<div
+							class="flex min-w-0 flex-col rounded-[5px] border-l-2 border-background/60 bg-black/15 px-2.5 py-[5px] text-[0.85em]"
+						>
+							<span class="font-bold"
+								>{isMine(draft.replyingTo) ? 'You' : authorNameOf(draft.replyingTo)}</span
+							>
+							<span class="line-clamp-2 wrap-anywhere opacity-80"
+								>{previewOf({
+									content: draft.replyingTo.content,
+									images: draft.replyingTo.images?.length ?? 0
+								})}</span
+							>
+						</div>
+					{/if}
+					{#if draft.attachments.length}
+						<div class="grid gap-1.5 {draft.attachments.length > 1 ? 'grid-cols-2' : ''}">
+							{#each draft.attachments as attachment (attachment.url)}
+								<img
+									class="rounded-[5px] {draft.attachments.length > 1
+										? 'aspect-square w-full object-cover'
+										: 'max-h-[360px] max-w-full object-contain'}"
+									src={attachment.url}
+									alt=""
+									draggable="false"
+								/>
+							{/each}
+						</div>
+					{/if}
+					{#if draft.text}
+						<p class="wrap-anywhere whitespace-pre-wrap">{draft.text}</p>
+					{/if}
+					<div class="flex justify-end">
+						<LoadingScreen size={14} />
+					</div>
+				</div>
+			</div>
 		{/each}
 	</div>
 
@@ -1362,9 +1416,7 @@
 				type="submit"
 				title="Send"
 				aria-label="Send"
-				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none {sending
-					? 'opacity-60'
-					: ''}"
+				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
 				onmousedown={keepFocus}
 				><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 512 512"
 					><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
