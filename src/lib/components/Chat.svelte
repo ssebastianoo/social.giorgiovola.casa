@@ -105,11 +105,20 @@
 	const scrollToBottom = () => (list.scrollTop = list.scrollHeight);
 	const isAtBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 80;
 
+	// whether the view follows the bottom: images load after the first scroll and would
+	// otherwise grow the list under the reader, leaving them mid-conversation
+	let stick = true;
+
+	/** Images don't bubble load, so this listens in the capture phase. */
+	function onMediaLoad() {
+		if (stick) scrollToBottom();
+	}
+
 	async function add(incoming: Message[], forceScroll = false) {
-		const stick = forceScroll || isAtBottom();
+		const follow = forceScroll || isAtBottom();
 		messages = merge(messages, incoming);
 		await tick();
-		if (stick) scrollToBottom();
+		if (follow) scrollToBottom();
 	}
 
 	// set when there may be unread messages, cleared once the reader has seen the bottom
@@ -124,6 +133,7 @@
 	}
 
 	function onScroll() {
+		stick = isAtBottom();
 		if (list.scrollTop < 100) loadOlder();
 		if (pendingRead && isAtBottom()) markRead();
 	}
@@ -469,6 +479,7 @@
 		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
 		bind:this={list}
 		onscroll={onScroll}
+		onloadcapture={onMediaLoad}
 	>
 		{#each messages as message, index (message.id)}
 			{@const mine = isMine(message)}
