@@ -11,7 +11,7 @@
 	import QuoteCard from './QuoteCard.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
-	import { markMentionSeen } from '#lib/mentions.js';
+	import { markMentionSeen, mentions, splitMentions } from '#lib/mentions.js';
 	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
 	import { hashtagHref, parseHashtag } from '#lib/hashtags.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
@@ -81,7 +81,6 @@
 	// the parent's likes decide whether this reply ratios it
 	let parentLikes = $derived(post.reply_to?.likes ?? 0);
 
-	const mentionRegex = /^@[a-zA-Z0-9_]+$/;
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?="|\))(?<optionalpart>".*")?\)/;
 
 	// an image linked with markdown syntax in the content: only absolute https images, no
@@ -112,7 +111,7 @@
 			$user &&
 			onScreen &&
 			visibilityState === 'visible' &&
-			contentParts.includes(`@${$user.username}`)
+			mentions(post.content, $user.username)
 		)
 			markMentionSeen($user.id, post.id);
 	});
@@ -683,12 +682,18 @@
 								{:else if parseHashtag(part)}
 									{@const hashtag = parseHashtag(part)!}
 									<a onclick={stop} href={hashtagHref(hashtag.tag)}>#{hashtag.tag}</a>{hashtag.rest}
-								{:else if mentionRegex.test(part)}
-									<a onclick={stop} href={`/${part}`} use:profileHover={part.slice(1).toLowerCase()}
-										>{part}</a
-									>
 								{:else}
-									{part}
+									{#each splitMentions(part) as piece}
+										{#if typeof piece === 'string'}
+											{piece}
+										{:else}
+											<a
+												onclick={stop}
+												href={`/@${piece.username}`}
+												use:profileHover={piece.username.toLowerCase()}>@{piece.username}</a
+											>
+										{/if}
+									{/each}
 								{/if}
 							{/each}
 						</p>
