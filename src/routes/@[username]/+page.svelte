@@ -118,10 +118,14 @@
 {#if error}
 	<p class="mb-5 rounded-[5px] bg-danger p-[5px]">{error}</p>
 {/if}
-<div class="mb-5 flex gap-2.5">
+<!-- mobile: avatar and actions on one row, details full width below (like twitter);
+	sm and up: avatar | details | actions -->
+<div
+	class="mb-5 grid grid-cols-[auto_1fr] gap-2.5 [grid-template-areas:'avatar_actions'_'info_info'] sm:grid-cols-[auto_1fr_auto] sm:[grid-template-areas:'avatar_info_actions']"
+>
 	<button
 		type="button"
-		class="shrink-0 cursor-zoom-in self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent"
+		class="shrink-0 cursor-zoom-in self-start rounded-full [grid-area:avatar] outline-none focus-visible:ring-2 focus-visible:ring-accent"
 		aria-label="Expand {profile.name}'s avatar"
 		onclick={() => openImage([getAvatar(profile, 1024)])}
 	>
@@ -129,80 +133,78 @@
 	</button>
 
 	{#if !editing}
-		<div class="flex w-full justify-between">
-			<div>
-				<h2>{profile.name}</h2>
-				<p>
-					@{profile.username}
-					{#if data.bot}
-						<span
-							class="ml-1 rounded-full border border-accent px-2 align-middle text-[0.75em] text-accent"
-							>bot</span
-						>
-					{/if}
-				</p>
-				{#if bio}
-					<p class="mt-2 break-words whitespace-pre-line">{bio}</p>
-				{/if}
-				{#if website}
-					<a
-						class="mt-1 block break-all"
-						href={website}
-						target="_blank"
-						rel="noopener noreferrer nofollow ugc">{websiteLabel(website)}</a
+		<div class="min-w-0 [grid-area:info]">
+			<h2 class="break-words">{profile.name}</h2>
+			<p>
+				@{profile.username}
+				{#if data.bot}
+					<span
+						class="ml-1 rounded-full border border-accent px-2 align-middle text-[0.75em] text-accent"
+						>bot</span
 					>
 				{/if}
-				<p class="mt-1 flex gap-3 text-[0.9em] text-muted">
-					<a class="text-inherit" href="/@{profile.username}/following"
-						><b class="text-foreground">{nf.format(follow.following)}</b> following</a
-					>
-					<a class="text-inherit" href="/@{profile.username}/followers"
-						><b class="text-foreground">{nf.format(follow.followers)}</b>
-						{follow.followers === 1 ? 'follower' : 'followers'}</a
-					>
-				</p>
-				{#if data.followedBy.total > 0}
-					<a
-						class="mt-2 flex items-center gap-2.5 text-[0.85em] text-muted"
-						href="/@{profile.username}/followers/known"
-					>
-						<span class="flex shrink-0">
-							{#each data.followedBy.users as u, i (u.username)}
-								<span class="rounded-full ring-2 ring-background {i > 0 ? '-ml-2' : ''}">
-									<Avatar size={24} user={u} clickable={false} />
-								</span>
-							{/each}
-						</span>
-						<span>Followed by {followedByText}</span>
-					</a>
-				{/if}
-			</div>
-			{#if $user && $user.id === profile.id}
-				<div class="flex gap-2.5">
-					<Button
-						size="sm"
-						onclick={() => {
-							editing = true;
-						}}>Edit</Button
-					>
-					<form method="POST" action="/logout?/current">
-						<Button type="submit" variant="danger" size="sm">Logout</Button>
-					</form>
-				</div>
-			{:else if $user}
-				<div class="flex gap-2.5">
-					<Button
-						size="sm"
-						variant={follow.followed ? 'default' : 'primary'}
-						disabled={followBusy}
-						onclick={toggleFollow}>{follow.followed ? 'Unfollow' : 'Follow'}</Button
-					>
-					<Button size="sm" href={`/messages/${profile.username}`}>Message</Button>
-				</div>
+			</p>
+			{#if bio}
+				<p class="mt-2 break-words whitespace-pre-line">{bio}</p>
+			{/if}
+			{#if website}
+				<a
+					class="mt-1 block break-all"
+					href={website}
+					target="_blank"
+					rel="noopener noreferrer nofollow ugc">{websiteLabel(website)}</a
+				>
+			{/if}
+			<p class="mt-1 flex gap-3 text-[0.9em] text-muted">
+				<a class="text-inherit" href="/@{profile.username}/following"
+					><b class="text-foreground">{nf.format(follow.following)}</b> following</a
+				>
+				<a class="text-inherit" href="/@{profile.username}/followers"
+					><b class="text-foreground">{nf.format(follow.followers)}</b>
+					{follow.followers === 1 ? 'follower' : 'followers'}</a
+				>
+			</p>
+			{#if data.followedBy.total > 0}
+				<a
+					class="mt-2 flex items-center gap-2.5 text-[0.85em] text-muted"
+					href="/@{profile.username}/followers/known"
+				>
+					<span class="flex shrink-0">
+						{#each data.followedBy.users as u, i (u.username)}
+							<span class="rounded-full ring-2 ring-background {i > 0 ? '-ml-2' : ''}">
+								<Avatar size={24} user={u} clickable={false} />
+							</span>
+						{/each}
+					</span>
+					<span>Followed by {followedByText}</span>
+				</a>
 			{/if}
 		</div>
+		{#if $user && $user.id === profile.id}
+			<div class="flex gap-2.5 self-center justify-self-end [grid-area:actions] sm:self-start">
+				<Button
+					size="sm"
+					onclick={() => {
+						editing = true;
+					}}>Edit</Button
+				>
+				<form method="POST" action="/logout?/current">
+					<Button type="submit" variant="danger" size="sm">Logout</Button>
+				</form>
+			</div>
+		{:else if $user}
+			<div class="flex gap-2.5 self-center justify-self-end [grid-area:actions] sm:self-start">
+				<Button
+					size="sm"
+					variant={follow.followed ? 'default' : 'primary'}
+					disabled={followBusy}
+					onclick={toggleFollow}>{follow.followed ? 'Unfollow' : 'Follow'}</Button
+				>
+				<Button size="sm" href={`/messages/${profile.username}`}>Message</Button>
+			</div>
+		{/if}
 	{:else}
-		<form class="flex flex-col gap-3.75" onsubmit={updateUser}>
+		<form class="flex flex-col gap-3.75 [grid-area:info]" onsubmit={updateUser}>
 			<div class="flex flex-col">
 				<label class="text-[0.8em] opacity-80" for="avatar">Avatar</label>
 				<input
