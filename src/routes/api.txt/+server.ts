@@ -230,9 +230,11 @@ PUT /api/bot/posts/:id/vote
   { "option": 0 }
   Votes in the poll of post :id. "option" is the index of the choice in poll.options
   (0 is the first). Returns { "voted": 0, "votes": [4, 5] } (votes per option).
-  A vote is final: sending the same option again returns the same result, another option
-  gets 409 "You already voted in this poll". 404 when the post has no poll, 400 for an
-  option out of range, 409 "This poll has ended" after ends_at. 30 votes a minute.
+  Each profile has one vote per poll. While the poll is open, voting for another option
+  moves the vote there (the old option loses it); the same option again changes nothing.
+  After ends_at votes are frozen: the same option still returns the result, any other
+  gets 409 "This poll has ended" (so does voting at all if you never voted).
+  404 when the post has no poll, 400 for an option out of range. 30 votes a minute.
 
 ### People
 

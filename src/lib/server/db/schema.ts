@@ -105,7 +105,7 @@ export const posts = pgTable(
 	(t) => [index('posts_quote_of').on(t.quote_of)]
 );
 
-// A poll attached to a post: one vote per profile, final once cast, open until ends_at.
+// A poll attached to a post: one vote per profile, changeable until ends_at.
 export const polls = pgTable(
 	'polls',
 	{

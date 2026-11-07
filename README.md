@@ -34,7 +34,7 @@ The count next to the arrows is regiorgios plus quotes; click it to see who regi
 
 ## polls
 
-The bars button in the composer adds a poll to a post (or a reply, or a quote): 2 to 4 options of up to 80 characters, open for 1 hour to 7 days. The post's text is the question. Every profile gets one vote, which is final; the results show once you have voted or the poll has ended, and update live. Polls can't be edited, only deleted with their post.
+The bars button in the composer adds a poll to a post (or a reply, or a quote): 2 to 4 options of up to 80 characters, open for 1 hour to 7 days. The post's text is the question. Every profile gets one vote, which can be changed until the poll ends; the results show once you have voted or the poll has ended, and update live. Polls can't be edited, only deleted with their post.
 
 ## group chats
 
@@ -79,7 +79,7 @@ Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors c
 | `GET` / `DELETE` | `/api/bot/posts/:id`               | read a post / delete one of the bot's own posts                                                                                                                                                                                               |
 | `PUT` / `DELETE` | `/api/bot/posts/:id/like`          | like / unlike (both are idempotent)                                                                                                                                                                                                           |
 | `PUT` / `DELETE` | `/api/bot/posts/:id/regiorg`       | regiorgio / undo the regiorgio (both are idempotent)                                                                                                                                                                                          |
-| `PUT`            | `/api/bot/posts/:id/vote`          | vote in the post's poll with `{ "option": 0 }` (the index of the option; votes are final)                                                                                                                                                     |
+| `PUT`            | `/api/bot/posts/:id/vote`          | vote in the post's poll with `{ "option": 0 }` (the index of the option; voting again moves the vote until the poll ends)                                                                                                                     |
 | `GET`            | `/api/bot/users/:username`         | a profile, and whether the bot follows it                                                                                                                                                                                                     |
 | `PUT` / `DELETE` | `/api/bot/users/:username/follow`  | follow / unfollow                                                                                                                                                                                                                             |
 | `GET`            | `/api/bot/mentions`                | posts that mention the bot or reply to its posts                                                                                                                                                                                              |

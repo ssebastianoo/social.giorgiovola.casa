@@ -6,6 +6,8 @@ import {
 	getConversations,
 	sendMessage
 } from '#lib/server/messages.js';
+import { getGroupConversations } from '#lib/server/groups.js';
+import type { ShareRecipient } from '#lib/types.js';
 import { publishMessage, publishMessageDeleted } from '#lib/server/realtime.js';
 import { mutedMessage } from '#lib/server/moderation.js';
 import { parseId } from '#lib/server/validation.js';
@@ -20,14 +22,33 @@ import {
 } from '#lib/server/messageInput.js';
 import { isDirectMessageBetween } from '#lib/server/messageReactions.js';
 
-// people offered first when sharing a post by message
-const RECENT_PEERS = 8;
+// conversations offered first when sharing a post by message
+const RECENT = 8;
 
-/** The people you talked to most recently, newest first. */
+/**
+ * Where a post can be shared: `recent` holds the latest direct and group conversations, newest
+ * first, `groups` every group the viewer is in, so the dialog can search them by name.
+ */
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) return new Response('Unauthorized', { status: 401 });
-	const conversations = await getConversations(locals.user.id);
-	return Response.json(conversations.slice(0, RECENT_PEERS).map((c) => c.peer));
+	const [conversations, groupConversations] = await Promise.all([
+		getConversations(locals.user.id),
+		getGroupConversations(locals.user.id)
+	]);
+	const dated = [
+		...conversations.map((c) => ({
+			at: new Date(c.created_at).getTime(),
+			to: { kind: 'user', peer: c.peer } satisfies ShareRecipient
+		})),
+		...groupConversations.map((g) => ({
+			at: new Date(g.created_at).getTime(),
+			to: { kind: 'group', group: g.group } satisfies ShareRecipient
+		}))
+	].sort((a, b) => b.at - a.at);
+	return Response.json({
+		recent: dated.slice(0, RECENT).map((d) => d.to),
+		groups: groupConversations.map((g) => ({ kind: 'group', group: g.group }))
+	});
 };
 
 export const POST: RequestHandler = async ({ locals, request }) => {
