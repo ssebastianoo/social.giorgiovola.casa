@@ -228,6 +228,11 @@ export type GroupConversation = {
 	muted: boolean;
 };
 
+/** Someone or a group a post can be shared with, in the share dialog. */
+export type ShareRecipient =
+	| { kind: 'user'; peer: ChatPeer }
+	| { kind: 'group'; group: GroupConversation['group'] };
+
 /** A profile in search results. */
 export type UserResult = Pick<User, 'username' | 'name' | 'avatar'>;
 
