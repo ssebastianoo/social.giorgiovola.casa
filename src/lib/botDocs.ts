@@ -247,6 +247,82 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 		]
 	},
 	{
+		id: 'groups',
+		title: 'Group chats',
+		intro:
+			'People add a bot to their group chats from the web app, like anyone else; the bot can’t create groups or add people itself. In a group the bot reads, writes, replies, reacts and leaves. Text only, like direct messages.',
+		endpoints: [
+			{
+				method: 'GET',
+				path: '/api/bot/groups',
+				summary: 'The groups the bot is in, most recent activity first.',
+				response:
+					'[{ group: { id, name, members: [first 3 others], size }, preview, event, sender, mine, created_at, unread, muted }]'
+			},
+			{
+				method: 'GET',
+				path: '/api/bot/groups/:id',
+				summary: 'A group: its name, owner and members.',
+				response: '{ id, name, owner: username | null, members: [{ username, name, avatar }] }',
+				notes: ['404 when the group does not exist or the bot is not in it.']
+			},
+			{
+				method: 'GET',
+				path: '/api/bot/groups/:id/messages',
+				summary: 'The group’s messages and events, oldest first.',
+				request: '?limit=1-100 (default 20), ?after=<message id>',
+				response: '[Group message]',
+				notes: [
+					'Without after you get the most recent ones. With after you get only newer ones. Check "kind": only "message" is something someone wrote.'
+				]
+			},
+			{
+				method: 'POST',
+				path: '/api/bot/groups/:id/messages',
+				summary: 'Send a message to the group, optionally as a reply.',
+				request: `{ "content": string (1-${l.messageContent} chars), "reply_to"?: message id }`,
+				response: 'The new Group message, status 201.',
+				notes: [
+					'reply_to must be a message (not an event) of this group, else 400.',
+					'403 when the bot is muted. 20 messages a minute, direct and group together.'
+				]
+			},
+			{
+				method: 'DELETE',
+				path: '/api/bot/groups/:id/messages/:messageId',
+				summary: "Delete one of the bot's own messages in the group, for everyone.",
+				response: 'Status 204. 404 for a message that is not the bot’s.'
+			},
+			{
+				method: 'PUT',
+				path: '/api/bot/groups/:id/messages/:messageId/reaction',
+				summary:
+					'React to a message of the group. One reaction per profile: this replaces the previous one.',
+				request: '{ "emoji": string (exactly one emoji) }',
+				response: '{ "reactions": [{ emoji, username, name }] }',
+				notes: ['404 for events and messages of other groups. 60 reactions a minute.']
+			},
+			{
+				method: 'DELETE',
+				path: '/api/bot/groups/:id/messages/:messageId/reaction',
+				summary: "Remove the bot's reaction. Fine to call when it has none.",
+				response: '{ "reactions": [{ emoji, username, name }] }'
+			},
+			{
+				method: 'POST',
+				path: '/api/bot/groups/:id/read',
+				summary: 'Mark the whole group as read. Idempotent.',
+				response: '{ "read": true }'
+			},
+			{
+				method: 'POST',
+				path: '/api/bot/groups/:id/leave',
+				summary: 'Leave the group. Only someone in the group can add the bot back.',
+				response: 'Status 204.'
+			}
+		]
+	},
+	{
 		id: 'reading',
 		title: 'Reading what happens',
 		endpoints: [
@@ -315,6 +391,22 @@ export const messageShape = `{
   ]
 }`;
 
+export const groupMessageShape = `{
+  "id": 301,
+  "group_id": 12,
+  "kind": "message",       // or an event: "created", "added", "removed", "left", "renamed", "owner"
+  "sender": { "username": "alice", "name": "Alice", "avatar": "/avatars/5.webp?hash=…" | null },
+  "target": { "username", "name", "avatar" } | null,   // who was added or removed, else null
+  "content": "hi all",     // for "created" and "renamed": the group name
+  "images": ["/uploads/…"],
+  "created_at": "ISO date",
+  "linked_post": { … } | null,   // like in Message
+  "reply_to": {            // the message this one replies to, or null
+    "id": 299, "sender": { "username", "name" }, "content": "…", "images": 0
+  } | null,
+  "reactions": [{ "emoji": "👍", "username": "bob", "name": "Bob" }]
+}`;
+
 export const curlExamples = (origin: string) => `# who am I?
 curl -H "Authorization: Bearer $TOKEN" ${origin}/api/bot/me
 
@@ -328,6 +420,10 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/jso
 curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\
   -d '{"content":"hi alice"}' ${origin}/api/bot/messages/alice
 curl -H "Authorization: Bearer $TOKEN" "${origin}/api/bot/messages/alice?limit=50"
+
+# answer in group 12
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\
+  -d '{"content":"hi everyone","reply_to":301}' ${origin}/api/bot/groups/12/messages
 
 # like, with no body (still send the Content-Type)
 curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\

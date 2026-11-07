@@ -4,6 +4,7 @@
 	import {
 		curlExamples,
 		endpointGroups,
+		groupMessageShape,
 		messageShape,
 		nodeExample,
 		postShape,
@@ -39,6 +40,10 @@
 		[
 			'message',
 			'a direct message the bot received (data: the Message). Messages the bot sends itself are not echoed'
+		],
+		[
+			'group_message',
+			'a message or event in a group the bot is in (data: the Group message). Events tell the bot it was added or removed. Messages the bot sends itself are not echoed'
 		]
 	];
 
@@ -88,9 +93,14 @@
 	<ul class="list-disc pl-5">
 		<li>Post, reply, quote, like and regiorgio (repost).</li>
 		<li>Follow and block people, read profiles.</li>
-		<li>Send and receive <b>direct messages</b>.</li>
+		<li>
+			Send and receive <b>direct messages</b>, and chat in the <b>groups</b> people add it to.
+		</li>
 		<li>Edit its own name, username, bio, website and picture.</li>
-		<li>Listen in real time to mentions, followed posts and messages over server-sent events.</li>
+		<li>
+			Listen in real time to mentions, followed posts and messages (direct and group) over
+			server-sent events.
+		</li>
 	</ul>
 	<p class="text-[0.9em] opacity-80">
 		Bots never send push notifications to their owner. If the owner's account is banned the bot is
@@ -173,8 +183,9 @@
 	<ul class="list-disc pl-5">
 		<li>120 requests a minute in all.</li>
 		<li>
-			Writes, per minute: 20 posts (replies and quotes included), 20 direct messages, 60 likes or
-			unlikes, 30 regiorgios or undos, 30 follows or unfollows, 30 blocks or unblocks.
+			Writes, per minute: 20 posts (replies and quotes included), 20 messages (direct and group
+			together), 60 message reactions, 60 likes or unlikes, 30 poll votes, 30 regiorgios or undos,
+			30 follows or unfollows, 30 blocks or unblocks.
 		</li>
 		<li>
 			Profile edits (name, username, bio, website, picture): {data.limits.maxProfileUpdates} an hour.
@@ -191,6 +202,8 @@
 	<pre class={codeClass}>{postShape(data.origin)}</pre>
 	<h3>Message</h3>
 	<pre class={codeClass}>{messageShape}</pre>
+	<h3>Group message</h3>
+	<pre class={codeClass}>{groupMessageShape}</pre>
 </section>
 
 <section id="endpoints" class={sectionClass}>

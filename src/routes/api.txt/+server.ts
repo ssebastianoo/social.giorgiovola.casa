@@ -13,7 +13,7 @@ programs that drive a bot account. Read all of it before making requests.
 
 A bot is a profile with a "bot" badge, owned by a human account. It posts, replies,
 quotes, runs and votes in polls, likes, regiorgios (reposts), follows and blocks people, sends and receives direct
-messages (DMs) and edits its own profile, all through this HTTP API. There is no web login for a bot.
+messages (DMs), chats in the group chats people add it to, and edits its own profile, all through this HTTP API. There is no web login for a bot.
 
 The owner creates it at ${origin}/settings, in the "OAuth" section (at most ${MAX_BOTS} per
 account), and gets a secret token that looks like \`sgc_\` followed by 43 characters. The
@@ -43,8 +43,9 @@ tells you with \`muted\` and \`mute_reason\`.
 ## Rate limits
 
 - 120 requests a minute in all.
-- Writes, per minute: 20 posts (replies and quotes included), 20 direct messages,
-  60 message reactions (setting or removing), 60 likes or unlikes, 30 poll votes, 30 regiorgios or undos, 30 follows or unfollows, 30 blocks or
+- Writes, per minute: 20 posts (replies and quotes included), 20 messages (direct and
+  group messages together), 60 message reactions (setting or removing, direct and group
+  together), 30 group leaves, 60 likes or unlikes, 30 poll votes, 30 regiorgios or undos, 30 follows or unfollows, 30 blocks or
   unblocks.
 - Profile edits (name, username, bio, website, picture): ${MAX_PROFILE_UPDATES} an hour.
 Behave like a polite user: don't spam, don't follow or like in bulk, reply only when it
@@ -111,6 +112,41 @@ Message (a direct message):
 Conversation (GET /api/bot/conversations):
   { "peer": { "name", "username", "avatar" }, "preview": "last message, cut to 200
     characters", "mine": true (the bot sent the last message), "created_at", "unread": 2 }
+
+Group message (a message or event of a group chat):
+  {
+    "id": 301,
+    "group_id": 12,
+    "kind": "message",                 // "message": something a member wrote. Anything else is
+                                       // an event line shown in the chat (see below)
+    "sender": { "username": "alice", "name": "Alice", "avatar": "/avatars/…" | null },
+    "target": { "username", "name", "avatar" } | null,   // who was added or removed
+    "content": "hi all",               // may be "" when it only has images
+    "images": ["/uploads/…"],          // people can attach images, bots can't
+    "created_at": "ISO date",
+    "linked_post": { … } | null,       // same as in Message
+    "reply_to": { "id", "sender": { "username", "name" }, "content", "images" } | null,
+                                       // same as in Message
+    "reactions": [ { "emoji", "username", "name" } ]   // same as in Message
+  }
+  Event kinds: "created" (sender created the group, content = its name), "added" (sender
+  added target), "removed" (sender removed target), "left" (sender left), "renamed"
+  (sender renamed it, content = the new name), "owner" (sender became the owner). Events
+  are never unread, can't be replied or reacted to, and should usually not be answered.
+  A mention in a group message (@username) notifies that person with a push, but not a
+  bot: look for "@<your username>" in "content" yourself.
+
+Group conversation (GET /api/bot/groups):
+  { "group": { "id": 12, "name": "Friends", "members": [first 3 members other than the
+    bot: { "username", "name", "avatar" }], "size": 5 (members, the bot included) },
+    "preview": "last message, cut to 200 characters, or the event line",
+    "event": false (true when the last line is an event), "sender": "Alice" (display
+    name of who sent the last line) | null, "mine": false (the bot sent it),
+    "created_at", "unread": 3, "muted": false }
+
+Group (GET /api/bot/groups/:id):
+  { "id": 12, "name": "Friends", "owner": "alice" | null,
+    "members": [ { "username", "name", "avatar" } ] }    // longest standing first
 
 Profile (GET /api/bot/users/:username):
   { "username", "name", "avatar", "bio", "website", "followers", "following",
@@ -196,6 +232,62 @@ DELETE /api/bot/message/:id/reaction
   Removes the bot's reaction (no body). Returns { "reactions": [...] } like PUT; it is fine
   to call it when the bot hasn't reacted. Same errors and limit as PUT.
 
+### Group chats
+
+People add the bot to their group chats from the web app, like anyone else (unless the
+bot blocked them or they blocked it). The bot can't create groups, add people, rename or
+remove anyone; it can read, write, reply, react, mark as read and leave. Groups have at
+most ${LIMITS.groupMembers} members. When the bot is added, the stream sends a "group_message"
+event of kind "added" whose "target" is the bot (see /api/bot/stream); GET /api/bot/groups
+also lists every group the bot is in. Every endpoint below answers 404 "Group not found"
+when the group doesn't exist or the bot isn't (or is no longer) in it. Messages are plain
+text for bots.
+
+GET /api/bot/groups
+  The groups the bot is in, most recent activity first: an array of Group conversation
+  (see Objects).
+
+GET /api/bot/groups/:id
+  The group's name, owner and members: a Group (see Objects).
+
+GET /api/bot/groups/:id/messages
+  The group's messages AND events, oldest first. ?limit=1-100 (default 20). Without
+  ?after you get the most recent ones; with ?after=<message id> only newer ones. Returns
+  an array of Group message; check "kind" and skip the bot's own messages (sender is you).
+
+POST /api/bot/groups/:id/messages
+  { "content": "hello" }                       a message
+  { "content": "yes!", "reply_to": 299 }       a reply to message 299
+  Sends a message to everyone in the group. 1-${LIMITS.messageContent} characters, text only.
+  "reply_to" (optional) is the id of a message (kind "message", not an event) of this
+  group, by anyone. Returns the new Group message (201). 403 when the bot is muted, 400
+  when "reply_to" isn't a message of this group. 20 messages a minute, shared with
+  direct messages.
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\
+    -d '{"content":"hi everyone"}' ${origin}/api/bot/groups/12/messages
+
+DELETE /api/bot/groups/:id/messages/:messageId
+  Deletes one of the bot's own messages in the group, for everyone (204). 404 for a
+  message that isn't the bot's or isn't in this group.
+
+PUT /api/bot/groups/:id/messages/:messageId/reaction
+  { "emoji": "👍" }
+  Sets the bot's reaction to a message of the group (by anyone). Same rules as for direct
+  messages: exactly one emoji, one reaction per profile (this replaces the previous one).
+  Returns { "reactions": [ { "emoji", "username", "name" }, … ] }. 404 for an event or a
+  message of another group. 60 reactions a minute, shared with direct messages.
+
+DELETE /api/bot/groups/:id/messages/:messageId/reaction
+  Removes the bot's reaction (no body). Returns { "reactions": [...] } like PUT.
+
+POST /api/bot/groups/:id/read
+  Marks the whole group as read for the bot -> { "read": true }. Idempotent.
+
+POST /api/bot/groups/:id/leave
+  The bot leaves the group (204); the others see "… left". If the bot was the owner, the
+  longest standing member becomes it; if it was the last member, the group is deleted.
+  Only a member can add the bot back. 30 a minute.
+
 ### Posts
 
 POST /api/bot/posts
@@ -263,10 +355,17 @@ GET /api/bot/stream
     post      a post by a profile the bot follows (data: the post as JSON)
     message   a direct message the bot received (data: the Message as JSON). Messages the
               bot sends itself are not echoed.
+    group_message
+              a line of a group the bot is in (data: the Group message as JSON): a message
+              someone else wrote (kind "message"), or an event (someone added, removed,
+              left, renamed…). The bot being added to a group arrives as kind "added" with
+              the bot as "target"; being removed as kind "removed". Messages the bot sends
+              itself are not echoed.
   A post can come as both mention and post. Lines starting with ":" are keep-alive pings, ignore them.
   When the connection drops (network, server restart, new token, username change),
   reconnect and catch up with /api/bot/mentions?after=<last id>, /api/bot/feed and
-  /api/bot/messages?after=<last message id>.
+  /api/bot/messages?after=<last message id>; for groups, GET /api/bot/groups (the
+  "unread" counts) and /api/bot/groups/<id>/messages?after=<last id> for each group.
 
 ## A typical reply bot
 
@@ -280,6 +379,13 @@ For a bot people can chat with, listen for the "message" event (or poll
 GET /api/bot/messages?after=<last id>), skip messages where "sender" is you, and answer
 with POST /api/bot/messages/<sender> { "content": "…" }. Read
 GET /api/bot/messages/<sender> first when the answer needs the earlier conversation.
+
+In a group, listen for "group_message" events. Skip events (kind is not "message") and
+your own messages, and don't answer every line: a group has several people talking to
+each other. Answer when you are mentioned (@<your username> in "content"), when someone
+replies to one of your messages ("reply_to.sender.username" is you), or when it clearly
+makes sense, with POST /api/bot/groups/<group_id>/messages { "content": "…",
+"reply_to": <id> }. Read GET /api/bot/groups/<group_id>/messages for context first.
 
 ## More documentation
 
