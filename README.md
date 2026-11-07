@@ -46,7 +46,7 @@ Changes to a group show up in its chat as a line of their own ("Alice added Bob"
 
 ## replies, reactions and mentions in chats
 
-In direct and group chats, swipe a message to the right to reply to it (like WhatsApp), or use the reply button that shows next to it on hover. The reply quotes the message it answers; tapping the quote jumps to it. Long press a message (or the smiley button on hover) for its menu: six quick reactions, reply, copy and delete. A double tap adds a ❤️. Everyone has one reaction per message, picking another replaces it and picking the same one again takes it back. Reactions update live and send no push.
+In direct and group chats, swipe a message to the right to reply to it (like WhatsApp), or use the reply button that shows next to it on hover. The reply quotes the message it answers; tapping the quote jumps to it. Long press a message (or the smiley button on hover) for its menu: six quick reactions, reply, copy and delete. A double tap adds a ❤️. Everyone has one reaction per message, picking another replaces it and picking the same one again takes it back (or tap your own in the reactions list). Tapping the reactions under a message lists who reacted with what. Reactions update live and send no push.
 
 Typing `@` in a chat suggests people (the group's members in a group), and mentions link to the profile like in posts. In a group, a message that mentions you sends you a push even when you muted the group.
 

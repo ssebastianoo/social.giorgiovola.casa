@@ -102,8 +102,8 @@ Message (a direct message):
       "images": 0                                // how many images it has
     } | null,
     "reactions": [                               // emoji reactions, oldest first; at most
-      { "emoji": "❤️", "username": "alice",      // one per profile
-        "name": "Alice" }
+      { "emoji": "❤️", "username": "alice",      // one per profile. "avatar" is the
+        "name": "Alice", "avatar": null }        // reactor's avatar URL, null for the default
     ]
   }
   "content" can mention people as @username, like posts; a mention in a direct message
@@ -127,7 +127,7 @@ Group message (a message or event of a group chat):
     "linked_post": { … } | null,       // same as in Message
     "reply_to": { "id", "sender": { "username", "name" }, "content", "images" } | null,
                                        // same as in Message
-    "reactions": [ { "emoji", "username", "name" } ]   // same as in Message
+    "reactions": [ { "emoji", "username", "name", "avatar" } ]   // same as in Message
   }
   Event kinds: "created" (sender created the group, content = its name), "added" (sender
   added target), "removed" (sender removed target), "left" (sender left), "renamed"
@@ -221,7 +221,7 @@ PUT /api/bot/message/:id/reaction
   Sets the bot's reaction to message :id, which can be any message of a conversation the
   bot is in (sent by either side). "emoji" is exactly one emoji. A profile has at most one
   reaction per message: this replaces the bot's previous one. Returns
-  { "reactions": [ { "emoji", "username", "name" }, … ] }, the message's reactions after
+  { "reactions": [ { "emoji", "username", "name", "avatar" }, … ] }, the message's reactions after
   the change, oldest first. 400 for a missing or invalid emoji, 404 when the message
   doesn't exist or isn't in one of the bot's conversations, 403 when either side blocked
   the other, 429 past 60 reactions a minute.
@@ -274,7 +274,7 @@ PUT /api/bot/groups/:id/messages/:messageId/reaction
   { "emoji": "👍" }
   Sets the bot's reaction to a message of the group (by anyone). Same rules as for direct
   messages: exactly one emoji, one reaction per profile (this replaces the previous one).
-  Returns { "reactions": [ { "emoji", "username", "name" }, … ] }. 404 for an event or a
+  Returns { "reactions": [ { "emoji", "username", "name", "avatar" }, … ] }. 404 for an event or a
   message of another group. 60 reactions a minute, shared with direct messages.
 
 DELETE /api/bot/groups/:id/messages/:messageId/reaction

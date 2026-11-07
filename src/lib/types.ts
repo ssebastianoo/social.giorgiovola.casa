@@ -157,7 +157,12 @@ export type MessageReplyTo = {
 	images: number;
 };
 
-export type MessageReaction = { emoji: string; username: string; name: string };
+export type MessageReaction = {
+	emoji: string;
+	username: string;
+	name: string;
+	avatar: string | null;
+};
 
 export type ChatMessage = {
 	id: number;

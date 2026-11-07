@@ -108,6 +108,20 @@
 		mine: boolean;
 	} | null>(null);
 	let menuEl = $state<HTMLDivElement>();
+	/** the message whose reactions list (who reacted with what) is open, and where to show it */
+	let reactors = $state<{
+		id: number;
+		top: number;
+		above: boolean;
+		left: number;
+		right: number;
+		mine: boolean;
+	} | null>(null);
+	let reactorsEl = $state<HTMLDivElement>();
+	// follows the live reactions, so the list updates while it's open
+	const reactorsOf = $derived(
+		reactors ? messages.find((m) => m.id === reactors?.id)?.reactions ?? [] : []
+	);
 	/** the message being swiped, and how far */
 	let swipe = $state<{ id: number; dx: number } | null>(null);
 	/** briefly outlined after jumping to it from a reply */
@@ -169,7 +183,9 @@
 		// shown right away, the server's answer replaces it
 		setReactions(
 			message.id,
-			removing ? others : [...others, { emoji, username: me.username, name: me.name }]
+			removing
+				? others
+				: [...others, { emoji, username: me.username, name: me.name, avatar: me.avatar }]
 		);
 		try {
 			const res = await fetch(reactUrl, {
@@ -213,11 +229,31 @@
 	}
 
 	function openMenu(message: Message, el: HTMLElement) {
+		reactors = null;
 		const rect = el.getBoundingClientRect();
 		// below the message when there is no room above it
 		const above = rect.top > 180;
 		menu = {
 			message,
+			top: above ? rect.top : rect.bottom,
+			above,
+			left: rect.left,
+			right: window.innerWidth - rect.right,
+			mine: isMine(message)
+		};
+	}
+
+	function openReactors(message: Message, el: HTMLElement) {
+		menu = null;
+		if (reactors?.id === message.id) {
+			reactors = null;
+			return;
+		}
+		const rect = el.getBoundingClientRect();
+		// above the pills when there is room for a few rows, else below them
+		const above = rect.top > 240;
+		reactors = {
+			id: message.id,
 			top: above ? rect.top : rect.bottom,
 			above,
 			left: rect.left,
@@ -322,7 +358,11 @@
 	}
 
 	function onWindowPointerDown(e: PointerEvent) {
-		if (menu && !menuEl?.contains(e.target as Node)) menu = null;
+		const target = e.target as Element;
+		if (menu && !menuEl?.contains(target)) menu = null;
+		// the pills toggle the list themselves
+		if (reactors && !reactorsEl?.contains(target) && !target.closest?.('[data-reactions]'))
+			reactors = null;
 	}
 
 	const typingTarget = groupId !== null ? { group: groupId } : { to: peerUsername };
@@ -374,6 +414,7 @@
 
 	function onScroll() {
 		menu = null;
+		reactors = null;
 		stick = isAtBottom();
 		if (list.scrollTop < 100) loadOlder();
 		if (pendingRead && isAtBottom()) markRead();
@@ -429,6 +470,7 @@
 			.map((m) => (m.reply_to?.id === id ? { ...m, reply_to: null } : m));
 		if (replyingTo?.id === id) replyingTo = null;
 		if (menu?.message.id === id) menu = null;
+		if (reactors?.id === id) reactors = null;
 	}
 
 	/** Catches up on what the stream can't have delivered: it drops while the app is in the background. */
@@ -656,9 +698,13 @@
 
 <svelte:window
 	onpointerdown={onWindowPointerDown}
-	onresize={() => (menu = null)}
+	onresize={() => {
+		menu = null;
+		reactors = null;
+	}}
 	onkeydown={(e) => {
 		if (e.key === 'Escape' && menu) menu = null;
+		if (e.key === 'Escape' && reactors) reactors = null;
 	}}
 />
 
@@ -716,6 +762,54 @@
 				>
 			{/if}
 		</div>
+	</div>
+{/if}
+
+{#if reactors && reactorsOf.length > 0}
+	{@const current = messages.find((m) => m.id === reactors?.id)}
+	<div
+		bind:this={reactorsEl}
+		role="dialog"
+		aria-label="Reactions"
+		class="fixed z-50 flex max-h-60 w-64 max-w-[calc(100vw-20px)] flex-col overflow-y-auto rounded-[5px] border border-accent bg-background p-[5px]"
+		style:top={`${reactors.top}px`}
+		style:left={reactors.mine ? undefined : `${reactors.left}px`}
+		style:right={reactors.mine ? `${reactors.right}px` : undefined}
+		style:transform={reactors.above ? 'translateY(calc(-100% - 5px))' : 'translateY(5px)'}
+	>
+		{#each reactorsOf as reaction (reaction.username)}
+			{@const yours = reaction.username === $user?.username}
+			{#if yours && canWrite && current}
+				<button
+					type="button"
+					class="flex cursor-pointer items-center gap-2.5 rounded-[5px] p-[5px] text-left outline-none hover:bg-white/5 focus-visible:bg-white/5"
+					aria-label={`Remove your ${reaction.emoji}`}
+					onclick={() => {
+						reactors = null;
+						react(current, reaction.emoji);
+					}}
+				>
+					<Avatar user={reaction} size={32} clickable={false} />
+					<span class="flex min-w-0 flex-1 flex-col">
+						<span class="truncate font-bold">You</span>
+						<span class="truncate text-[0.85em] text-muted">Tap to remove</span>
+					</span>
+					<span class="text-[1.3em]">{reaction.emoji}</span>
+				</button>
+			{:else}
+				<a
+					class="flex items-center gap-2.5 rounded-[5px] p-[5px] text-inherit outline-none hover:bg-white/5 hover:no-underline focus-visible:bg-white/5"
+					href={`/@${reaction.username}`}
+				>
+					<Avatar user={reaction} size={32} clickable={false} />
+					<span class="flex min-w-0 flex-1 flex-col">
+						<span class="truncate font-bold">{yours ? 'You' : reaction.name}</span>
+						<span class="truncate text-[0.85em] opacity-70">@{reaction.username}</span>
+					</span>
+					<span class="text-[1.3em]">{reaction.emoji}</span>
+				</a>
+			{/if}
+		{/each}
 	</div>
 {/if}
 
@@ -1018,19 +1112,20 @@
 						{/if}
 					</div>
 					{#if message.reactions.length > 0}
-						<div class="relative z-1 -mt-2 flex flex-wrap gap-[5px] px-2.5">
+						<div class="relative z-1 -mt-2 flex flex-wrap gap-[5px] px-2.5" data-reactions>
 							{#each groupReactions(message.reactions) as reaction (reaction.emoji)}
 								<button
 									type="button"
-									class="flex cursor-pointer items-center gap-[3px] rounded-full border bg-background px-1.5 text-[0.8em] leading-6 outline-none disabled:cursor-default {reaction.mine
+									class="flex cursor-pointer items-center gap-[3px] rounded-full border bg-background px-1.5 text-[0.8em] leading-6 outline-none {reaction.mine
 										? 'border-accent'
 										: 'border-line'}"
 									title={reaction.by.map((r) => r.name).join(', ')}
-									aria-label={`${reaction.emoji} ${reaction.by.length}${
-										reaction.mine ? ', tap to remove yours' : ''
-									}`}
-									disabled={!canWrite}
-									onclick={() => react(message, reaction.emoji)}
+									aria-label={`${reaction.emoji} ${reaction.by.length}, see who reacted`}
+									aria-expanded={reactors?.id === message.id}
+									onclick={(e) => {
+										const row = e.currentTarget.parentElement;
+										if (row) openReactors(message, row);
+									}}
 									>{reaction.emoji}{#if reaction.by.length > 1}<span class="text-muted"
 											>{reaction.by.length}</span
 										>{/if}</button

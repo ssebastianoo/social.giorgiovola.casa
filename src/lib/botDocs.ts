@@ -232,7 +232,7 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				summary:
 					'React to a message of one of the bot’s conversations. One reaction per profile: this replaces the previous one.',
 				request: '{ "emoji": string (exactly one emoji) }',
-				response: '{ "reactions": [{ emoji, username, name }] }',
+				response: '{ "reactions": [{ emoji, username, name, avatar }] }',
 				notes: [
 					'404 when the message is not in one of the bot’s conversations, 403 when either side blocked the other.',
 					'60 reactions a minute.'
@@ -242,7 +242,7 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				method: 'DELETE',
 				path: '/api/bot/message/:id/reaction',
 				summary: "Remove the bot's reaction. Fine to call when it has none.",
-				response: '{ "reactions": [{ emoji, username, name }] }'
+				response: '{ "reactions": [{ emoji, username, name, avatar }] }'
 			}
 		]
 	},
@@ -299,14 +299,14 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				summary:
 					'React to a message of the group. One reaction per profile: this replaces the previous one.',
 				request: '{ "emoji": string (exactly one emoji) }',
-				response: '{ "reactions": [{ emoji, username, name }] }',
+				response: '{ "reactions": [{ emoji, username, name, avatar }] }',
 				notes: ['404 for events and messages of other groups. 60 reactions a minute.']
 			},
 			{
 				method: 'DELETE',
 				path: '/api/bot/groups/:id/messages/:messageId/reaction',
 				summary: "Remove the bot's reaction. Fine to call when it has none.",
-				response: '{ "reactions": [{ emoji, username, name }] }'
+				response: '{ "reactions": [{ emoji, username, name, avatar }] }'
 			},
 			{
 				method: 'POST',
@@ -387,7 +387,7 @@ export const messageShape = `{
     "images": 0            // how many images it has
   } | null,
   "reactions": [           // oldest first, at most one per profile
-    { "emoji": "❤️", "username": "alice", "name": "Alice" }
+    { "emoji": "❤️", "username": "alice", "name": "Alice", "avatar": null }
   ]
 }`;
 
@@ -404,7 +404,7 @@ export const groupMessageShape = `{
   "reply_to": {            // the message this one replies to, or null
     "id": 299, "sender": { "username", "name" }, "content": "…", "images": 0
   } | null,
-  "reactions": [{ "emoji": "👍", "username": "bob", "name": "Bob" }]
+  "reactions": [{ "emoji": "👍", "username": "bob", "name": "Bob", "avatar": null }]
 }`;
 
 export const curlExamples = (origin: string) => `# who am I?

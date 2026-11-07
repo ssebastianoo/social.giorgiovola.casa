@@ -56,7 +56,8 @@ export async function reactionsOf(thread: Thread, ids: number[]) {
 			message_id: table.message_id,
 			emoji: table.emoji,
 			username: users.username,
-			name: users.name
+			name: users.name,
+			avatar: users.avatar
 		})
 		.from(table)
 		.innerJoin(users, eq(users.id, table.user_id))
