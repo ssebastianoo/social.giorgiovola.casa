@@ -197,6 +197,20 @@
       "when": 1794049951275,
       "tag": "0027_polls",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794051681861,
+      "tag": "0028_group_chats",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794052047185,
+      "tag": "0029_chat_mutes",
+      "breakpoints": true
     }
   ]
 }

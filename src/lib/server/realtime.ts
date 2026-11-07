@@ -2,8 +2,8 @@ import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db, follows, inbox, likes, posts, users } from './db/index.js';
 import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
-import { sendFollowPush, sendMessagePush, sendPush } from './push';
-import type { ChatMessage, Post } from '#lib/types.js';
+import { sendFollowPush, sendGroupMessagePush, sendMessagePush, sendPush } from './push';
+import type { ChatMessage, GroupMessage, Post } from '#lib/types.js';
 
 /**
  * In-process hub for server-sent events. One instance per server process, so this assumes a
@@ -200,7 +200,7 @@ export async function publishMessage(
 			if (client.botId === recipientId) client.send(chunk);
 		}
 		await pushUnreadMessages(recipientId);
-		await sendMessagePush(recipientId, message, senderName);
+		await sendMessagePush(recipientId, senderId, message, senderName);
 	} catch (e) {
 		console.error('realtime: publishMessage failed', e);
 	}
@@ -217,6 +217,78 @@ export async function publishMessageDeleted(id: number, senderId: number, recipi
 		await pushUnreadMessages(recipientId);
 	} catch (e) {
 		console.error('realtime: publishMessageDeleted failed', e);
+	}
+}
+
+/** Sends an event to the connected streams of these profiles only. */
+function sendTo(userIds: number[], event: string, data: unknown) {
+	const targets = new Set(userIds);
+	const chunk = frame(event, data);
+	for (const client of [...clients]) {
+		if (client.userId !== null && targets.has(client.userId)) client.send(chunk);
+	}
+}
+
+/**
+ * Someone is writing a message: in a direct conversation (`groupId` null) to `recipients`' only
+ * member, else in that group. Sent to the web streams only: bots don't get typing events.
+ */
+export function publishTyping(
+	from: { id: number; username: string; name: string },
+	recipients: number[],
+	groupId: number | null
+) {
+	sendTo(
+		recipients.filter((id) => id !== from.id),
+		'typing',
+		{ group_id: groupId, user: { username: from.username, name: from.name } }
+	);
+}
+
+/** A group message was sent: only the group's current members may receive it. */
+export async function publishGroupMessage(
+	message: GroupMessage,
+	senderId: number,
+	members: number[],
+	groupName: string
+) {
+	try {
+		sendTo(members, 'group_message', message);
+		const others = members.filter((id) => id !== senderId);
+		for (const id of others) await pushUnreadMessages(id);
+		await sendGroupMessagePush(others, message, groupName);
+	} catch (e) {
+		console.error('realtime: publishGroupMessage failed', e);
+	}
+}
+
+/** A group message was deleted: drop it from the members' screens. */
+export async function publishGroupMessageDeleted(groupId: number, id: number, members: number[]) {
+	try {
+		sendTo(members, 'group_message_deleted', { group_id: groupId, id });
+		// it may have been unread
+		for (const id of members) await pushUnreadMessages(id);
+	} catch (e) {
+		console.error('realtime: publishGroupMessageDeleted failed', e);
+	}
+}
+
+/**
+ * A group was renamed or its members changed: `members` is everyone affected, removed members
+ * included, so their screens drop it. `events` are the lines this added to the chat ("Alice
+ * added Bob"); they are never unread and send no push, but unread counts may have changed.
+ */
+export async function publishGroupUpdated(
+	groupId: number,
+	members: number[],
+	events: GroupMessage[] = []
+) {
+	try {
+		for (const event of events) sendTo(members, 'group_message', event);
+		sendTo(members, 'group_updated', { id: groupId });
+		for (const id of members) await pushUnreadMessages(id);
+	} catch (e) {
+		console.error('realtime: publishGroupUpdated failed', e);
 	}
 }
 

@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm';
-import { db, blocks, messages, users } from './db/index.js';
+import { db, blocks, dm_mutes, messages, users } from './db/index.js';
 import type { ChatMessage, ChatPeer, Conversation } from '#lib/types.js';
 import { linkedPosts } from './linkedPosts.js';
+import { unreadGroupCount } from './groups.js';
 
 const THREAD_PAGE = 30;
 const PREVIEW_LENGTH = 200;
@@ -14,8 +15,44 @@ const between = (a: number, b: number) =>
 		and(eq(messages.sender_id, b), eq(messages.recipient_id, a))
 	);
 
-export function unreadMessageCount(userId: number) {
-	return db.$count(messages, and(eq(messages.recipient_id, userId), isNull(messages.read_at)));
+/** Unread direct and group messages, muted conversations aside: the badge of the messages icon. */
+export async function unreadMessageCount(userId: number) {
+	const [direct, groups] = await Promise.all([
+		db.$count(
+			messages,
+			and(
+				eq(messages.recipient_id, userId),
+				isNull(messages.read_at),
+				sql`NOT EXISTS (SELECT 1 FROM ${dm_mutes} WHERE ${dm_mutes.user_id} = ${userId} AND ${dm_mutes.peer_id} = ${messages.sender_id})`
+			)
+		),
+		unreadGroupCount(userId)
+	]);
+	return direct + groups;
+}
+
+export async function isDmMuted(meId: number, peerId: number) {
+	return (
+		(await db.$count(dm_mutes, and(eq(dm_mutes.user_id, meId), eq(dm_mutes.peer_id, peerId)))) > 0
+	);
+}
+
+export async function setDmMuted(meId: number, peerId: number, muted: boolean) {
+	if (muted) {
+		await db.insert(dm_mutes).values({ user_id: meId, peer_id: peerId }).onConflictDoNothing();
+	} else {
+		await db.delete(dm_mutes).where(and(eq(dm_mutes.user_id, meId), eq(dm_mutes.peer_id, peerId)));
+	}
+}
+
+/** Usernames of the people whose conversation this profile muted. */
+export async function mutedPeers(userId: number) {
+	const rows = await db
+		.select({ username: users.username })
+		.from(dm_mutes)
+		.innerJoin(users, eq(users.id, dm_mutes.peer_id))
+		.where(eq(dm_mutes.user_id, userId));
+	return rows.map((r) => r.username);
 }
 
 /** Who blocked whom between two profiles: `me` if I did, `peer` if they did. */
