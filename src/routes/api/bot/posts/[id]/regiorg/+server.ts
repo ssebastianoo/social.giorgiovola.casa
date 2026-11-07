@@ -13,7 +13,9 @@ const regiorg = (regiorged: boolean): RequestHandler =>
 		if (regiorged && bot.muted)
 			return botError(
 				403,
-				`This bot is muted and can't regiorgio.${bot.muteReason ? ` Reason: ${bot.muteReason}` : ''}`
+				`This bot is muted and can't regiorgio.${
+					bot.muteReason ? ` Reason: ${bot.muteReason}` : ''
+				}`
 			);
 		if (botLimited(bot.user.id, 'regiorgs', MAX_REGIORGS))
 			return botError(429, 'Regiorging too fast');
