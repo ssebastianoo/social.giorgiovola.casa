@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { followedAuthors, getPosts, getTimeline } from '#lib/server/posts.js';
+import { followedAuthors, getPosts, getTimeline, getTimelinePinned } from '#lib/server/posts.js';
 import { followedUsernames } from '#lib/server/follows.js';
 import { PAGE_SIZE, pageOffset } from '#lib/server/paging.js';
 import type { Actions, Cookies } from '@sveltejs/kit';
@@ -18,31 +18,42 @@ function pickFeed(url: URL, cookies: Cookies, user: App.Locals['user']): Feed {
 	return cookies.get('feed') === 'following' ? 'following' : 'all';
 }
 
-// "all" already has every post, so only the following feed brings in regiorgs
+// "all" already has every post, so only the following feed brings in regiorgs. The posts staff
+// pinned to the timeline sit above both feeds, so they are left out of them
 function feedPosts(feed: Feed, loggedUser: App.Locals['user'], offset = 0) {
 	if (feed === 'following')
 		return getTimeline({
 			loggedUser,
 			authors: followedAuthors(loggedUser!.id),
 			excludeReplies: true,
+			excludeTimelinePinned: true,
 			limit: PAGE_SIZE,
 			offset
 		});
-	return getPosts({ loggedUser, excludeReplies: true, order: 'DESC', limit: PAGE_SIZE, offset });
+	return getPosts({
+		loggedUser,
+		excludeReplies: true,
+		excludeTimelinePinned: true,
+		order: 'DESC',
+		limit: PAGE_SIZE,
+		offset
+	});
 }
 
 export const load = (async ({ locals, depends, url, cookies }) => {
 	depends('app:posts');
 
 	const feed = pickFeed(url, cookies, locals.user);
-	const [posts, following] = await Promise.all([
+	const [posts, pinned, following] = await Promise.all([
 		feedPosts(feed, locals.user),
+		getTimelinePinned(locals.user),
 		feed === 'following' ? followedUsernames(locals.user!.id) : null
 	]);
 
 	return {
 		feed,
 		posts,
+		pinned,
 		following
 	};
 }) satisfies PageServerLoad;

@@ -25,8 +25,10 @@
 		showReplyTo?: boolean;
 		isPostOpen?: boolean;
 		showThread?: boolean;
-		/** shown at the top of its author's profile */
+		/** shown at the top of its author's profile, or of the home timeline */
 		pinned?: boolean;
+		/** the text of the pinned marker */
+		pinnedLabel?: string;
 		onpostdeleted?: (id: number) => void;
 	};
 
@@ -37,6 +39,7 @@
 		isPostOpen = false,
 		showThread = false,
 		pinned = false,
+		pinnedLabel = 'Pinned',
 		onpostdeleted
 	}: Props = $props();
 
@@ -201,6 +204,29 @@
 		if (!res.ok) return alert((await res.text()) || 'Could not pin');
 		isPinned = (await res.json()).pinned;
 		showToast(isPinned ? 'Pinned to your profile!' : 'Unpinned!');
+		await invalidate('app:posts');
+	}
+
+	// staff pin top-level posts to the home timeline for everyone, from the home page
+	let isTimelinePinned = $derived(post.timeline_pinned ?? false);
+	const canTimelinePin = $derived(
+		!!$user && page.data.role !== 'user' && !post.reply_to && page.route.id === '/'
+	);
+
+	async function toggleTimelinePin() {
+		const res = await fetch('/api/posts/timeline-pin', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				id: post.id,
+				pinned: !isTimelinePinned
+			})
+		});
+		if (!res.ok) return alert((await res.text()) || 'Could not pin');
+		isTimelinePinned = (await res.json()).pinned;
+		showToast(isTimelinePinned ? 'Pinned to the timeline for everyone!' : 'Unpinned!');
 		await invalidate('app:posts');
 	}
 
@@ -566,7 +592,7 @@
 					xmlns="http://www.w3.org/2000/svg"
 					aria-hidden="true"><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg
 				>
-				Pinned
+				{pinnedLabel}
 			</p>
 		{/if}
 		{#if post.regiorged_by}
@@ -994,6 +1020,34 @@
 								stroke-linejoin="round"
 								xmlns="http://www.w3.org/2000/svg"
 								class="{isPinned ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
+									? ''
+									: 'transition-[stroke] duration-100 ease-in-out group-hover:stroke-accent'}"
+								><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg
+							>
+						</button>
+					{/if}
+					{#if canTimelinePin}
+						<button
+							class="group flex cursor-pointer items-center outline-none"
+							aria-label={isTimelinePinned ? 'Unpin from timeline' : 'Pin to timeline'}
+							title={isTimelinePinned
+								? 'Unpin from the timeline'
+								: 'Pin to the timeline for everyone'}
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								toggleTimelinePin();
+							}}
+						>
+							<svg
+								height="17px"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								xmlns="http://www.w3.org/2000/svg"
+								class="{isTimelinePinned ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
 									? ''
 									: 'transition-[stroke] duration-100 ease-in-out group-hover:stroke-accent'}"
 								><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg

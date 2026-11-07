@@ -1,0 +1,1 @@
+ALTER TABLE "posts" ADD COLUMN "timeline_pinned_at" timestamp with time zone;
