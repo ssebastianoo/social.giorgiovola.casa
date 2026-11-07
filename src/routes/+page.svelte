@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import Posts from '#lib/components/Posts.svelte';
+	import Post from '#lib/components/Post.svelte';
 	import PostComposer from '#lib/components/PostComposer.svelte';
-	import type { Post } from '#lib/types.js';
+	import type { Post as PostType } from '#lib/types.js';
 	import { user } from '#lib/store.js';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
@@ -11,24 +12,28 @@
 
 	// writable derived: reset on navigation (feed switch), prepended to by realtime posts
 	let posts = $derived(data.posts);
+	// writable derived: a pinned post that is deleted or unpinned leaves
+	let pinned = $derived(data.pinned);
 
 	// the following feed only shows posts by followed profiles and our own
-	function belongs(post: Post) {
+	function belongs(post: PostType) {
 		if (data.feed !== 'following') return true;
 		return post.user.username === $user?.username || !!data.following?.includes(post.user.username);
 	}
 
-	function add(post: Post) {
+	function add(post: PostType) {
 		if (post.reply_to || !belongs(post) || posts.some((p) => p.id === post.id)) return;
+		if (pinned.some((p) => p.id === post.id)) return;
 		posts = [post, ...posts];
 	}
 
 	// a followed profile (or you) regiorged a post: it moves to the top of the following feed
-	function addRegiorg(post: Post) {
+	function addRegiorg(post: PostType) {
 		const by = post.regiorged_by?.username;
 		if (data.feed !== 'following' || !by) return;
 		const mine = by === $user?.username;
 		if (!mine && !data.following?.includes(by)) return;
+		if (pinned.some((p) => p.id === post.id)) return;
 		// realtime posts are anonymous: keep what we know of our own like and regiorg
 		const old = posts.find((p) => p.id === post.id);
 		const entry = { ...post, liked: old?.liked, regiorged: mine || old?.regiorged };
@@ -69,6 +74,15 @@
 		<input class="input" type="text" placeholder="Log in to post" disabled />
 	</form>
 {/if}
+
+{#each pinned as post (post.id)}
+	<Post
+		pinned
+		pinnedLabel="Pinned for everyone"
+		{post}
+		onpostdeleted={(id) => (pinned = pinned.filter((p) => p.id !== id))}
+	/>
+{/each}
 
 {#if data.feed === 'following' && posts.length === 0}
 	<p class="text-center text-muted">
