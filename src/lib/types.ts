@@ -70,6 +70,19 @@ export type QuotedPost = {
 	is_quote: boolean;
 };
 
+/** A poll attached to a post. */
+export type Poll = {
+	options: string[];
+	/** how many votes each option got, in the same order */
+	votes: number[];
+	/** when voting closes */
+	ends_at: Date | string;
+	/** voting has closed */
+	closed: boolean;
+	/** the index of the option the viewer voted for, null when they haven't voted */
+	voted: number | null;
+};
+
 export type Post = {
 	id: number;
 	user: User | PublicUser;
@@ -98,6 +111,8 @@ export type Post = {
 	quote: QuotedPost | { deleted: true } | null;
 	/** the first post on this instance linked in the content, shown like a quote */
 	linked_post?: QuotedPost | null;
+	/** a poll attached to the post, null when it has none */
+	poll: Poll | null;
 	replies_count: number;
 	reply_to: {
 		username: string;

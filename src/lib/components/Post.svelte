@@ -9,6 +9,7 @@
 	import Avatar from './Avatar.svelte';
 	import PostComposer from './PostComposer.svelte';
 	import QuoteCard from './QuoteCard.svelte';
+	import PollCard from './PollCard.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
 	import { markMentionSeen, mentions, splitMentions } from '#lib/mentions.js';
@@ -639,8 +640,9 @@
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
 			onclick={(e) => {
-				// links inside the post (the quoted post, mentions…) go where they point
-				if ((e.target as Element).closest('a')) return;
+				// links inside the post (the quoted post, mentions…) go where they point, and the
+				// poll votes
+				if ((e.target as Element).closest('a, [data-poll]')) return;
 				// allow dragging to select text
 				const selection = getSelection();
 				if (selection && selection.type === 'Range') return;
@@ -697,6 +699,9 @@
 								{/if}
 							{/each}
 						</p>
+					{/if}
+					{#if post.poll}
+						<PollCard postId={post.id} poll={post.poll} />
 					{/if}
 					{#if gallery.length > 0}
 						<div class="grid gap-1.5 {gallery.length > 1 ? 'grid-cols-2' : ''}">

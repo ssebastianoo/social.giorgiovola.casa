@@ -11,7 +11,14 @@ export const LIMITS = {
 	avatarBytes: 10 * 1024 * 1024,
 	postImages: 5,
 	messageImages: 5,
-	imageBytes: 10 * 1024 * 1024
+	imageBytes: 10 * 1024 * 1024,
+	pollOptionsMin: 2,
+	pollOptionsMax: 4,
+	pollOption: 80,
+	/** poll durations, in minutes */
+	pollMinutesMin: 5,
+	pollMinutesMax: 7 * 24 * 60,
+	pollMinutesDefault: 24 * 60
 } as const;
 
 // same character set the mention trigger (see drizzle/0001_notification_triggers.sql) recognises
@@ -87,4 +94,39 @@ export function isUniqueViolation(e: unknown): boolean {
 	if (typeof e !== 'object' || e === null) return false;
 	const { code, cause } = e as { code?: string; cause?: unknown };
 	return code === '23505' || (cause !== undefined && isUniqueViolation(cause));
+}
+
+export type PollInput = { options: string[]; minutes: number };
+
+/**
+ * Validates the poll of a new post: its options (trimmed, distinct) and how long it stays open
+ * in minutes (the default when missing). Null when there is no poll.
+ */
+export function parsePoll(
+	options: unknown,
+	minutes: unknown
+): { poll: PollInput | null } | { error: string } {
+	if (options == null) return { poll: null };
+	if (!Array.isArray(options)) return { error: 'Poll options must be a list' };
+	const trimmed = options.map((o) => (typeof o === 'string' ? o.trim() : ''));
+	if (trimmed.some((o) => !o)) return { error: 'Poll options must not be empty' };
+	if (trimmed.length < LIMITS.pollOptionsMin || trimmed.length > LIMITS.pollOptionsMax)
+		return {
+			error: `Polls have ${LIMITS.pollOptionsMin} to ${LIMITS.pollOptionsMax} options`
+		};
+	if (trimmed.some((o) => o.length > LIMITS.pollOption))
+		return { error: `Poll options can be at most ${LIMITS.pollOption} characters` };
+	if (new Set(trimmed.map((o) => o.toLowerCase())).size !== trimmed.length)
+		return { error: 'Poll options must be different' };
+
+	let duration: number = LIMITS.pollMinutesDefault;
+	if (minutes != null && minutes !== '') {
+		const n = typeof minutes === 'number' ? minutes : Number(minutes);
+		if (!Number.isInteger(n) || n < LIMITS.pollMinutesMin || n > LIMITS.pollMinutesMax)
+			return {
+				error: `Poll duration must be ${LIMITS.pollMinutesMin} to ${LIMITS.pollMinutesMax} minutes`
+			};
+		duration = n;
+	}
+	return { poll: { options: trimmed, minutes: duration } };
 }

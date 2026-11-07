@@ -13,6 +13,8 @@ export const {
 	sessions,
 	posts,
 	post_hashtags,
+	polls,
+	poll_votes,
 	likes,
 	regiorgs,
 	inbox,

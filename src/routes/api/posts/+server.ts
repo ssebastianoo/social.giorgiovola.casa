@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db, posts, users } from '#lib/server/db/index.js';
 import { checkPostRefs, createPost, deletePost } from '#lib/server/posts.js';
-import { LIMITS, parseId } from '#lib/server/validation.js';
+import { LIMITS, parseId, parsePoll } from '#lib/server/validation.js';
 import {
 	ImageError,
 	POST_IMAGE_SIZE,
@@ -42,7 +42,10 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		body = {
 			content: form.get('content'),
 			reply_to: form.get('reply_to') || null,
-			quote_of: form.get('quote_of') || null
+			quote_of: form.get('quote_of') || null,
+			poll: form.has('poll_options')
+				? { options: form.getAll('poll_options'), minutes: form.get('poll_minutes') }
+				: null
 		};
 		files = form.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
 	} else {
@@ -57,6 +60,12 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (content.length > LIMITS.postContent) {
 		return new Response(`Posts can be at most ${LIMITS.postContent} characters`, { status: 400 });
 	}
+	const poll = parsePoll(
+		(body.poll as { options?: unknown } | null)?.options,
+		(body.poll as { minutes?: unknown } | null)?.minutes
+	);
+	if ('error' in poll) return new Response(poll.error, { status: 400 });
+	if (poll.poll && !content) return new Response('A poll needs a question', { status: 400 });
 	if (files.length > LIMITS.postImages) {
 		return new Response(`Posts can have at most ${LIMITS.postImages} images`, { status: 400 });
 	}
@@ -102,7 +111,13 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	let post;
 	try {
-		post = await createPost(locals.user, { content, images, reply_to, quote_of });
+		post = await createPost(locals.user, {
+			content,
+			images,
+			reply_to,
+			quote_of,
+			poll: poll.poll
+		});
 	} catch (e) {
 		await removeUploads(images);
 		throw e;
