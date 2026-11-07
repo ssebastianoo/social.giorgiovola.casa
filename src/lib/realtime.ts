@@ -11,6 +11,8 @@ export type RealtimeEvents = {
 		regiorgs?: number;
 		quotes?: number;
 	};
+	/** someone voted in a poll: the vote counts of each option */
+	poll: { id: number; votes: number[] };
 	/** someone regiorged a post: the post, with `regiorged_by` set */
 	regiorg: Post;
 	notifications: { count: number };
@@ -46,6 +48,7 @@ export function connectRealtime() {
 		'post_deleted',
 		'counts',
 		'regiorg',
+		'poll',
 		'notifications',
 		'message',
 		'message_deleted',

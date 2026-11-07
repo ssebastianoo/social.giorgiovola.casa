@@ -4,7 +4,8 @@ import { extractHashtags } from '#lib/hashtags.js';
 import { getAvatar } from '#lib/utils.js';
 import { DISCORD_WEBHOOK_URL } from '$app/env/private';
 import { PUBLIC_URL } from '$app/env/public';
-import { db, follows, likes, post_hashtags, posts, regiorgs, users } from './db/index.js';
+import { db, follows, likes, polls, post_hashtags, posts, regiorgs, users } from './db/index.js';
+import type { PollInput } from './validation.js';
 import { imagesOfPostTrees, removeUploads } from './images.js';
 import { linkedPosts } from './linkedPosts.js';
 import { publishDeleted, publishLikes, publishPost, publishRegiorg } from './realtime.js';
@@ -101,6 +102,26 @@ export async function getPosts({
 				FROM posts p INNER JOIN users u ON p.user_id = u.id
 				WHERE p.id = posts.quote_of
 			), '{"deleted": true}'::jsonb) END`,
+			poll: sql<Post['poll']>`(
+				SELECT jsonb_build_object(
+					'options', to_jsonb(pl.options),
+					'votes', (
+						SELECT jsonb_agg((
+							SELECT COUNT(*)::int FROM poll_votes v WHERE v.post_id = pl.post_id AND v.option = o.i - 1
+						) ORDER BY o.i)
+						FROM generate_series(1, cardinality(pl.options)) AS o(i)
+					),
+					'ends_at', pl.ends_at,
+					'closed', pl.ends_at <= NOW(),
+					'voted', ${
+						loggedUser
+							? sql`(SELECT v.option FROM poll_votes v WHERE v.post_id = pl.post_id AND v.user_id = ${loggedUser.id})`
+							: sql`NULL::int`
+					}
+				)
+				FROM polls pl
+				WHERE pl.post_id = posts.id
+			)`,
 			reply_to: sql<Post['reply_to']>`(
 				SELECT jsonb_build_object(
 					'username', u.username,
@@ -248,8 +269,8 @@ export async function checkPostRefs(reply_to: number | null, quote_of: number | 
 
 /**
  * Writes a post (or a reply, when `reply_to` is set, or a quote regiorg, when `quote_of` is set)
- * by `user` with its hashtags, then tells everyone about it. The input must already be validated
- * (see checkPostRefs).
+ * by `user` with its hashtags and poll, then tells everyone about it. The input must already be
+ * validated (see checkPostRefs and parsePoll).
  */
 export async function createPost(
 	user: Pick<User, 'id' | 'username' | 'name' | 'avatar'>,
@@ -257,10 +278,17 @@ export async function createPost(
 		content,
 		images = [],
 		reply_to,
-		quote_of = null
-	}: { content: string; images?: string[]; reply_to: number | null; quote_of?: number | null }
+		quote_of = null,
+		poll = null
+	}: {
+		content: string;
+		images?: string[];
+		reply_to: number | null;
+		quote_of?: number | null;
+		poll?: PollInput | null;
+	}
 ) {
-	// the post and its hashtags together, so a post never shows up without its tags
+	// the post, its hashtags and poll together, so a post never shows up without them
 	const created = await db.transaction(async (tx) => {
 		const [row] = await tx
 			.insert(posts)
@@ -276,6 +304,13 @@ export async function createPost(
 		const tags = extractHashtags(content);
 		if (tags.length)
 			await tx.insert(post_hashtags).values(tags.map((tag) => ({ post_id: row.id, tag })));
+		if (poll)
+			await tx.insert(polls).values({
+				post_id: row.id,
+				options: poll.options,
+				// the database clock, which also decides whether it is closed
+				ends_at: sql`NOW() + make_interval(mins => ${poll.minutes})`
+			});
 		return row;
 	});
 

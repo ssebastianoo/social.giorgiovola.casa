@@ -176,6 +176,13 @@
       "when": 1793980707241,
       "tag": "0024_ratio_min_likes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794049297946,
+      "tag": "0025_polls",
+      "breakpoints": true
     }
   ]
 }

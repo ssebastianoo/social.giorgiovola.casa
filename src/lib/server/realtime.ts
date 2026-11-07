@@ -312,6 +312,11 @@ export async function publishRegiorg(
 	}
 }
 
+/** Someone voted in the poll of a post: its fresh vote counts, in option order. */
+export function publishPollVotes(postId: number, votes: number[]) {
+	broadcast('poll', { id: postId, votes });
+}
+
 /** A profile got a new follower: update its badge and send the push. */
 export async function publishFollow(followerId: number, followedId: number) {
 	try {

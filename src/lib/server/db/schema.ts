@@ -103,6 +103,39 @@ export const posts = pgTable(
 	(t) => [index('posts_quote_of').on(t.quote_of)]
 );
 
+// A poll attached to a post: one vote per profile, final once cast, open until ends_at.
+export const polls = pgTable(
+	'polls',
+	{
+		post_id: integer('post_id')
+			.primaryKey()
+			.references(() => posts.id, { onDelete: 'cascade' }),
+		// the choices, in order; votes point at them by index
+		options: text('options').array().notNull(),
+		ends_at: timestamptz('ends_at').notNull()
+	},
+	(t) => [check('polls_options_check', sql`cardinality(${t.options}) BETWEEN 2 AND 4`)]
+);
+
+export const poll_votes = pgTable(
+	'poll_votes',
+	{
+		post_id: integer('post_id')
+			.notNull()
+			.references(() => polls.post_id, { onDelete: 'cascade' }),
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		// index into polls.options
+		option: integer('option').notNull(),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.post_id, t.user_id] }),
+		check('poll_votes_option_check', sql`${t.option} >= 0`)
+	]
+);
+
 // Hashtags of a post, lowercased and without the "#". Written by the post API with
 // extractHashtags (src/lib/hashtags.ts), which is the one definition of what a hashtag is.
 export const post_hashtags = pgTable(

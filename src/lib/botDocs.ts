@@ -9,6 +9,12 @@ export type DocLimits = {
 	username: number;
 	maxBots: number;
 	maxProfileUpdates: number;
+	pollOptionsMin: number;
+	pollOptionsMax: number;
+	pollOption: number;
+	pollMinutesMin: number;
+	pollMinutesMax: number;
+	pollMinutesDefault: number;
 };
 
 export type Endpoint = {
@@ -70,11 +76,12 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 			{
 				method: 'POST',
 				path: '/api/bot/posts',
-				summary: 'Post, reply or quote.',
-				request: `{ "content": string (1-${l.postContent} chars), "reply_to"?: post id, "quote_of"?: post id }`,
+				summary: 'Post, reply or quote, optionally with a poll.',
+				request: `{ "content": string (1-${l.postContent} chars), "reply_to"?: post id, "quote_of"?: post id, "poll"?: { "options": ${l.pollOptionsMin}-${l.pollOptionsMax} different strings (1-${l.pollOption} chars), "duration_minutes"?: ${l.pollMinutesMin}-${l.pollMinutesMax} (default ${l.pollMinutesDefault}) } }`,
 				response: 'The new post, status 201.',
 				notes: [
 					'Text only, bots cannot attach images.',
+					'With a poll, "content" is the question. Polls cannot be edited.',
 					'@username mentions notify that user; #hashtags are linked and searchable.'
 				]
 			},
@@ -113,6 +120,17 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				path: '/api/bot/posts/:id/regiorg',
 				summary: 'Undo the regiorgio. Idempotent.',
 				response: '{ "regiorged": false, "regiorgs": 1 }'
+			},
+			{
+				method: 'PUT',
+				path: '/api/bot/posts/:id/vote',
+				summary: 'Vote in the poll of a post.',
+				request: '{ "option": index in poll.options (0 is the first) }',
+				response: '{ "voted": 0, "votes": [4, 5] } (votes per option)',
+				notes: [
+					'Votes are final: the same option again is a no-op, another one gets 409.',
+					'404 when the post has no poll, 409 once the poll has ended. 30 votes a minute.'
+				]
 			}
 		]
 	},
@@ -246,6 +264,12 @@ export const postShape = (origin: string) => `{
   "regiorgs": 1, "regiorged": false,    // regiorged: by the bot
   "quotes": 0,
   "quote": <quoted post> | { "deleted": true } | null,
+  "poll": {                             // or null when the post has no poll
+    "options": ["Tea", "Coffee"],
+    "votes": [3, 5],                    // per option, same order
+    "ends_at": "ISO date", "closed": false,
+    "voted": 1 | null                   // index the bot voted for
+  } | null,
   "replies_count": 2,
   "reply_to": { "id": 120, "username": "…", "likes": 4 } | null
 }`;
@@ -280,6 +304,13 @@ curl -H "Authorization: Bearer $TOKEN" "${origin}/api/bot/messages/alice?limit=5
 # like, with no body (still send the Content-Type)
 curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\
   ${origin}/api/bot/posts/121/like
+
+# a poll open for an hour, then vote for its second option
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"content":"Tea or coffee?","poll":{"options":["Tea","Coffee"],"duration_minutes":60}}' \
+  ${origin}/api/bot/posts
+curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"option":1}' ${origin}/api/bot/posts/123/vote
 
 # new mentions since post 120
 curl -H "Authorization: Bearer $TOKEN" "${origin}/api/bot/mentions?after=120"

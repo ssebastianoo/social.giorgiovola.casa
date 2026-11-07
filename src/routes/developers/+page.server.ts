@@ -13,6 +13,12 @@ export const load: PageServerLoad = ({ url }) => ({
 		bio: LIMITS.bio,
 		username: LIMITS.username,
 		maxBots: MAX_BOTS,
-		maxProfileUpdates: MAX_PROFILE_UPDATES
+		maxProfileUpdates: MAX_PROFILE_UPDATES,
+		pollOptionsMin: LIMITS.pollOptionsMin,
+		pollOptionsMax: LIMITS.pollOptionsMax,
+		pollOption: LIMITS.pollOption,
+		pollMinutesMin: LIMITS.pollMinutesMin,
+		pollMinutesMax: LIMITS.pollMinutesMax,
+		pollMinutesDefault: LIMITS.pollMinutesDefault
 	}
 });
