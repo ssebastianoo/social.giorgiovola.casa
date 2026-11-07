@@ -67,9 +67,31 @@
 			$isMobile = true;
 		}
 
+		const editing = () => {
+			const el = document.activeElement;
+			return el instanceof HTMLElement && (el.isContentEditable || el.matches('input, textarea'));
+		};
+
 		document.documentElement.style.setProperty('--fh', `${window.innerHeight}px`);
 		window.addEventListener('resize', () => {
+			// the on-screen keyboard shrinks the window too: resizing what --fh caps (a long post)
+			// would move the field being typed in back under the keyboard
+			if (editing()) return;
 			document.documentElement.style.setProperty('--fh', `${window.innerHeight}px`);
+		});
+
+		// some browsers (Firefox on Android) don't bring the focused field back into view once
+		// the keyboard has opened
+		const viewport = window.visualViewport;
+		viewport?.addEventListener('resize', () => {
+			const el = document.activeElement;
+			if (!editing() || !(el instanceof HTMLElement)) return;
+			requestAnimationFrame(() => {
+				const rect = el.getBoundingClientRect();
+				const bottom = viewport.offsetTop + viewport.height;
+				if (rect.bottom > bottom || rect.top < viewport.offsetTop)
+					el.scrollIntoView({ block: 'nearest' });
+			});
 		});
 	});
 </script>

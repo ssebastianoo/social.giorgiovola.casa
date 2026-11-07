@@ -72,7 +72,10 @@
 	let textarea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
 	let content = $state('');
-	let sending = $state(false);
+	/** messages on their way to the server */
+	let sending = $state(0);
+	/** the visible height, which shrinks while the on-screen keyboard is open */
+	let viewportHeight = $state<number | null>(null);
 	let loadingOlder = false;
 	let error = $state<string | null>(null);
 	let attachments = $state<Attachment[]>([]);
@@ -135,6 +138,30 @@
 	const isEvent = (m: Message): m is GroupMessage => 'kind' in m && m.kind !== 'message';
 
 	const canWrite = $derived(!blockedByMe && !blockedByPeer);
+
+	// created_at arrives as a string over JSON
+	const dateOf = (m: Message) => new Date(m.created_at);
+	const dayKey = (d: Date) => d.toDateString();
+	/** a message starts a new day: it gets a separator above it */
+	const startsDay = (index: number) =>
+		index === 0 || dayKey(dateOf(messages[index])) !== dayKey(dateOf(messages[index - 1]));
+	const timeOf = (m: Message) =>
+		dateOf(m).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+	/** Today, Yesterday, a weekday within the week, else the date (with the year if not this one). */
+	function dayLabel(d: Date) {
+		const today = new Date();
+		const midnight = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+		const days = Math.round((midnight(today) - midnight(d)) / 86_400_000);
+		if (days === 0) return 'Today';
+		if (days === 1) return 'Yesterday';
+		if (days > 1 && days < 7) return d.toLocaleDateString(undefined, { weekday: 'long' });
+		return d.toLocaleDateString(undefined, {
+			day: 'numeric',
+			month: 'long',
+			year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric'
+		});
+	}
 
 	/** what a reply shows of a message: its text, or that it is a photo */
 	const previewOf = (m: { content: string; images: number }) =>
@@ -570,37 +597,68 @@
 		addFiles(files);
 	}
 
-	async function send() {
+	type Draft = { content: string; replyingTo: Message | null; attachments: Attachment[] };
+
+	// messages go out one at a time, in order, while the input is already free for the next one
+	let outbox = Promise.resolve();
+
+	function send() {
 		const text = content.trim();
-		if ((!text && attachments.length === 0) || sending) return;
-		sending = true;
+		if (!text && attachments.length === 0) return;
+		const draft: Draft = { content, replyingTo, attachments };
+		// cleared right away, so the next message can be typed while this one is on its way
+		content = '';
+		replyingTo = null;
+		attachments = [];
 		error = null;
+		resetTyping(typingTarget);
+		sending++;
+		outbox = outbox.then(() => post(draft, text)).finally(() => sending--);
+	}
+
+	async function post(draft: Draft, text: string) {
 		try {
 			const body = new FormData();
 			if (groupId === null) body.set('to', peerUsername);
 			body.set('content', text);
-			if (replyingTo) body.set('reply_to', String(replyingTo.id));
-			for (const { file } of attachments) body.append('images', file);
+			if (draft.replyingTo) body.set('reply_to', String(draft.replyingTo.id));
+			for (const { file } of draft.attachments) body.append('images', file);
 			const res = await fetch(sendUrl, { method: 'POST', body });
 			if (res.ok) {
-				content = '';
-				replyingTo = null;
-				resetTyping(typingTarget);
-				clearAttachments();
+				for (const a of draft.attachments) URL.revokeObjectURL(a.url);
 				await add([await res.json()], true);
-			} else {
-				error =
-					res.status === 400 || res.status === 403 || res.status === 429
-						? await res.text()
-						: res.status === 413
-						? 'Images are too big.'
-						: 'Something went wrong.';
+				return;
 			}
+			showError(
+				res.status === 400 || res.status === 403 || res.status === 429
+					? await res.text()
+					: res.status === 413
+					? 'Images are too big.'
+					: 'Something went wrong.'
+			);
 		} catch {
-			error = 'Could not send the message, check your connection.';
+			showError('Could not send the message, check your connection.');
 		}
-		sending = false;
-		textarea?.focus();
+		// give back what didn't go out, without overwriting what was typed since
+		if (!content.trim()) content = draft.content;
+		attachments = [...draft.attachments, ...attachments];
+		if (!replyingTo && draft.replyingTo && messages.some((m) => m.id === draft.replyingTo?.id))
+			replyingTo = draft.replyingTo;
+	}
+
+	/**
+	 * Tapping a button moves focus off the textarea, which closes the on-screen keyboard (and the
+	 * send button reopened it right after). Cancelling the mousedown keeps the focus where it is.
+	 */
+	function keepFocus(e: MouseEvent) {
+		if (document.activeElement === textarea) e.preventDefault();
+	}
+
+	// whether the last pointer was a finger: mouse users keep selecting text in the list
+	let touching = false;
+	function keepFocusOnTouch(e: MouseEvent) {
+		// images open the viewer and links navigate: the keyboard can go there
+		if (touching && !(e.target as Element).closest('a, img')) keepFocus(e);
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -651,6 +709,28 @@
 		listenTyping();
 		scrollToBottom();
 		markRead();
+
+		// fit the chat to what's visible above the keyboard: iOS (and Android without
+		// interactive-widget) only shrink the visual viewport, leaving the input under the keyboard
+		const vv = window.visualViewport;
+		const fit = () => {
+			// pinch zoom also shrinks it, and must stay free to pan
+			if (!vv || vv.scale > 1.01) return;
+			viewportHeight = vv.height;
+			// the browser scrolls the page to show the focused input; the chat now fits, undo that
+			if (window.scrollY !== 0) window.scrollTo(0, 0);
+		};
+		fit();
+		vv?.addEventListener('resize', fit);
+		vv?.addEventListener('scroll', fit);
+		// the list shrinks when the keyboard opens, the input grows or a bar (reply, typing,
+		// attachments) shows up: keep the latest message in view if it was
+		const resizes = new ResizeObserver(() => {
+			if (stick) scrollToBottom();
+		});
+		resizes.observe(list);
+		const onPointer = (e: PointerEvent) => (touching = e.pointerType !== 'mouse');
+		window.addEventListener('pointerdown', onPointer, true);
 		const offs =
 			groupId !== null
 				? [
@@ -688,6 +768,10 @@
 			window.removeEventListener('dragleave', onDragLeave);
 			window.removeEventListener('drop', onDrop);
 			document.removeEventListener('visibilitychange', onVisibility);
+			vv?.removeEventListener('resize', fit);
+			vv?.removeEventListener('scroll', fit);
+			resizes.disconnect();
+			window.removeEventListener('pointerdown', onPointer, true);
 			clearTimeout(errorTimeout);
 			clearTimeout(highlightTimeout);
 			clearTimeout(pressTimer);
@@ -714,6 +798,7 @@
 	<div
 		bind:this={menuEl}
 		role="menu"
+		onmousedown={keepFocus}
 		tabindex="-1"
 		class="fixed z-50 flex flex-col gap-[5px] rounded-[5px] border border-accent bg-background p-[5px]"
 		style:top={`${menu.top}px`}
@@ -770,6 +855,8 @@
 	<div
 		bind:this={reactorsEl}
 		role="dialog"
+		tabindex="-1"
+		onmousedown={keepFocus}
 		aria-label="Reactions"
 		class="fixed z-50 flex max-h-60 w-64 max-w-[calc(100vw-20px)] flex-col overflow-y-auto rounded-[5px] border border-accent bg-background p-[5px]"
 		style:top={`${reactors.top}px`}
@@ -826,7 +913,10 @@
 {/if}
 
 <!-- 120px: the fixed header's offset and the padding of the layout's main column -->
-<div class="flex h-[calc(100dvh-120px)] flex-col gap-2.5">
+<div
+	class="flex h-[calc(100dvh-120px)] flex-col gap-2.5"
+	style:height={viewportHeight ? `${viewportHeight - 120}px` : undefined}
+>
 	<div class="flex items-center gap-2.5 border-b border-line pb-2.5">
 		<a
 			class="px-1 text-[1.4em] text-inherit hover:no-underline"
@@ -895,15 +985,26 @@
 		</div>
 	</div>
 
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions (only keeps the keyboard open) -->
 	<div
-		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto"
+		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain"
 		bind:this={list}
 		onscroll={onScroll}
+		onmousedown={keepFocusOnTouch}
+		role="log"
 		onloadcapture={onMediaLoad}
 	>
 		{#each messages as message, index (message.id)}
 			{@const mine = isMine(message)}
 			{@const author = typeof message.sender === 'string' ? null : message.sender}
+			{@const newDay = startsDay(index)}
+			{#if newDay}
+				<div class="my-1.5 flex items-center gap-2.5 text-[0.8em] text-muted">
+					<hr aria-hidden="true" class="flex-1 border-line" />
+					<span class="font-bold">{dayLabel(dateOf(message))}</span>
+					<hr aria-hidden="true" class="flex-1 border-line" />
+				</div>
+			{/if}
 			{#if isEvent(message)}
 				<!-- someone joined, left, renamed the group… -->
 				<p
@@ -914,7 +1015,7 @@
 				</p>
 			{:else}
 				<!-- in groups, name who wrote a run of messages from someone else -->
-				{#if author && !mine && (index === 0 || isEvent(messages[index - 1]) || senderOf(messages[index - 1]) !== author.username)}
+				{#if author && !mine && (newDay || isEvent(messages[index - 1]) || senderOf(messages[index - 1]) !== author.username)}
 					<div class="mt-1.5 flex items-center gap-[5px] self-start">
 						<Avatar user={author} size={24} />
 						<a class="text-[0.8em] font-bold text-inherit" href={`/@${author.username}`}
@@ -1057,7 +1158,12 @@
 										></button
 									>
 								{/if}
-								<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>
+								<!-- the day is on the separator, the full date on hover -->
+								<time
+									class="opacity-60"
+									datetime={dateOf(message).toISOString()}
+									title={dateOf(message).toLocaleString()}>{timeOf(message)}</time
+								>
 							</div>
 						</div>
 						{#if canWrite}
@@ -1159,6 +1265,7 @@
 						type="button"
 						title="Remove"
 						aria-label="Remove image"
+						onmousedown={keepFocus}
 						onclick={() => removeAttachment(attachment)}
 						class="absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-background/80 text-[0.8rem] leading-none outline-none hover:bg-danger"
 						>×</button
@@ -1169,7 +1276,11 @@
 	{/if}
 
 	{#if replyingTo && canWrite}
-		<div class="flex items-center gap-2.5 border-l-2 border-accent pl-2.5">
+		<div
+			class="flex items-center gap-2.5 border-l-2 border-accent pl-2.5"
+			role="presentation"
+			onmousedown={keepFocus}
+		>
 			<button
 				type="button"
 				class="min-w-0 flex-1 cursor-pointer text-left text-[0.85em] outline-none"
@@ -1250,8 +1361,11 @@
 			<button
 				type="submit"
 				title="Send"
-				disabled={sending}
-				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
+				aria-label="Send"
+				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none {sending
+					? 'opacity-60'
+					: ''}"
+				onmousedown={keepFocus}
 				><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 512 512"
 					><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
 						d="M16.1 260.2c-22.6 12.9-20.5 47.3 3.6 57.3L160 376V479.3c0 18.1 14.6 32.7 32.7 32.7c9.7 0 18.9-4.3 25.1-11.8l62-74.3 123.9 51.6c18.9 7.9 40.8-4.5 43.9-24.7l64-416c1.9-12.1-3.4-24.3-13.5-31.2s-23.3-7.5-34-1.4l-448 256zm52.1 25.5L409.7 90.6 190.1 336l1.2 1L68.2 285.7zM403.3 425.4L236.7 355.9 450.8 116.6 403.3 425.4z"
