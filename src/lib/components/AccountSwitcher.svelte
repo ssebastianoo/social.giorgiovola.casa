@@ -132,6 +132,7 @@
 					{/if}
 					<a class={linkClass} href="/accounts" role="menuitem">+ New identity / manage</a>
 					<a class={linkClass} href="/settings" role="menuitem">Settings</a>
+					<a class={linkClass} href="/install" role="menuitem">Install app</a>
 					<a class={linkClass} href="/login" role="menuitem">+ Sign in to another account</a>
 					<a class="{linkClass} text-danger" href="/logout" role="menuitem">Log out</a>
 				</div>

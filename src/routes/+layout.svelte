@@ -10,6 +10,8 @@
 	import ImageViewer from '#lib/components/ImageViewer.svelte';
 	import ProfileCard from '#lib/components/ProfileCard.svelte';
 	import ShareDialog from '#lib/components/ShareDialog.svelte';
+	// side effect import: starts listening for the browser's install prompt for the /install page
+	import '#lib/install.svelte.js';
 	import { PUBLIC_URL } from '$app/env/public';
 	import { getAvatar } from '#lib/utils.js';
 	import { connectRealtime, disconnectRealtime, onRealtime } from '#lib/realtime.js';
