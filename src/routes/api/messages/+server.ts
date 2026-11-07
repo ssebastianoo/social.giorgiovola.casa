@@ -17,8 +17,10 @@ import {
 	countMessage,
 	messageLimited,
 	readMessageBody,
+	readReplyTo,
 	saveMessageImages
 } from '#lib/server/messageInput.js';
+import { isDirectMessageBetween } from '#lib/server/messageReactions.js';
 
 // conversations offered first when sharing a post by message
 const RECENT = 8;
@@ -60,6 +62,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (limited) return limited;
 	const invalid = checkMessage(body);
 	if (invalid) return invalid;
+	const replyTo = readReplyTo(body.fields);
+	if (replyTo instanceof Response) return replyTo;
 
 	const peer = await findPeer(typeof body.fields.to === 'string' ? body.fields.to : '');
 	if (!peer) return new Response('User not found', { status: 404 });
@@ -70,6 +74,9 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	const block = await getBlock(locals.user.id, peer.id);
 	if (block.me) return new Response('Unblock this user to message them', { status: 403 });
 	if (block.peer) return new Response("You can't message this user", { status: 403 });
+	if (replyTo !== null && !(await isDirectMessageBetween(replyTo, locals.user.id, peer.id))) {
+		return new Response('The message you are replying to is gone', { status: 400 });
+	}
 
 	countMessage(locals.user.id, hasImages);
 	const images = await saveMessageImages(body.files);
@@ -77,7 +84,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	let message;
 	try {
-		message = await sendMessage(locals.user, peer, body.content, images);
+		message = await sendMessage(locals.user, peer, body.content, images, replyTo);
 	} catch (e) {
 		await removeUploads(images);
 		throw e;

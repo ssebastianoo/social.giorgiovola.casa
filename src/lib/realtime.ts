@@ -1,4 +1,4 @@
-import type { ChatMessage, GroupMessage, Post } from './types';
+import type { ChatMessage, GroupMessage, MessageReaction, Post } from './types';
 
 /** Events pushed by /api/stream. */
 export type RealtimeEvents = {
@@ -18,9 +18,12 @@ export type RealtimeEvents = {
 	notifications: { count: number };
 	message: ChatMessage;
 	message_deleted: { id: number };
+	/** the reactions to a direct message changed: all of them, oldest first */
+	message_reactions: { id: number; reactions: MessageReaction[] };
 	messages_unread: { count: number };
 	group_message: GroupMessage;
 	group_message_deleted: { group_id: number; id: number };
+	group_message_reactions: { group_id: number; id: number; reactions: MessageReaction[] };
 	/** a group was renamed or its members changed (you may have been removed) */
 	group_updated: { id: number };
 	/** someone is writing to you: in a group, or in your direct conversation (group_id null) */
@@ -58,9 +61,11 @@ export function connectRealtime() {
 		'notifications',
 		'message',
 		'message_deleted',
+		'message_reactions',
 		'messages_unread',
 		'group_message',
 		'group_message_deleted',
+		'group_message_reactions',
 		'group_updated',
 		'typing'
 	];

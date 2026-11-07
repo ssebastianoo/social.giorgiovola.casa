@@ -14,6 +14,7 @@ import {
 } from './db/index.js';
 import { PUBLIC_URL } from '$app/env/public';
 import type { ChatMessage, GroupMessage, NotificationType } from '#lib/types.js';
+import { mentions } from '#lib/mentions.js';
 
 /** Web push: sends a system notification to the browsers subscribed by the recipient's account(s). */
 
@@ -213,7 +214,10 @@ export async function sendMessagePush(
 	}
 }
 
-/** Notifies the members of a group chat, except its sender and who muted it, of a new message. */
+/**
+ * Notifies the members of a group chat, except its sender, of a new message. Who muted the group
+ * only hears about the messages that mention them.
+ */
 export async function sendGroupMessagePush(
 	recipientIds: number[],
 	message: GroupMessage,
@@ -222,16 +226,25 @@ export async function sendGroupMessagePush(
 	try {
 		if (recipientIds.length === 0) return;
 		const recipients = await db
-			.select({ id: users.id, username: users.username, owner_id: users.owner_id })
+			.select({
+				id: users.id,
+				username: users.username,
+				owner_id: users.owner_id,
+				muted: group_members.muted
+			})
 			.from(users)
 			.innerJoin(
 				group_members,
 				and(eq(group_members.user_id, users.id), eq(group_members.group_id, message.group_id))
 			)
-			.where(and(inArray(users.id, recipientIds), eq(group_members.muted, false)));
+			.where(inArray(users.id, recipientIds));
 		const text = message.content ? clip(message.content) : '📷 Photo';
 		for (const recipient of recipients) {
-			let body = `${message.sender.name}: ${text}`;
+			const mentioned = mentions(message.content.toLowerCase(), recipient.username);
+			if (recipient.muted && !mentioned) continue;
+			let body = mentioned
+				? `${message.sender.name} mentioned you: ${text}`
+				: `${message.sender.name}: ${text}`;
 			// identities share the devices of the accounts using them: say which profile it is for
 			if (recipient.owner_id !== null) body += ` (@${recipient.username})`;
 			await deliver(recipient.id, {

@@ -3,7 +3,7 @@ import { db, follows, inbox, likes, posts, users } from './db/index.js';
 import { unreadMessageCount } from './messages';
 import { getPosts } from './posts';
 import { sendFollowPush, sendGroupMessagePush, sendMessagePush, sendPush } from './push';
-import type { ChatMessage, GroupMessage, Post } from '#lib/types.js';
+import type { ChatMessage, GroupMessage, MessageReaction, Post } from '#lib/types.js';
 
 /**
  * In-process hub for server-sent events. One instance per server process, so this assumes a
@@ -218,6 +218,25 @@ export async function publishMessageDeleted(id: number, senderId: number, recipi
 	} catch (e) {
 		console.error('realtime: publishMessageDeleted failed', e);
 	}
+}
+
+/** The reactions to a direct message changed: only its two participants see them. */
+export function publishMessageReactions(
+	id: number,
+	reactions: MessageReaction[],
+	participants: [number, number]
+) {
+	sendTo(participants, 'message_reactions', { id, reactions });
+}
+
+/** The reactions to a group message changed: only the group's members see them. */
+export function publishGroupMessageReactions(
+	groupId: number,
+	id: number,
+	reactions: MessageReaction[],
+	members: number[]
+) {
+	sendTo(members, 'group_message_reactions', { group_id: groupId, id, reactions });
 }
 
 /** Sends an event to the connected streams of these profiles only. */

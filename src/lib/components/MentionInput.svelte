@@ -10,6 +10,18 @@
 		placeholder?: string;
 		maxlength?: number;
 		required?: boolean;
+		/** the textarea, for focusing it */
+		element?: HTMLTextAreaElement;
+		/** suggestions from a local list (a group's members) instead of searching everyone */
+		source?: (query: string) => Suggestion[];
+		/** above: for an input at the bottom of the screen, like the chat's */
+		placement?: 'below' | 'above';
+		/** the textarea's height limit */
+		maxHeight?: string;
+		label?: string;
+		oninput?: () => void;
+		/** keys the suggestions don't take; replaces the default (Enter submits the form) */
+		onkeydown?: (e: KeyboardEvent) => void;
 	};
 
 	let {
@@ -17,11 +29,21 @@
 		name = 'content',
 		placeholder = '',
 		maxlength = 2000,
-		required = false
+		required = false,
+		element = $bindable(),
+		source,
+		placement = 'below',
+		maxHeight = 'max-h-[40vh]',
+		label,
+		oninput,
+		onkeydown
 	}: Props = $props();
 
 	// a textarea that grows with the text, so a long post can be read whole before sending it
 	let input: HTMLTextAreaElement | undefined = $state();
+	$effect(() => {
+		element = input;
+	});
 	let suggestions: Suggestion[] = $state([]);
 	let active = $state(0);
 	// index of the "@" being completed, null when no mention is being typed
@@ -66,6 +88,11 @@
 
 	async function search() {
 		const current = ++request;
+		if (source) {
+			suggestions = source(query.toLowerCase()).slice(0, 6);
+			active = 0;
+			return;
+		}
 		try {
 			const res = await fetch(`/api/users/search?q=${encodeURIComponent(query.toLowerCase())}`);
 			// a newer keystroke (or closing) supersedes this response
@@ -92,6 +119,7 @@
 
 	function onKeydown(e: KeyboardEvent) {
 		if (!open) {
+			if (onkeydown) return onkeydown(e);
 			// Enter sends, like the single line input this used to be (posts don't keep newlines)
 			if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
 				e.preventDefault();
@@ -119,19 +147,23 @@
 	<textarea
 		bind:this={input}
 		bind:value
-		class="input block max-h-[40vh] w-full resize-none overflow-y-auto wrap-anywhere"
+		class="input block {maxHeight} w-full resize-none overflow-y-auto wrap-anywhere"
 		rows="1"
 		{name}
 		{required}
 		{placeholder}
 		{maxlength}
+		aria-label={label}
 		autocomplete="off"
 		role="combobox"
 		aria-expanded={open}
 		aria-controls={listId}
 		aria-autocomplete="list"
 		aria-activedescendant={open ? `${listId}-${active}` : undefined}
-		oninput={detect}
+		oninput={() => {
+			detect();
+			oninput?.();
+		}}
 		onclick={detect}
 		onkeydown={onKeydown}
 		onkeyup={(e) => (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && detect()}
@@ -141,7 +173,9 @@
 		<ul
 			id={listId}
 			role="listbox"
-			class="absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-md border border-accent bg-background/95 backdrop-blur-[2px]"
+			class="absolute right-0 left-0 z-50 overflow-hidden rounded-md {placement === 'above'
+				? 'bottom-full mb-1'
+				: 'top-full mt-1'} border border-accent bg-background/95 backdrop-blur-[2px]"
 		>
 			{#each suggestions as user, i (user.username)}
 				<!-- mousedown (not click) so the input keeps focus and doesn't blur-close first -->

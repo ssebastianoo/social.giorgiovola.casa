@@ -6,13 +6,18 @@ import {
 	countMessage,
 	messageLimited,
 	readMessageBody,
+	readReplyTo,
 	saveMessageImages
 } from '#lib/server/messageInput.js';
+import { isGroupMessage } from '#lib/server/messageReactions.js';
 import { mutedMessage } from '#lib/server/moderation.js';
 import { publishGroupMessage, publishGroupMessageDeleted } from '#lib/server/realtime.js';
 import { parseId } from '#lib/server/validation.js';
 
-/** Sends a message to the group: JSON `{ content }`, or multipart with `content` and `images`. */
+/**
+ * Sends a message to the group: JSON `{ content, reply_to? }`, or multipart with `content`,
+ * `images` and `reply_to`.
+ */
 export const POST: RequestHandler = async ({ locals, params, request }) => {
 	if (!locals.user) return new Response('Unauthorized', { status: 401 });
 	if (locals.muted) return new Response(mutedMessage(locals), { status: 403 });
@@ -24,10 +29,15 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 	if (limited) return limited;
 	const invalid = checkMessage(body);
 	if (invalid) return invalid;
+	const replyTo = readReplyTo(body.fields);
+	if (replyTo instanceof Response) return replyTo;
 
 	const id = parseId(params.id);
 	const group = id === null ? null : await getGroup(id, locals.user.id);
 	if (!group) return new Response('Group not found', { status: 404 });
+	if (replyTo !== null && !(await isGroupMessage(group.id, replyTo))) {
+		return new Response('The message you are replying to is gone', { status: 400 });
+	}
 
 	countMessage(locals.user.id, hasImages);
 	const images = await saveMessageImages(body.files);
@@ -35,7 +45,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 
 	let message;
 	try {
-		message = await sendGroupMessage(group.id, locals.user, body.content, images);
+		message = await sendGroupMessage(group.id, locals.user, body.content, images, replyTo);
 	} catch (e) {
 		await removeUploads(images);
 		throw e;

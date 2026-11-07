@@ -238,12 +238,20 @@ export const messages = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		// the message this one answers; the reply stays when it is deleted
+		reply_to_id: integer('reply_to_id').references((): AnyPgColumn => messages.id, {
+			onDelete: 'set null'
+		}),
 		created_at: timestamptz('created_at').notNull().defaultNow(),
 		read_at: timestamptz('read_at')
 	},
 	(t) => [
 		index('messages_sender_recipient').on(t.sender_id, t.recipient_id, t.id),
 		index('messages_recipient_sender').on(t.recipient_id, t.sender_id, t.id),
+		// deleting a message clears the replies to it
+		index('messages_reply_to_id')
+			.on(t.reply_to_id)
+			.where(sql`${t.reply_to_id} IS NOT NULL`),
 		index('messages_unread')
 			.on(t.recipient_id, t.sender_id)
 			.where(sql`${t.read_at} IS NULL`),
@@ -310,15 +318,53 @@ export const group_messages = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		// the message this one answers; the reply stays when it is deleted
+		reply_to_id: integer('reply_to_id').references((): AnyPgColumn => group_messages.id, {
+			onDelete: 'set null'
+		}),
 		created_at: timestamptz('created_at').notNull().defaultNow()
 	},
 	(t) => [
 		index('group_messages_group_id').on(t.group_id, t.id),
+		index('group_messages_reply_to_id')
+			.on(t.reply_to_id)
+			.where(sql`${t.reply_to_id} IS NOT NULL`),
 		check(
 			'group_messages_kind_check',
 			sql`${t.kind} IN ('message', 'created', 'added', 'removed', 'left', 'renamed', 'owner')`
 		)
 	]
+);
+
+// Emoji reactions to messages: one per profile and message, changing it replaces the old one.
+export const message_reactions = pgTable(
+	'message_reactions',
+	{
+		message_id: integer('message_id')
+			.notNull()
+			.references(() => messages.id, { onDelete: 'cascade' }),
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		emoji: text('emoji').notNull(),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.message_id, t.user_id] })]
+);
+
+export const group_message_reactions = pgTable(
+	'group_message_reactions',
+	{
+		message_id: integer('message_id')
+			.notNull()
+			.references(() => group_messages.id, { onDelete: 'cascade' }),
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		emoji: text('emoji').notNull(),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.message_id, t.user_id] })]
 );
 
 // Direct conversations a profile muted: no push for what peer_id sends, and its unread messages

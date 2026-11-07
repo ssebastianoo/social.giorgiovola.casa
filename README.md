@@ -44,6 +44,12 @@ The group's info page (the group name at the top of the chat) lists its members.
 
 Changes to a group show up in its chat as a line of their own ("Alice added Bob", "Bob renamed the group to …", "Alice left", "Bob is now the owner"). They never count as unread and send no push.
 
+## replies, reactions and mentions in chats
+
+In direct and group chats, swipe a message to the right to reply to it (like WhatsApp), or use the reply button that shows next to it on hover. The reply quotes the message it answers; tapping the quote jumps to it. Long press a message (or the smiley button on hover) for its menu: six quick reactions, reply, copy and delete. A double tap adds a ❤️. Everyone has one reaction per message, picking another replaces it and picking the same one again takes it back. Reactions update live and send no push.
+
+Typing `@` in a chat suggests people (the group's members in a group), and mentions link to the profile like in posts. In a group, a message that mentions you sends you a push even when you muted the group.
+
 ## typing and muting
 
 In direct and group chats you see who is writing ("Alice is typing…", also in the conversation list). It goes only to the other people in the conversation, never to bots, and not between profiles that blocked each other.
@@ -62,7 +68,7 @@ Create bots at `/settings` → _OAuth_ (up to 5 per account). A bot is a profile
 
 A complete guide meant to be handed to an AI agent (or read by a person) is served at `/api.txt`, and the same API is documented for developers at `/developers`. Owners can also edit a bot's picture, name, username, bio and website from _OAuth_ → _Edit_.
 
-Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 20 messages, 60 likes, 30 poll votes, 30 regiorgios and 30 follows a minute, and 10 profile edits an hour.
+Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors come back as `{ "error": "…" }`. A bot can make 120 requests a minute, with lower limits on writes: 20 posts, 20 messages, 60 message reactions, 60 likes, 30 poll votes, 30 regiorgios and 30 follows a minute, and 10 profile edits an hour.
 
 | method           | path                               |                                                                                                                                                                                                                                               |
 | ---------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -81,9 +87,10 @@ Every request sends `Authorization: Bearer <token>` and gets JSON back. Errors c
 | `GET`            | `/api/bot/stream`                  | server-sent events: `mention`, `post` (from a followed profile) and `message` (a received DM), each with the post or message as data                                                                                                          |
 | `GET`            | `/api/bot/conversations`           | the bot's conversations, with a preview and the unread count of each                                                                                                                                                                          |
 | `GET`            | `/api/bot/messages`                | direct messages the bot received, oldest first (`?after=<id>&limit=`)                                                                                                                                                                         |
-| `GET` / `POST`   | `/api/bot/messages/:username`      | the conversation with a user (`?after=<id>&limit=`) / send a message `{ "content": "…" }` (text only, max 2000 characters)                                                                                                                    |
+| `GET` / `POST`   | `/api/bot/messages/:username`      | the conversation with a user (`?after=<id>&limit=`) / send a message `{ "content": "…", "reply_to": <message id>? }` (text only, max 2000 characters)                                                                                         |
 | `POST`           | `/api/bot/messages/:username/read` | mark what that user sent as read                                                                                                                                                                                                              |
 | `DELETE`         | `/api/bot/message/:id`             | delete one of the bot's own messages                                                                                                                                                                                                          |
+| `PUT` / `DELETE` | `/api/bot/message/:id/reaction`    | react to a message of one of the bot's conversations `{ "emoji": "👍" }` (one per profile, replaces the previous one) / remove the reaction                                                                                                   |
 | `PUT` / `DELETE` | `/api/bot/users/:username/block`   | block / unblock (no messages either way)                                                                                                                                                                                                      |
 
 `mentions` and `feed` return posts oldest first. `?limit=` is 1–100 (default 20). Without `?after=` you get the most recent ones. Pass the id of the last post you handled as `?after=<id>` to get only newer ones, for example to catch up after the stream disconnects.

@@ -1,6 +1,6 @@
 import { ImageError, POST_IMAGE_SIZE, saveUpload, sniffImage, toWebp } from './images.js';
 import { hit, isLimited } from './ratelimit.js';
-import { LIMITS } from './validation.js';
+import { LIMITS, parseId } from './validation.js';
 
 /** Shared by direct and group messages: reading the body, validating it and saving its images. */
 
@@ -60,6 +60,16 @@ export async function readMessageBody(request: Request): Promise<MessageBody | R
 		content: typeof fields.content === 'string' ? fields.content.trim() : '',
 		files: []
 	};
+}
+
+/**
+ * The message a new one answers (`reply_to`): its id, null when it isn't a reply, or the error.
+ * Whether it belongs to the conversation is up to the caller.
+ */
+export function readReplyTo(fields: Record<string, unknown>): number | null | Response {
+	const raw = fields.reply_to;
+	if (raw === undefined || raw === null || raw === '') return null;
+	return parseId(raw) ?? new Response('Invalid reply_to', { status: 400 });
 }
 
 /** The error to send back for a message that can't be sent as is, or null. */
