@@ -4,6 +4,7 @@
 	import type { SwitcherAccount, SwitcherProfile } from '#lib/types.js';
 	import { user } from '#lib/store.js';
 	import { getAvatar } from '#lib/utils.js';
+	import UnreadBadges from './UnreadBadges.svelte';
 
 	const dotClass =
 		'absolute top-0 right-0 size-4 rounded-full border-2 border-background bg-accent';
@@ -17,7 +18,7 @@
 		accounts()
 			.flatMap(profilesOf)
 			.filter((p) => !p.active)
-			.reduce((n, p) => n + p.unread, 0);
+			.reduce((n, p) => n + p.unread + p.unreadMessages, 0);
 
 	beforeNavigate(() => (open = false));
 
@@ -113,12 +114,10 @@
 													>@{profile.username}{profile.sharedBy ? ' · shared' : ''}</span
 												>
 											</span>
-											{#if profile.unread > 0}
-												<span
-													class="rounded-full bg-accent px-[7px] text-[0.75em] font-bold text-background"
-													>{profile.unread}</span
-												>
-											{/if}
+											<UnreadBadges
+												notifications={profile.unread}
+												messages={profile.unreadMessages}
+											/>
 										</button>
 									</form>
 								{/if}

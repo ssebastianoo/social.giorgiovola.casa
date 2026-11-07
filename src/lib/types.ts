@@ -13,7 +13,10 @@ export type User = {
 
 /** An entry of the account switcher. */
 export type SwitcherProfile = Pick<User, 'id' | 'name' | 'username' | 'avatar'> & {
+	/** unread notifications */
 	unread: number;
+	/** unread messages (direct and group), muted chats excluded */
+	unreadMessages: number;
 	active: boolean;
 	/** username of the account that shared this identity, null when it is not shared with you */
 	sharedBy: string | null;
