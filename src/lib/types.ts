@@ -168,6 +168,63 @@ export type Conversation = {
 	unread: number;
 };
 
+/** A group chat, as its members see it. */
+export type GroupChat = {
+	id: number;
+	name: string;
+	/** username of the member who can remove others */
+	owner: string | null;
+	/** longest standing first */
+	members: ChatPeer[];
+};
+
+/**
+ * message: written by the sender. The others are events shown in the chat (see
+ * src/lib/groupEvents.ts): created and renamed carry the name as content, added and removed
+ * have a target, owner means the sender became the owner.
+ */
+export type GroupMessageKind =
+	| 'message'
+	| 'created'
+	| 'added'
+	| 'removed'
+	| 'left'
+	| 'renamed'
+	| 'owner';
+
+/** A message of a group chat. */
+export type GroupMessage = {
+	id: number;
+	group_id: number;
+	kind: GroupMessageKind;
+	sender: ChatPeer;
+	/** who an added / removed event is about, null otherwise */
+	target: ChatPeer | null;
+	content: string;
+	/** URL paths of uploaded images */
+	images: string[];
+	created_at: Date;
+	/** the first post on this instance linked in the content, shown like a quote */
+	linked_post: QuotedPost | null;
+};
+
+/** An entry of the conversation list for a group chat. */
+export type GroupConversation = {
+	group: { id: number; name: string; members: ChatPeer[]; size: number };
+	/** the latest message, clipped; empty when nothing was sent yet */
+	preview: string;
+	/** the latest message is an event ("Alice added Bob"): `preview` is its whole line */
+	event: boolean;
+	/** display name of who sent the latest message, null when nothing was sent yet */
+	sender: string | null;
+	mine: boolean;
+	/** of the latest message, or of the group when nothing was sent yet */
+	created_at: Date;
+	unread: number;
+	/** the viewer muted it: no push, and its unread messages stay out of the badge */
+	muted: boolean;
+};
+
 /** A profile in search results. */
 export type UserResult = Pick<User, 'username' | 'name' | 'avatar'>;
 

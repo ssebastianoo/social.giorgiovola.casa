@@ -11,6 +11,9 @@ export const LIMITS = {
 	avatarBytes: 10 * 1024 * 1024,
 	postImages: 5,
 	messageImages: 5,
+	groupName: 64,
+	/** members of a group chat, its creator included */
+	groupMembers: 32,
 	imageBytes: 10 * 1024 * 1024,
 	pollOptionsMin: 2,
 	pollOptionsMax: 4,

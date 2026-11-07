@@ -7,23 +7,17 @@ import {
 	sendMessage
 } from '#lib/server/messages.js';
 import { publishMessage, publishMessageDeleted } from '#lib/server/realtime.js';
-import { hit, isLimited } from '#lib/server/ratelimit.js';
 import { mutedMessage } from '#lib/server/moderation.js';
-import { LIMITS, parseId } from '#lib/server/validation.js';
+import { parseId } from '#lib/server/validation.js';
+import { removeUploads } from '#lib/server/images.js';
 import {
-	ImageError,
-	POST_IMAGE_SIZE,
-	removeUploads,
-	saveUpload,
-	sniffImage,
-	toWebp
-} from '#lib/server/images.js';
+	checkMessage,
+	countMessage,
+	messageLimited,
+	readMessageBody,
+	saveMessageImages
+} from '#lib/server/messageInput.js';
 
-// Sending is limited per sender, and messages carrying images (the expensive ones to process
-// and store) have a tighter limit of their own.
-const WINDOW_MS = 60_000;
-const MAX_MESSAGES = 20;
-const MAX_IMAGE_MESSAGES = 5;
 // people offered first when sharing a post by message
 const RECENT_PEERS = 8;
 
@@ -38,51 +32,15 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) return new Response('Unauthorized', { status: 401 });
 	if (locals.muted) return new Response(mutedMessage(locals), { status: 403 });
 
-	// multipart when the message has images, plain JSON otherwise
-	let to = '';
-	let rawContent: unknown;
-	let files: File[] = [];
-	if (request.headers.get('content-type')?.startsWith('multipart/form-data')) {
-		let form: FormData;
-		try {
-			form = await request.formData();
-		} catch {
-			return new Response('Upload too big or invalid', { status: 400 });
-		}
-		to = String(form.get('to') ?? '');
-		rawContent = form.get('content');
-		files = form.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
-	} else {
-		const json = await request.json().catch(() => null);
-		to = typeof json?.to === 'string' ? json.to : '';
-		rawContent = json?.content;
-	}
+	const body = await readMessageBody(request);
+	if (body instanceof Response) return body;
+	const hasImages = body.files.length > 0;
+	const limited = messageLimited(locals.user.id, hasImages);
+	if (limited) return limited;
+	const invalid = checkMessage(body);
+	if (invalid) return invalid;
 
-	const messageKey = `dm:${locals.user.id}`;
-	const imageKey = `dm-images:${locals.user.id}`;
-	if (
-		isLimited(messageKey, MAX_MESSAGES) ||
-		(files.length > 0 && isLimited(imageKey, MAX_IMAGE_MESSAGES))
-	) {
-		return new Response('You are sending messages too fast, try again in a minute', {
-			status: 429
-		});
-	}
-
-	const content = typeof rawContent === 'string' ? rawContent.trim() : '';
-	if (!content && files.length === 0) return new Response('Missing content', { status: 400 });
-	if (content.length > LIMITS.messageContent) {
-		return new Response(`Messages can be at most ${LIMITS.messageContent} characters`, {
-			status: 400
-		});
-	}
-	if (files.length > LIMITS.messageImages) {
-		return new Response(`Messages can have at most ${LIMITS.messageImages} images`, {
-			status: 400
-		});
-	}
-
-	const peer = await findPeer(to);
+	const peer = await findPeer(typeof body.fields.to === 'string' ? body.fields.to : '');
 	if (!peer) return new Response('User not found', { status: 404 });
 	if (peer.id === locals.user.id) {
 		return new Response("You can't message yourself", { status: 400 });
@@ -92,41 +50,13 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (block.me) return new Response('Unblock this user to message them', { status: 403 });
 	if (block.peer) return new Response("You can't message this user", { status: 403 });
 
-	// counted before the image processing, so a burst of concurrent requests can't skip the limit
-	hit(messageKey, WINDOW_MS);
-	if (files.length > 0) hit(imageKey, WINDOW_MS);
-
-	// validate everything before anything is written to disk
-	const uploads: { buffer: Buffer; ext: string }[] = [];
-	for (const file of files) {
-		if (file.size > LIMITS.imageBytes) {
-			return new Response('Image too big, max size is 10mb', { status: 400 });
-		}
-		const buffer = Buffer.from(await file.arrayBuffer());
-		const ext = sniffImage(buffer);
-		if (!ext) {
-			return new Response(
-				'Unsupported image type, use PNG, JPEG, GIF, WebP, AVIF, BMP, ICO or SVG',
-				{ status: 400 }
-			);
-		}
-		uploads.push({ buffer, ext });
-	}
-
-	let optimized: Buffer[];
-	try {
-		optimized = await Promise.all(
-			uploads.map((u) => toWebp(u.buffer, u.ext, { size: POST_IMAGE_SIZE }))
-		);
-	} catch (e) {
-		if (e instanceof ImageError) return new Response(e.message, { status: 400 });
-		throw e;
-	}
-	const images = await Promise.all(optimized.map(saveUpload));
+	countMessage(locals.user.id, hasImages);
+	const images = await saveMessageImages(body.files);
+	if (images instanceof Response) return images;
 
 	let message;
 	try {
-		message = await sendMessage(locals.user, peer, content, images);
+		message = await sendMessage(locals.user, peer, body.content, images);
 	} catch (e) {
 		await removeUploads(images);
 		throw e;

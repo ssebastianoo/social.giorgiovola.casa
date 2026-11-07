@@ -36,6 +36,20 @@ The count next to the arrows is regiorgios plus quotes; click it to see who regi
 
 The bars button in the composer adds a poll to a post (or a reply, or a quote): 2 to 4 options of up to 80 characters, open for 1 hour to 7 days. The post's text is the question. Every profile gets one vote, which is final; the results show once you have voted or the poll has ended, and update live. Polls can't be edited, only deleted with their post.
 
+## group chats
+
+_New group_ on the messages page starts a group chat with a name and the people you pick, up to 32 members. Groups show up in the conversation list next to direct messages, with the same unread badges, live updates and push notifications. Messages can have text and up to 5 images, and only their sender can delete them.
+
+The group's info page (the group name at the top of the chat) lists its members. Anyone in the group can rename it and add people (newcomers see the history, but none of it is unread for them), and anyone can leave. Only the owner, its creator, can remove others; when the owner leaves, the longest standing member takes over, and when the last member leaves the group is deleted with its messages. You can't add someone you blocked or who blocked you, and bots can't join groups. Muted users can't create, rename or write in groups.
+
+Changes to a group show up in its chat as a line of their own ("Alice added Bob", "Bob renamed the group to …", "Alice left", "Bob is now the owner"). They never count as unread and send no push.
+
+## typing and muting
+
+In direct and group chats you see who is writing ("Alice is typing…", also in the conversation list). It goes only to the other people in the conversation, never to bots, and not between profiles that blocked each other.
+
+_Mute_, at the top of a chat, silences that conversation for you only: no push notifications, and its unread messages stay out of the badge on the messages icon. In the conversation list a muted chat keeps its unread count, greyed out. _Unmute_ undoes it.
+
 ## accounts and identities
 
 - **Switching accounts:** up to 5 accounts can be signed in on one browser. Use the avatar menu in the header to switch, and _Sign in to another account_ to add one.

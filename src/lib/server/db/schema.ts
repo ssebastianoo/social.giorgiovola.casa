@@ -251,6 +251,95 @@ export const messages = pgTable(
 	]
 );
 
+// Group chats: conversations between several profiles. Any member can rename it, add people
+// and leave; only the owner can remove others.
+export const group_chats = pgTable('group_chats', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	// passes to the longest standing member when the owner leaves. Null once the owner's profile
+	// is deleted: the longest standing member is then treated as the owner (see groups.ts)
+	owner_id: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+	created_at: timestamptz('created_at').notNull().defaultNow()
+});
+
+export const group_members = pgTable(
+	'group_members',
+	{
+		group_id: integer('group_id')
+			.notNull()
+			.references(() => group_chats.id, { onDelete: 'cascade' }),
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		joined_at: timestamptz('joined_at').notNull().defaultNow(),
+		// the latest group message this member has read: later ones sent by others are unread
+		last_read_id: integer('last_read_id').notNull().default(0),
+		// muted: no push, and the group's unread messages stay out of the messages badge
+		muted: boolean('muted').notNull().default(false)
+	},
+	(t) => [
+		primaryKey({ columns: [t.group_id, t.user_id] }),
+		index('group_members_user_id').on(t.user_id)
+	]
+);
+
+export const group_messages = pgTable(
+	'group_messages',
+	{
+		id: serial('id').primaryKey(),
+		group_id: integer('group_id')
+			.notNull()
+			.references(() => group_chats.id, { onDelete: 'cascade' }),
+		// messages stay when their sender leaves the group, and go with their profile
+		sender_id: integer('sender_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		// message: written by sender_id. The others are events shown in the chat, never unread:
+		// created (content: the name), added / removed (sender_id did it to target_id), left,
+		// renamed (content: the new name), owner (sender_id became the owner)
+		kind: text('kind', {
+			enum: ['message', 'created', 'added', 'removed', 'left', 'renamed', 'owner']
+		})
+			.notNull()
+			.default('message'),
+		// who an added / removed event is about
+		target_id: integer('target_id').references(() => users.id, { onDelete: 'cascade' }),
+		content: text('content').notNull(),
+		// URL paths of uploaded images; a message may have images and no text
+		images: text('images')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		index('group_messages_group_id').on(t.group_id, t.id),
+		check(
+			'group_messages_kind_check',
+			sql`${t.kind} IN ('message', 'created', 'added', 'removed', 'left', 'renamed', 'owner')`
+		)
+	]
+);
+
+// Direct conversations a profile muted: no push for what peer_id sends, and its unread messages
+// stay out of the messages badge. Groups are muted on group_members.
+export const dm_mutes = pgTable(
+	'dm_mutes',
+	{
+		user_id: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		peer_id: integer('peer_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		created_at: timestamptz('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.user_id, t.peer_id] }),
+		check('dm_mutes_not_self', sql`${t.user_id} != ${t.peer_id}`)
+	]
+);
+
 // Blocking stops direct messages in both directions between the two profiles.
 export const blocks = pgTable(
 	'blocks',
