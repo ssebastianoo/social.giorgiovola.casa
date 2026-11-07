@@ -23,8 +23,9 @@ async function countVotes(
 }
 
 /**
- * Votes for option `option` (an index) of the poll on post `postId`. Votes are final: voting
- * again for the same option changes nothing (even once it has ended), for another one is refused.
+ * Votes for option `option` (an index) of the poll on post `postId`. While the poll is open,
+ * voting again moves the vote to the new option; once it has ended votes are frozen, and only
+ * repeating the vote already cast succeeds (as a no-op).
  */
 export async function vote(userId: number, postId: number, option: number): Promise<VoteResult> {
 	const result = await db.transaction(async (tx): Promise<VoteResult> => {
@@ -39,22 +40,22 @@ export async function vote(userId: number, postId: number, option: number): Prom
 		if (!Number.isInteger(option) || option < 0 || option >= poll.options)
 			return { ok: false, status: 400, message: 'Invalid option' };
 
-		// the insert waits for a concurrent vote by the same profile, then does nothing
-		const inserted = poll.closed
-			? []
-			: await tx
-					.insert(poll_votes)
-					.values({ post_id: postId, user_id: userId, option })
-					.onConflictDoNothing()
-					.returning({ option: poll_votes.option });
-		if (inserted.length === 0) {
+		if (poll.closed) {
 			const [existing] = await tx
 				.select({ option: poll_votes.option })
 				.from(poll_votes)
 				.where(and(eq(poll_votes.post_id, postId), eq(poll_votes.user_id, userId)));
-			if (!existing) return { ok: false, status: 409, message: 'This poll has ended' };
-			if (existing.option !== option)
-				return { ok: false, status: 409, message: 'You already voted in this poll' };
+			if (existing?.option !== option)
+				return { ok: false, status: 409, message: 'This poll has ended' };
+		} else {
+			// the upsert waits for a concurrent vote by the same profile, then overwrites it
+			await tx
+				.insert(poll_votes)
+				.values({ post_id: postId, user_id: userId, option })
+				.onConflictDoUpdate({
+					target: [poll_votes.post_id, poll_votes.user_id],
+					set: { option }
+				});
 		}
 		return { ok: true, voted: option, votes: await countVotes(tx, postId, poll.options) };
 	});
