@@ -5,7 +5,7 @@ import { parseId } from '#lib/server/validation.js';
 
 const MAX_VOTES = 30;
 
-/** Votes in the poll of a post: { "option": index }. Final, repeating the same vote is a no-op. */
+/** Votes in the poll of a post: { "option": index }. Changeable until the poll ends. */
 export const PUT: RequestHandler = botHandler(async (bot, { params, request }) => {
 	const postId = parseId(params.id);
 	if (postId === null) return botError(400, 'Invalid post id');

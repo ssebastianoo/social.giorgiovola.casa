@@ -129,8 +129,8 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				request: '{ "option": index in poll.options (0 is the first) }',
 				response: '{ "voted": 0, "votes": [4, 5] } (votes per option)',
 				notes: [
-					'Votes are final: the same option again is a no-op, another one gets 409.',
-					'404 when the post has no poll, 409 once the poll has ended. 30 votes a minute.'
+					'Voting again for another option moves the vote, until the poll ends. The same option is a no-op.',
+					'404 when the post has no poll, 409 for a new or changed vote once it has ended. 30 votes a minute.'
 				]
 			}
 		]

@@ -22,6 +22,8 @@
 	const showResults = $derived(voted !== null || closed);
 	const total = $derived(votes.reduce((a, b) => a + b, 0));
 	const leader = $derived(Math.max(...votes));
+	// while the poll is open, the result rows move your vote
+	const changeable = $derived(voted !== null && !closed);
 
 	const compact = new Intl.NumberFormat(undefined, { notation: 'compact' });
 
@@ -47,7 +49,7 @@
 
 	async function vote(option: number) {
 		if (!$user) return goto('/login');
-		if (sending) return;
+		if (sending || option === voted) return;
 		sending = true;
 		error = null;
 		try {
@@ -80,8 +82,12 @@
 	{#each poll.options as option, i}
 		{#if showResults}
 			{@const share = total ? votes[i] / total : 0}
-			<div
-				class="relative flex items-center justify-between gap-2.5 overflow-hidden rounded-[5px] border border-line p-[5px]"
+			<!-- a button only so the vote can move: disabled once final, on your vote and while sending -->
+			<button
+				type="button"
+				disabled={!changeable || voted === i || sending}
+				onclick={() => vote(i)}
+				class="relative flex w-full items-center justify-between gap-2.5 overflow-hidden rounded-[5px] border border-line p-[5px] text-left enabled:cursor-pointer enabled:hover:border-accent"
 			>
 				<!-- prettier-ignore -->
 				<div class="absolute inset-y-0 left-0 {votes[i] === leader && total ? 'bg-accent/35' : 'bg-white/10'}" style="width: {share * 100}%"></div>
@@ -108,7 +114,7 @@
 					{/if}
 				</span>
 				<span class="relative shrink-0 text-[0.9em]">{Math.round(share * 100)}%</span>
-			</div>
+			</button>
 		{:else}
 			<Button class="w-full" disabled={sending} onclick={() => vote(i)}
 				><span class="wrap-anywhere">{option}</span></Button
@@ -118,5 +124,6 @@
 	<p class="text-[0.85em] text-muted">
 		{compact.format(total)}
 		{total === 1 ? 'vote' : 'votes'} · {closed ? 'Final results' : timeLeft(endsAt - now)}
+		{#if changeable}· Pick another option to change your vote{/if}
 	</p>
 </div>
