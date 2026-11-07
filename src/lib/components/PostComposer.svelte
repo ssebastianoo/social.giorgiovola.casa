@@ -4,6 +4,9 @@
 	import MentionInput from './MentionInput.svelte';
 	import QuoteCard from './QuoteCard.svelte';
 	import Button from './Button.svelte';
+	import Avatar from './Avatar.svelte';
+	import LoadingScreen from './LoadingScreen.svelte';
+	import { user } from '#lib/store.js';
 
 	type Props = {
 		/** Set to reply to a post instead of creating a top level one. */
@@ -43,7 +46,16 @@
 	let pollMinutes = $state(24 * 60);
 	let attachments: Attachment[] = $state([]);
 	let error: string | null = $state(null);
-	let sending = $state(false);
+	type Draft = {
+		key: number;
+		content: string;
+		attachments: Attachment[];
+		pollOptions: string[] | null;
+		pollMinutes: number;
+	};
+	/** posts on their way to the server, shown under the form until they land */
+	let pending: Draft[] = $state([]);
+	let pendingKey = 0;
 	let dragging = $state(false);
 	let dragDepth = 0;
 	let fileInput: HTMLInputElement | undefined = $state();
@@ -150,32 +162,46 @@
 			window.removeEventListener('drop', onDrop);
 			clearTimeout(errorTimeout);
 			clearAttachments();
+			for (const draft of pending) for (const a of draft.attachments) URL.revokeObjectURL(a.url);
 		};
 	});
 
 	async function submit() {
-		if (sending || (!content.trim() && attachments.length === 0)) return;
+		if (!content.trim() && attachments.length === 0) return;
 		if (pollOptions && !content.trim()) return showError('A poll needs a question.');
 		if (pollOptions?.some((o) => !o.trim())) return showError('Fill in every poll option.');
-		sending = true;
+		const draft: Draft = {
+			key: pendingKey++,
+			content,
+			attachments,
+			pollOptions: pollOptions && [...pollOptions],
+			pollMinutes
+		};
+		// cleared right away: the post shows as pending below while it is on its way
+		content = '';
+		attachments = [];
+		pollOptions = null;
+		error = null;
+		pending = [draft, ...pending];
+		const settle = () => (pending = pending.filter((p) => p.key !== draft.key));
 		try {
 			const body = new FormData();
-			body.set('content', content);
+			body.set('content', draft.content);
 			if (replyTo !== null) body.set('reply_to', String(replyTo));
 			if (quoteOf) body.set('quote_of', String(quoteOf.id));
-			for (const { file } of attachments) body.append('images', file);
-			if (pollOptions) {
-				for (const option of pollOptions) body.append('poll_options', option);
-				body.set('poll_minutes', String(pollMinutes));
+			for (const { file } of draft.attachments) body.append('images', file);
+			if (draft.pollOptions) {
+				for (const option of draft.pollOptions) body.append('poll_options', option);
+				body.set('poll_minutes', String(draft.pollMinutes));
 			}
 
 			const res = await fetch('/api/posts', { method: 'POST', body });
 			if (res.ok) {
 				const post: Post = await res.json();
-				content = '';
-				clearAttachments();
-				pollOptions = null;
+				settle();
+				for (const a of draft.attachments) URL.revokeObjectURL(a.url);
 				oncreated?.(post);
+				return;
 			} else if (res.status === 400 || res.status === 403) {
 				showError(await res.text());
 			} else if (res.status === 413) {
@@ -185,9 +211,15 @@
 			}
 		} catch {
 			showError('Something went wrong.');
-		} finally {
-			sending = false;
 		}
+		settle();
+		// give back what didn't go out, unless something new was started meanwhile
+		if (!content.trim() && attachments.length === 0 && !pollOptions) {
+			content = draft.content;
+			attachments = draft.attachments;
+			pollOptions = draft.pollOptions;
+			pollMinutes = draft.pollMinutes;
+		} else for (const a of draft.attachments) URL.revokeObjectURL(a.url);
 	}
 </script>
 
@@ -273,9 +305,8 @@
 		>
 		<button
 			type="submit"
-			disabled={sending}
 			aria-label="Post"
-			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none disabled:cursor-default disabled:opacity-40"
+			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
 			><svg fill="#d9d9d9" xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 512 512"
 				><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path
 					d="M16.1 260.2c-22.6 12.9-20.5 47.3 3.6 57.3L160 376V479.3c0 18.1 14.6 32.7 32.7 32.7c9.7 0 18.9-4.3 25.1-11.8l62-74.3 123.9 51.6c18.9 7.9 40.8-4.5 43.9-24.7l64-416c1.9-12.1-3.4-24.3-13.5-31.2s-23.3-7.5-34-1.4l-448 256zm52.1 25.5L409.7 90.6 190.1 336l1.2 1L68.2 285.7zM403.3 425.4L236.7 355.9 450.8 116.6 403.3 425.4z"
@@ -347,3 +378,42 @@
 		<QuoteCard quote={quoteOf} link={false} />
 	{/if}
 </form>
+
+{#each pending as draft (draft.key)}
+	<!-- on its way: dimmed, with the loading mark, until the real post replaces it -->
+	<div class="mb-5 flex gap-2.5 opacity-70" aria-busy="true">
+		{#if $user}
+			<Avatar user={$user} size={45} />
+		{/if}
+		<div class="flex min-w-0 flex-1 flex-col gap-2.5">
+			<div class="flex items-center justify-between gap-2.5">
+				<p class="truncate">
+					<span class="font-bold">{$user?.name}</span>
+					<span class="opacity-80">@{$user?.username}</span>
+				</p>
+				<LoadingScreen size={20} />
+			</div>
+			{#if draft.content.trim()}
+				<p class="wrap-anywhere whitespace-pre-wrap">{draft.content.trim()}</p>
+			{/if}
+			{#if draft.pollOptions}
+				<div class="flex flex-col gap-[5px]">
+					{#each draft.pollOptions as option}
+						<p class="rounded-[5px] border border-line p-[5px] text-[0.9em]">{option}</p>
+					{/each}
+				</div>
+			{/if}
+			{#if draft.attachments.length > 0}
+				<div class="flex flex-wrap gap-2.5">
+					{#each draft.attachments as attachment (attachment.url)}
+						<img
+							class="size-20 rounded-[5px] border border-line object-cover"
+							src={attachment.url}
+							alt=""
+						/>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	</div>
+{/each}
