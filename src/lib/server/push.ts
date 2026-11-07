@@ -1,9 +1,19 @@
 import webpush from 'web-push';
 import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { db, inbox, posts, push_subscriptions, sessions, settings, users } from './db/index.js';
+import {
+	db,
+	dm_mutes,
+	group_members,
+	inbox,
+	posts,
+	push_subscriptions,
+	sessions,
+	settings,
+	users
+} from './db/index.js';
 import { PUBLIC_URL } from '$app/env/public';
-import type { ChatMessage, NotificationType } from '#lib/types.js';
+import type { ChatMessage, GroupMessage, NotificationType } from '#lib/types.js';
 
 /** Web push: sends a system notification to the browsers subscribed by the recipient's account(s). */
 
@@ -170,18 +180,23 @@ async function deliver(profileId: number, payload: object) {
 	);
 }
 
-/** Notifies the recipient of a direct message. */
+/** Notifies the recipient of a direct message, unless they muted the conversation. */
 export async function sendMessagePush(
 	recipientId: number,
+	senderId: number,
 	message: ChatMessage,
 	senderName: string
 ) {
 	try {
 		const [recipient] = await db
-			.select({ id: users.id, owner_id: users.owner_id })
+			.select({
+				id: users.id,
+				owner_id: users.owner_id,
+				muted: sql<boolean>`EXISTS (SELECT 1 FROM ${dm_mutes} WHERE ${dm_mutes.user_id} = ${recipientId} AND ${dm_mutes.peer_id} = ${senderId})`
+			})
 			.from(users)
 			.where(eq(users.id, recipientId));
-		if (!recipient) return;
+		if (!recipient || recipient.muted) return;
 		let body = message.content ? clip(message.content) : '📷 Photo';
 		// identities share the devices of the accounts using them: say which profile it is for
 		if (recipient.owner_id !== null) body += ` (@${message.recipient})`;
@@ -195,6 +210,40 @@ export async function sendMessagePush(
 		});
 	} catch (e) {
 		console.error('push: sendMessagePush failed', e);
+	}
+}
+
+/** Notifies the members of a group chat, except its sender and who muted it, of a new message. */
+export async function sendGroupMessagePush(
+	recipientIds: number[],
+	message: GroupMessage,
+	groupName: string
+) {
+	try {
+		if (recipientIds.length === 0) return;
+		const recipients = await db
+			.select({ id: users.id, username: users.username, owner_id: users.owner_id })
+			.from(users)
+			.innerJoin(
+				group_members,
+				and(eq(group_members.user_id, users.id), eq(group_members.group_id, message.group_id))
+			)
+			.where(and(inArray(users.id, recipientIds), eq(group_members.muted, false)));
+		const text = message.content ? clip(message.content) : '📷 Photo';
+		for (const recipient of recipients) {
+			let body = `${message.sender.name}: ${text}`;
+			// identities share the devices of the accounts using them: say which profile it is for
+			if (recipient.owner_id !== null) body += ` (@${recipient.username})`;
+			await deliver(recipient.id, {
+				title: groupName,
+				body,
+				url: `/messages/groups/${message.group_id}`,
+				tag: `group:${message.group_id}:${recipient.username}`,
+				image: message.images[0]
+			});
+		}
+	} catch (e) {
+		console.error('push: sendGroupMessagePush failed', e);
 	}
 }
 

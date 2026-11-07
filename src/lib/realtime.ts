@@ -1,4 +1,4 @@
-import type { ChatMessage, Post } from './types';
+import type { ChatMessage, GroupMessage, Post } from './types';
 
 /** Events pushed by /api/stream. */
 export type RealtimeEvents = {
@@ -11,12 +11,20 @@ export type RealtimeEvents = {
 		regiorgs?: number;
 		quotes?: number;
 	};
+	/** someone voted in a poll: the vote counts of each option */
+	poll: { id: number; votes: number[] };
 	/** someone regiorged a post: the post, with `regiorged_by` set */
 	regiorg: Post;
 	notifications: { count: number };
 	message: ChatMessage;
 	message_deleted: { id: number };
 	messages_unread: { count: number };
+	group_message: GroupMessage;
+	group_message_deleted: { group_id: number; id: number };
+	/** a group was renamed or its members changed (you may have been removed) */
+	group_updated: { id: number };
+	/** someone is writing to you: in a group, or in your direct conversation (group_id null) */
+	typing: { group_id: number | null; user: { username: string; name: string } };
 	/** the stream (re)connected: anything sent while it was down was missed */
 	open: undefined;
 };
@@ -46,10 +54,15 @@ export function connectRealtime() {
 		'post_deleted',
 		'counts',
 		'regiorg',
+		'poll',
 		'notifications',
 		'message',
 		'message_deleted',
-		'messages_unread'
+		'messages_unread',
+		'group_message',
+		'group_message_deleted',
+		'group_updated',
+		'typing'
 	];
 	for (const event of events) {
 		source.addEventListener(event, (e) => {

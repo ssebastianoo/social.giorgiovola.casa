@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Chat from '#lib/components/Chat.svelte';
-	import type { PageData } from './$types';
+	import type { PageProps } from './$types';
 
-	export let data: PageData;
+	let { data }: PageProps = $props();
 </script>
 
 <!-- a conversation's state must not carry over when navigating to another one -->
@@ -12,5 +12,6 @@
 		initial={data.thread.messages}
 		initialHasMore={data.thread.hasMore}
 		block={data.block}
+		muted={data.muted}
 	/>
 {/key}

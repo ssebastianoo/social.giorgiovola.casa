@@ -3,6 +3,7 @@
 	import type { Post, QuotedPost } from '#lib/types.js';
 	import MentionInput from './MentionInput.svelte';
 	import QuoteCard from './QuoteCard.svelte';
+	import Button from './Button.svelte';
 
 	type Props = {
 		/** Set to reply to a post instead of creating a top level one. */
@@ -26,7 +27,20 @@
 
 	type Attachment = { file: File; url: string };
 
+	const MAX_POLL_OPTIONS = 4;
+	const MAX_POLL_OPTION = 80;
+	const POLL_DURATIONS = [
+		[60, '1 hour'],
+		[6 * 60, '6 hours'],
+		[24 * 60, '1 day'],
+		[3 * 24 * 60, '3 days'],
+		[7 * 24 * 60, '7 days']
+	] as const;
+
 	let content = $state('');
+	// null when the post has no poll
+	let pollOptions: string[] | null = $state(null);
+	let pollMinutes = $state(24 * 60);
 	let attachments: Attachment[] = $state([]);
 	let error: string | null = $state(null);
 	let sending = $state(false);
@@ -39,6 +53,14 @@
 		error = message;
 		clearTimeout(errorTimeout);
 		errorTimeout = setTimeout(() => (error = null), 4000);
+	}
+
+	function addOption() {
+		if (pollOptions && pollOptions.length < MAX_POLL_OPTIONS) pollOptions = [...pollOptions, ''];
+	}
+
+	function removeOption(index: number) {
+		if (pollOptions) pollOptions = pollOptions.filter((_, i) => i !== index);
 	}
 
 	function isImage(file: File) {
@@ -133,6 +155,8 @@
 
 	async function submit() {
 		if (sending || (!content.trim() && attachments.length === 0)) return;
+		if (pollOptions && !content.trim()) return showError('A poll needs a question.');
+		if (pollOptions?.some((o) => !o.trim())) return showError('Fill in every poll option.');
 		sending = true;
 		try {
 			const body = new FormData();
@@ -140,12 +164,17 @@
 			if (replyTo !== null) body.set('reply_to', String(replyTo));
 			if (quoteOf) body.set('quote_of', String(quoteOf.id));
 			for (const { file } of attachments) body.append('images', file);
+			if (pollOptions) {
+				for (const option of pollOptions) body.append('poll_options', option);
+				body.set('poll_minutes', String(pollMinutes));
+			}
 
 			const res = await fetch('/api/posts', { method: 'POST', body });
 			if (res.ok) {
 				const post: Post = await res.json();
 				content = '';
 				clearAttachments();
+				pollOptions = null;
 				oncreated?.(post);
 			} else if (res.status === 400 || res.status === 403) {
 				showError(await res.text());
@@ -189,7 +218,11 @@
 	onpaste={onPaste}
 >
 	<div class="flex">
-		<MentionInput bind:value={content} required={attachments.length === 0} {placeholder} />
+		<MentionInput
+			bind:value={content}
+			required={attachments.length === 0 || !!pollOptions}
+			placeholder={pollOptions ? 'Ask a question' : placeholder}
+		/>
 		<input
 			bind:this={fileInput}
 			onchange={onFilesSelected}
@@ -220,6 +253,25 @@
 			></button
 		>
 		<button
+			type="button"
+			title={pollOptions ? 'Remove poll' : 'Add a poll'}
+			aria-label={pollOptions ? 'Remove poll' : 'Add a poll'}
+			aria-pressed={!!pollOptions}
+			onclick={() => (pollOptions = pollOptions ? null : ['', ''])}
+			class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none"
+			><svg
+				xmlns="http://www.w3.org/2000/svg"
+				height="20px"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke={pollOptions ? '#799a74' : '#d9d9d9'}
+				stroke-width="1.8"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" /></svg
+			></button
+		>
+		<button
 			type="submit"
 			disabled={sending}
 			aria-label="Post"
@@ -246,6 +298,49 @@
 					>
 				</div>
 			{/each}
+		</div>
+	{/if}
+	{#if pollOptions}
+		<div class="flex flex-col gap-2.5 rounded-[10px] bg-black/70 p-2.5">
+			{#each pollOptions as option, i}
+				<div class="flex items-end gap-2.5">
+					<label class="flex flex-1 flex-col">
+						<span class="text-[0.8em] opacity-80">Option {i + 1}</span>
+						<input
+							class="border-b bg-transparent p-[5px] outline-none focus:border-accent"
+							bind:value={pollOptions[i]}
+							maxlength={MAX_POLL_OPTION}
+							placeholder={i < 2 || option ? '' : 'Optional'}
+						/>
+					</label>
+					{#if pollOptions.length > 2}
+						<button
+							type="button"
+							title="Remove option"
+							aria-label="Remove option {i + 1}"
+							onclick={() => removeOption(i)}
+							class="flex size-6 cursor-pointer items-center justify-center rounded-full leading-none outline-none hover:bg-danger"
+							>×</button
+						>
+					{/if}
+				</div>
+			{/each}
+			<div class="flex flex-wrap items-end justify-between gap-2.5">
+				<label class="flex flex-col">
+					<span class="text-[0.8em] opacity-80">Poll length</span>
+					<select
+						class="cursor-pointer border-b bg-background p-[5px] outline-none focus:border-accent"
+						bind:value={pollMinutes}
+					>
+						{#each POLL_DURATIONS as [minutes, label]}
+							<option value={minutes}>{label}</option>
+						{/each}
+					</select>
+				</label>
+				{#if pollOptions.length < MAX_POLL_OPTIONS}
+					<Button size="sm" onclick={addOption}>Add option</Button>
+				{/if}
+			</div>
 		</div>
 	{/if}
 	{#if quoteOf}

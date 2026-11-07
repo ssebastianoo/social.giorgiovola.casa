@@ -13,7 +13,10 @@ export type User = {
 
 /** An entry of the account switcher. */
 export type SwitcherProfile = Pick<User, 'id' | 'name' | 'username' | 'avatar'> & {
+	/** unread notifications */
 	unread: number;
+	/** unread messages (direct and group), muted chats excluded */
+	unreadMessages: number;
 	active: boolean;
 	/** username of the account that shared this identity, null when it is not shared with you */
 	sharedBy: string | null;
@@ -70,6 +73,19 @@ export type QuotedPost = {
 	is_quote: boolean;
 };
 
+/** A poll attached to a post. */
+export type Poll = {
+	options: string[];
+	/** how many votes each option got, in the same order */
+	votes: number[];
+	/** when voting closes */
+	ends_at: Date | string;
+	/** voting has closed */
+	closed: boolean;
+	/** the index of the option the viewer voted for, null when they haven't voted */
+	voted: number | null;
+};
+
 export type Post = {
 	id: number;
 	user: User | PublicUser;
@@ -89,6 +105,8 @@ export type Post = {
 	 */
 	/** pinned to its author's profile */
 	pinned?: boolean;
+	/** pinned by staff to the home timeline for everyone */
+	timeline_pinned?: boolean;
 	regiorged_by?: { username: string; name: string; others?: number } | null;
 	/** quote regiorgs of this post */
 	quotes: number;
@@ -96,6 +114,8 @@ export type Post = {
 	quote: QuotedPost | { deleted: true } | null;
 	/** the first post on this instance linked in the content, shown like a quote */
 	linked_post?: QuotedPost | null;
+	/** a poll attached to the post, null when it has none */
+	poll: Poll | null;
 	replies_count: number;
 	reply_to: {
 		username: string;
@@ -149,6 +169,63 @@ export type Conversation = {
 	mine: boolean;
 	created_at: Date;
 	unread: number;
+};
+
+/** A group chat, as its members see it. */
+export type GroupChat = {
+	id: number;
+	name: string;
+	/** username of the member who can remove others */
+	owner: string | null;
+	/** longest standing first */
+	members: ChatPeer[];
+};
+
+/**
+ * message: written by the sender. The others are events shown in the chat (see
+ * src/lib/groupEvents.ts): created and renamed carry the name as content, added and removed
+ * have a target, owner means the sender became the owner.
+ */
+export type GroupMessageKind =
+	| 'message'
+	| 'created'
+	| 'added'
+	| 'removed'
+	| 'left'
+	| 'renamed'
+	| 'owner';
+
+/** A message of a group chat. */
+export type GroupMessage = {
+	id: number;
+	group_id: number;
+	kind: GroupMessageKind;
+	sender: ChatPeer;
+	/** who an added / removed event is about, null otherwise */
+	target: ChatPeer | null;
+	content: string;
+	/** URL paths of uploaded images */
+	images: string[];
+	created_at: Date;
+	/** the first post on this instance linked in the content, shown like a quote */
+	linked_post: QuotedPost | null;
+};
+
+/** An entry of the conversation list for a group chat. */
+export type GroupConversation = {
+	group: { id: number; name: string; members: ChatPeer[]; size: number };
+	/** the latest message, clipped; empty when nothing was sent yet */
+	preview: string;
+	/** the latest message is an event ("Alice added Bob"): `preview` is its whole line */
+	event: boolean;
+	/** display name of who sent the latest message, null when nothing was sent yet */
+	sender: string | null;
+	mine: boolean;
+	/** of the latest message, or of the group when nothing was sent yet */
+	created_at: Date;
+	unread: number;
+	/** the viewer muted it: no push, and its unread messages stay out of the badge */
+	muted: boolean;
 };
 
 /** A profile in search results. */

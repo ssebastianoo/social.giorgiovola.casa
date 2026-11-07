@@ -9,9 +9,10 @@
 	import Avatar from './Avatar.svelte';
 	import PostComposer from './PostComposer.svelte';
 	import QuoteCard from './QuoteCard.svelte';
+	import PollCard from './PollCard.svelte';
 	import { onMount } from 'svelte';
 	import { onRealtime } from '#lib/realtime.js';
-	import { markMentionSeen } from '#lib/mentions.js';
+	import { markMentionSeen, mentions, splitMentions } from '#lib/mentions.js';
 	import { isHttpLink, isRatio, ratioPercent } from '#lib/utils.js';
 	import { hashtagHref, parseHashtag } from '#lib/hashtags.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
@@ -25,8 +26,10 @@
 		showReplyTo?: boolean;
 		isPostOpen?: boolean;
 		showThread?: boolean;
-		/** shown at the top of its author's profile */
+		/** shown at the top of its author's profile, or of the home timeline */
 		pinned?: boolean;
+		/** the text of the pinned marker */
+		pinnedLabel?: string;
 		onpostdeleted?: (id: number) => void;
 	};
 
@@ -37,6 +40,7 @@
 		isPostOpen = false,
 		showThread = false,
 		pinned = false,
+		pinnedLabel = 'Pinned',
 		onpostdeleted
 	}: Props = $props();
 
@@ -78,7 +82,6 @@
 	// the parent's likes decide whether this reply ratios it
 	let parentLikes = $derived(post.reply_to?.likes ?? 0);
 
-	const mentionRegex = /^@[a-zA-Z0-9_]+$/;
 	const imageRegex = /!\[[^\]]*\]\((?<filename>.*?)(?="|\))(?<optionalpart>".*")?\)/;
 
 	// an image linked with markdown syntax in the content: only absolute https images, no
@@ -109,7 +112,7 @@
 			$user &&
 			onScreen &&
 			visibilityState === 'visible' &&
-			contentParts.includes(`@${$user.username}`)
+			mentions(post.content, $user.username)
 		)
 			markMentionSeen($user.id, post.id);
 	});
@@ -202,6 +205,29 @@
 		if (!res.ok) return alert((await res.text()) || 'Could not pin');
 		isPinned = (await res.json()).pinned;
 		showToast(isPinned ? 'Pinned to your profile!' : 'Unpinned!');
+		await invalidate('app:posts');
+	}
+
+	// staff pin top-level posts to the home timeline for everyone, from the home page
+	let isTimelinePinned = $derived(post.timeline_pinned ?? false);
+	const canTimelinePin = $derived(
+		!!$user && page.data.role !== 'user' && !post.reply_to && page.route.id === '/'
+	);
+
+	async function toggleTimelinePin() {
+		const res = await fetch('/api/posts/timeline-pin', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				id: post.id,
+				pinned: !isTimelinePinned
+			})
+		});
+		if (!res.ok) return alert((await res.text()) || 'Could not pin');
+		isTimelinePinned = (await res.json()).pinned;
+		showToast(isTimelinePinned ? 'Pinned to the timeline for everyone!' : 'Unpinned!');
 		await invalidate('app:posts');
 	}
 
@@ -567,7 +593,7 @@
 					xmlns="http://www.w3.org/2000/svg"
 					aria-hidden="true"><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg
 				>
-				Pinned
+				{pinnedLabel}
 			</p>
 		{/if}
 		{#if post.regiorged_by}
@@ -614,8 +640,9 @@
 				goto(`/@${post.user.username}/${post.id}`);
 			}}
 			onclick={(e) => {
-				// links inside the post (the quoted post, mentions…) go where they point
-				if ((e.target as Element).closest('a')) return;
+				// links inside the post (the quoted post, mentions…) go where they point, and the
+				// poll votes
+				if ((e.target as Element).closest('a, [data-poll]')) return;
 				// allow dragging to select text
 				const selection = getSelection();
 				if (selection && selection.type === 'Range') return;
@@ -657,15 +684,24 @@
 								{:else if parseHashtag(part)}
 									{@const hashtag = parseHashtag(part)!}
 									<a onclick={stop} href={hashtagHref(hashtag.tag)}>#{hashtag.tag}</a>{hashtag.rest}
-								{:else if mentionRegex.test(part)}
-									<a onclick={stop} href={`/${part}`} use:profileHover={part.slice(1).toLowerCase()}
-										>{part}</a
-									>
 								{:else}
-									{part}
+									{#each splitMentions(part) as piece}
+										{#if typeof piece === 'string'}
+											{piece}
+										{:else}
+											<a
+												onclick={stop}
+												href={`/@${piece.username}`}
+												use:profileHover={piece.username.toLowerCase()}>@{piece.username}</a
+											>
+										{/if}
+									{/each}
 								{/if}
 							{/each}
 						</p>
+					{/if}
+					{#if post.poll}
+						<PollCard postId={post.id} poll={post.poll} />
 					{/if}
 					{#if gallery.length > 0}
 						<div class="grid gap-1.5 {gallery.length > 1 ? 'grid-cols-2' : ''}">
@@ -989,6 +1025,34 @@
 								stroke-linejoin="round"
 								xmlns="http://www.w3.org/2000/svg"
 								class="{isPinned ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
+									? ''
+									: 'transition-[stroke] duration-100 ease-in-out group-hover:stroke-accent'}"
+								><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg
+							>
+						</button>
+					{/if}
+					{#if canTimelinePin}
+						<button
+							class="group flex cursor-pointer items-center outline-none"
+							aria-label={isTimelinePinned ? 'Unpin from timeline' : 'Pin to timeline'}
+							title={isTimelinePinned
+								? 'Unpin from the timeline'
+								: 'Pin to the timeline for everyone'}
+							onclick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								toggleTimelinePin();
+							}}
+						>
+							<svg
+								height="17px"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								xmlns="http://www.w3.org/2000/svg"
+								class="{isTimelinePinned ? 'stroke-accent' : 'stroke-foreground'} {$isMobile
 									? ''
 									: 'transition-[stroke] duration-100 ease-in-out group-hover:stroke-accent'}"
 								><path d="M12 17v5" /><path d="M5 17h14l-2-8V4H7v5z" /></svg

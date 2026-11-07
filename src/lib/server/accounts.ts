@@ -34,8 +34,19 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
 			owner_username: owner.username,
 			// correlated subquery: the table names are written out so they can't be mis-qualified
 			unread: sql<number>`(
-				(SELECT COUNT(*) FROM inbox WHERE inbox.user_id = users.id AND inbox.read_at IS NULL)
-				+ (SELECT COUNT(*) FROM messages WHERE messages.recipient_id = users.id AND messages.read_at IS NULL)
+				SELECT COUNT(*) FROM inbox WHERE inbox.user_id = users.id AND inbox.read_at IS NULL
+			)::int`,
+			unread_messages: sql<number>`(
+				(SELECT COUNT(*) FROM messages WHERE messages.recipient_id = users.id AND messages.read_at IS NULL
+					AND NOT EXISTS (SELECT 1 FROM dm_mutes
+						WHERE dm_mutes.user_id = users.id AND dm_mutes.peer_id = messages.sender_id))
+				+ (SELECT COUNT(*) FROM group_messages
+					JOIN group_members ON group_members.group_id = group_messages.group_id
+						AND group_members.user_id = users.id
+					WHERE group_messages.id > group_members.last_read_id
+						AND group_messages.sender_id != users.id
+						AND group_messages.kind = 'message'
+						AND NOT group_members.muted)
 			)::int`
 		})
 		.from(users)
@@ -59,6 +70,7 @@ export async function getSwitcher(locals: App.Locals): Promise<SwitcherAccount[]
 		username: r.username,
 		avatar: r.avatar,
 		unread: r.unread,
+		unreadMessages: r.unread_messages,
 		active: r.id === locals.user?.id && accountId === locals.accountId,
 		sharedBy: r.owner_id !== null && r.owner_id !== accountId ? r.owner_username : null
 	});

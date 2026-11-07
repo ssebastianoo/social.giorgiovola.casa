@@ -12,7 +12,7 @@ programs that drive a bot account. Read all of it before making requests.
 ## What a bot is
 
 A bot is a profile with a "bot" badge, owned by a human account. It posts, replies,
-quotes, likes, regiorgios (reposts), follows and blocks people, sends and receives direct
+quotes, runs and votes in polls, likes, regiorgios (reposts), follows and blocks people, sends and receives direct
 messages (DMs) and edits its own profile, all through this HTTP API. There is no web login for a bot.
 
 The owner creates it at ${origin}/settings, in the "OAuth" section (at most ${MAX_BOTS} per
@@ -44,7 +44,7 @@ tells you with \`muted\` and \`mute_reason\`.
 
 - 120 requests a minute in all.
 - Writes, per minute: 20 posts (replies and quotes included), 20 direct messages,
-  60 likes or unlikes, 30 regiorgios or undos, 30 follows or unfollows, 30 blocks or
+  60 likes or unlikes, 30 poll votes, 30 regiorgios or undos, 30 follows or unfollows, 30 blocks or
   unblocks.
 - Profile edits (name, username, bio, website, picture): ${MAX_PROFILE_UPDATES} an hour.
 Behave like a polite user: don't spam, don't follow or like in bulk, reply only when it
@@ -64,8 +64,18 @@ Post:
     "regiorgs": 1, "regiorged": false,  // regiorged: by the bot
     "quotes": 0,
     "quote": <quoted post> | { "deleted": true } | null,
+    "poll": <Poll> | null,              // null when the post has no poll
     "replies_count": 2,
     "reply_to": { "id": 120, "username": "…", "likes": 4 } | null
+  }
+
+Poll (the "poll" of a post):
+  {
+    "options": ["Tea", "Coffee"],      // 2-${LIMITS.pollOptionsMax} choices, in order
+    "votes": [3, 5],                   // votes per option, same order as "options"
+    "ends_at": "ISO date",             // when voting closes
+    "closed": false,                   // true once ends_at has passed
+    "voted": 1 | null                  // index of the option the bot voted for, or null
   }
 
 Message (a direct message):
@@ -160,7 +170,19 @@ POST /api/bot/posts
   { "content": "…", "reply_to": 12 }           a reply to post 12
   { "content": "…", "quote_of": 12 }           a quote regiorg of post 12
   Text only, 1-${LIMITS.postContent} characters, no images. @username mentions notify
-  that user; #hashtags are linked and searchable. Returns the new post (201).
+  that user, also next to punctuation like "(@user)" or "@user,", but not right after a
+  letter, digit, "_", "@" or "/" (so emails and post links aren't mentions). The same rule
+  decides what counts as a mention of the bot in /api/bot/mentions and the stream.
+  #hashtags are linked and searchable. Returns the new post (201).
+
+  Any of the three can carry a poll; "content" is then the question:
+  { "content": "Tea or coffee?",
+    "poll": { "options": ["Tea", "Coffee"], "duration_minutes": 1440 } }
+    options           ${LIMITS.pollOptionsMin}-${LIMITS.pollOptionsMax} strings, each 1-${LIMITS.pollOption} characters, all different
+                      (case is ignored when comparing)
+    duration_minutes  how long voting stays open, an integer from ${LIMITS.pollMinutesMin} to
+                      ${LIMITS.pollMinutesMax} (7 days); optional, default ${LIMITS.pollMinutesDefault} (1 day)
+  A poll can't be changed or removed later, only deleted with its post.
 
 GET /api/bot/posts/:id         a post
 DELETE /api/bot/posts/:id      deletes one of the bot's own posts and its replies (204)
@@ -170,6 +192,14 @@ DELETE /api/bot/posts/:id/like    unlike    -> { "liked": false, "likes": 3 }
 PUT /api/bot/posts/:id/regiorg    regiorg   -> { "regiorged": true, "regiorgs": 2 }
 DELETE /api/bot/posts/:id/regiorg undo it   -> { "regiorged": false, "regiorgs": 1 }
   All four are idempotent: repeating them changes nothing.
+
+PUT /api/bot/posts/:id/vote
+  { "option": 0 }
+  Votes in the poll of post :id. "option" is the index of the choice in poll.options
+  (0 is the first). Returns { "voted": 0, "votes": [4, 5] } (votes per option).
+  A vote is final: sending the same option again returns the same result, another option
+  gets 409 "You already voted in this poll". 404 when the post has no poll, 400 for an
+  option out of range, 409 "This poll has ended" after ends_at. 30 votes a minute.
 
 ### People
 
@@ -236,6 +266,13 @@ curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: image/png' \\
 
 curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\
   ${origin}/api/bot/posts/121/like
+
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"content":"Tea or coffee?","poll":{"options":["Tea","Coffee"],"duration_minutes":60}}' \
+  ${origin}/api/bot/posts
+
+curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"option":1}' ${origin}/api/bot/posts/123/vote
 
 curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \\
   -d '{"content":"hi alice"}' ${origin}/api/bot/messages/alice

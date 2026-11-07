@@ -3,32 +3,71 @@
 	import Avatar from './Avatar.svelte';
 	import QuoteCard from './QuoteCard.svelte';
 	import { onRealtime } from '#lib/realtime.js';
-	import { isMobile } from '#lib/store.js';
-	import type { ChatMessage, ChatPeer } from '#lib/types.js';
+	import { isMobile, user } from '#lib/store.js';
+	import type { ChatMessage, ChatPeer, GroupChat, GroupMessage } from '#lib/types.js';
 	import { isHttpLink } from '#lib/utils.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
+	import { groupEventText } from '#lib/groupEvents.js';
+	import {
+		dmKey,
+		groupKey,
+		listenTyping,
+		resetTyping,
+		sendTyping,
+		typingIn,
+		typingText
+	} from '#lib/typing.svelte.js';
 
-	export let peer: ChatPeer;
-	export let initial: ChatMessage[];
-	export let initialHasMore: boolean;
-	/** me: I blocked them, peer: they blocked me */
-	export let block: { me: boolean; peer: boolean };
+	type Message = ChatMessage | GroupMessage;
 
-	let blockedByMe = block.me;
-	const blockedByPeer = block.peer;
+	type Props = {
+		initial: Message[];
+		initialHasMore: boolean;
+		/** a direct conversation: the other person */
+		peer?: ChatPeer;
+		/** direct conversations. me: I blocked them, peer: they blocked me */
+		block?: { me: boolean; peer: boolean };
+		/** a group chat */
+		group?: GroupChat;
+		/** the viewer muted this conversation: no push, not in the badge */
+		muted?: boolean;
+	};
 
-	let messages = initial;
-	let hasMore = initialHasMore;
+	let {
+		initial,
+		initialHasMore,
+		peer,
+		block,
+		group,
+		muted: initialMuted = false
+	}: Props = $props();
+
+	// the page is keyed on the conversation, so these only need their first value
+	// svelte-ignore state_referenced_locally
+	let blockedByMe = $state(block?.me ?? false);
+	// svelte-ignore state_referenced_locally
+	let muted = $state(initialMuted);
+	// svelte-ignore state_referenced_locally
+	const blockedByPeer = block?.peer ?? false;
+	// svelte-ignore state_referenced_locally
+	let messages = $state(initial);
+	// svelte-ignore state_referenced_locally
+	let hasMore = $state(initialHasMore);
+	// svelte-ignore state_referenced_locally
+	const groupId = group?.id ?? null;
+	// svelte-ignore state_referenced_locally
+	const peerUsername = peer?.username ?? '';
+
 	let list: HTMLDivElement;
-	let textarea: HTMLTextAreaElement;
-	let content = '';
-	let sending = false;
+	let textarea = $state<HTMLTextAreaElement>();
+	let fileInput = $state<HTMLInputElement>();
+	let content = $state('');
+	let sending = $state(false);
 	let loadingOlder = false;
-	let error: string | null = null;
-	let fileInput: HTMLInputElement;
-	let attachments: Attachment[] = [];
+	let error = $state<string | null>(null);
+	let attachments = $state<Attachment[]>([]);
 	let errorTimeout: ReturnType<typeof setTimeout>;
-	let dragging = false;
+	let dragging = $state(false);
 	let dragDepth = 0;
 
 	const MAX_IMAGES = 5;
@@ -37,9 +76,28 @@
 
 	type Attachment = { file: File; url: string };
 
-	const threadUrl = `/api/messages/${peer.username}`;
+	const threadUrl = groupId !== null ? `/api/groups/${groupId}` : `/api/messages/${peerUsername}`;
+	const sendUrl = groupId !== null ? `/api/groups/${groupId}/messages` : '/api/messages';
 
-	const merge = (current: ChatMessage[], incoming: ChatMessage[]) =>
+	const senderOf = (m: Message) => (typeof m.sender === 'string' ? m.sender : m.sender.username);
+	const isMine = (m: Message) =>
+		groupId !== null ? senderOf(m) === $user?.username : senderOf(m) !== peerUsername;
+	/** a group event ("Alice added Bob"), shown as a line rather than a bubble */
+	const isEvent = (m: Message): m is GroupMessage => 'kind' in m && m.kind !== 'message';
+
+	const typingTarget = groupId !== null ? { group: groupId } : { to: peerUsername };
+	const typers = $derived(typingIn(groupId !== null ? groupKey(groupId) : dmKey(peerUsername)));
+
+	function onInput() {
+		if (content.trim()) sendTyping(typingTarget);
+	}
+
+	// group chats: the 3 first other members, for the header
+	const faces = $derived(
+		group?.members.filter((m) => m.username !== $user?.username).slice(0, 3) ?? []
+	);
+
+	const merge = (current: Message[], incoming: Message[]) =>
 		[...new Map([...current, ...incoming].map((m) => [m.id, m])).values()].sort(
 			(a, b) => a.id - b.id
 		);
@@ -56,11 +114,11 @@
 		if (stick) scrollToBottom();
 	}
 
-	async function add(incoming: ChatMessage[], forceScroll = false) {
-		const stick = forceScroll || isAtBottom();
+	async function add(incoming: Message[], forceScroll = false) {
+		const follow = forceScroll || isAtBottom();
 		messages = merge(messages, incoming);
 		await tick();
-		if (stick) scrollToBottom();
+		if (follow) scrollToBottom();
 	}
 
 	// set when there may be unread messages, cleared once the reader has seen the bottom
@@ -80,11 +138,22 @@
 		if (pendingRead && isAtBottom()) markRead();
 	}
 
+	async function toggleMute() {
+		const muting = !muted;
+		try {
+			const res = await fetch(`${threadUrl}/mute`, { method: muting ? 'POST' : 'DELETE' });
+			if (res.ok) muted = muting;
+			else showError('Something went wrong.');
+		} catch {
+			showError('Could not reach the server, check your connection.');
+		}
+	}
+
 	async function toggleBlock() {
 		const blocking = !blockedByMe;
 		if (
 			blocking &&
-			!confirm(`Block @${peer.username}? Neither of you will be able to message the other.`)
+			!confirm(`Block @${peerUsername}? Neither of you will be able to message the other.`)
 		)
 			return;
 		try {
@@ -96,10 +165,11 @@
 		}
 	}
 
-	async function deleteMessage(message: ChatMessage) {
-		if (!confirm('Delete this message? It will be removed for both of you.')) return;
+	async function deleteMessage(message: Message) {
+		const forWhom = groupId !== null ? 'everyone in the group' : 'both of you';
+		if (!confirm(`Delete this message? It will be removed for ${forWhom}.`)) return;
 		try {
-			const res = await fetch('/api/messages', {
+			const res = await fetch(sendUrl, {
 				method: 'DELETE',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ id: message.id })
@@ -119,7 +189,7 @@
 		try {
 			const res = await fetch(threadUrl);
 			if (!res.ok) return;
-			const latest: { messages: ChatMessage[]; hasMore: boolean } = await res.json();
+			const latest: { messages: Message[]; hasMore: boolean } = await res.json();
 			// drop what was deleted while the stream was down, within the span this page covers
 			const oldest = latest.hasMore ? latest.messages[0]?.id ?? 0 : 0;
 			const ids = new Set(latest.messages.map((m) => m.id));
@@ -143,7 +213,7 @@
 		try {
 			const res = await fetch(`${threadUrl}?before=${messages[0].id}`);
 			if (res.ok) {
-				const older: { messages: ChatMessage[]; hasMore: boolean } = await res.json();
+				const older: { messages: Message[]; hasMore: boolean } = await res.json();
 				const height = list.scrollHeight;
 				messages = merge(messages, older.messages);
 				hasMore = older.hasMore;
@@ -198,6 +268,7 @@
 	}
 
 	function onFilesSelected() {
+		if (!fileInput) return;
 		addFiles(Array.from(fileInput.files ?? []));
 		// lets the same file be picked again after removing it
 		fileInput.value = '';
@@ -217,12 +288,13 @@
 		error = null;
 		try {
 			const body = new FormData();
-			body.set('to', peer.username);
+			if (groupId === null) body.set('to', peerUsername);
 			body.set('content', text);
 			for (const { file } of attachments) body.append('images', file);
-			const res = await fetch('/api/messages', { method: 'POST', body });
+			const res = await fetch(sendUrl, { method: 'POST', body });
 			if (res.ok) {
 				content = '';
+				resetTyping(typingTarget);
 				clearAttachments();
 				await add([await res.json()], true);
 			} else {
@@ -237,7 +309,7 @@
 			error = 'Could not send the message, check your connection.';
 		}
 		sending = false;
-		textarea.focus();
+		textarea?.focus();
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -280,23 +352,36 @@
 		window.addEventListener('dragover', onDragOver);
 		window.addEventListener('dragleave', onDragLeave);
 		window.addEventListener('drop', onDrop);
+		listenTyping();
 		scrollToBottom();
 		markRead();
-		const offMessage = onRealtime('message', async (message) => {
-			if (message.sender !== peer.username && message.recipient !== peer.username) return;
-			await add([message]);
-			if (message.sender === peer.username) markRead();
-		});
-		const offDeleted = onRealtime('message_deleted', ({ id }) => remove(id));
-		const offOpen = onRealtime('open', sync);
+		const offs =
+			groupId !== null
+				? [
+						onRealtime('group_message', async (message) => {
+							if (message.group_id !== groupId) return;
+							await add([message]);
+							if (!isMine(message)) markRead();
+						}),
+						onRealtime('group_message_deleted', ({ group_id, id }) => {
+							if (group_id === groupId) remove(id);
+						})
+				  ]
+				: [
+						onRealtime('message', async (message) => {
+							if (message.sender !== peerUsername && message.recipient !== peerUsername) return;
+							await add([message]);
+							if (message.sender === peerUsername) markRead();
+						}),
+						onRealtime('message_deleted', ({ id }) => remove(id))
+				  ];
+		offs.push(onRealtime('open', sync));
 		const onVisibility = () => {
 			if (document.visibilityState === 'visible') sync();
 		};
 		document.addEventListener('visibilitychange', onVisibility);
 		return () => {
-			offMessage();
-			offDeleted();
-			offOpen();
+			for (const off of offs) off();
 			window.removeEventListener('dragenter', onDragEnter);
 			window.removeEventListener('dragover', onDragOver);
 			window.removeEventListener('dragleave', onDragLeave);
@@ -328,99 +413,175 @@
 			href="/messages"
 			title="Back to messages">&larr;</a
 		>
-		<Avatar user={peer} size={40} />
-		<a class="min-w-0 text-inherit" href={`/@${peer.username}`}>
-			<p class="truncate font-extrabold">{peer.name}</p>
-			<p class="truncate text-[0.85rem] opacity-70">@{peer.username}</p>
-		</a>
-		<button
-			type="button"
-			class="ml-auto cursor-pointer text-[0.85rem] opacity-70 outline-none hover:opacity-100"
-			on:click={toggleBlock}>{blockedByMe ? 'Unblock' : 'Block'}</button
-		>
+		{#if group}
+			<a
+				class="flex min-w-0 items-center gap-2.5 text-inherit hover:no-underline"
+				href={`/messages/groups/${group.id}/settings`}
+				title="Group info"
+			>
+				<div class="flex shrink-0 -space-x-3">
+					{#each faces as face (face.username)}
+						<Avatar user={face} size={32} clickable={false} />
+					{/each}
+				</div>
+				<div class="min-w-0">
+					<p class="truncate font-extrabold">{group.name}</p>
+					<p class="truncate text-[0.85rem] opacity-70">{group.members.length} members</p>
+				</div>
+			</a>
+		{:else if peer}
+			<Avatar user={peer} size={40} />
+			<a class="min-w-0 text-inherit" href={`/@${peer.username}`}>
+				<p class="truncate font-extrabold">{peer.name}</p>
+				<p class="truncate text-[0.85rem] opacity-70">@{peer.username}</p>
+			</a>
+		{/if}
+		<div class="ml-auto flex shrink-0 items-center gap-2.5 text-[0.85rem]">
+			<button
+				type="button"
+				class="flex cursor-pointer items-center gap-[5px] opacity-70 outline-none hover:opacity-100"
+				title={muted
+					? 'Muted: no notifications, not counted in the badge'
+					: 'Stop notifications from this chat'}
+				onclick={toggleMute}
+				>{#if muted}<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="1em"
+						height="1em"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+						><path d="M13.7 21a2 2 0 0 1-3.4 0" /><path d="M18.6 13A17.9 17.9 0 0 1 18 8" /><path
+							d="M6.3 6.3A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14"
+						/><path d="M18 8a6 6 0 0 0-9.3-5" /><path d="M2 2l20 20" /></svg
+					>Unmute{:else}Mute{/if}</button
+			>
+			{#if group}
+				<a
+					class="text-inherit opacity-70 hover:opacity-100"
+					href={`/messages/groups/${group.id}/settings`}>Info</a
+				>
+			{:else}
+				<button
+					type="button"
+					class="cursor-pointer opacity-70 outline-none hover:opacity-100"
+					onclick={toggleBlock}>{blockedByMe ? 'Unblock' : 'Block'}</button
+				>
+			{/if}
+		</div>
 	</div>
 
 	<div
 		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
 		bind:this={list}
-		on:scroll={onScroll}
-		on:load|capture={onMediaLoad}
+		onscroll={onScroll}
+		onloadcapture={onMediaLoad}
 	>
-		{#each messages as message (message.id)}
-			{@const mine = message.sender !== peer.username}
-			<div
-				class="flex max-w-[85%] flex-col gap-1.5 rounded-[10px] p-2.5 {mine
-					? 'self-end bg-accent text-background'
-					: 'self-start bg-white/10'}"
-			>
-				{#if message.images?.length}
-					<div class="grid gap-1.5 {message.images.length > 1 ? 'grid-cols-2' : ''}">
-						{#each message.images as image, i}
+		{#each messages as message, index (message.id)}
+			{@const mine = isMine(message)}
+			{@const author = typeof message.sender === 'string' ? null : message.sender}
+			{#if isEvent(message)}
+				<!-- someone joined, left, renamed the group… -->
+				<p
+					class="my-1.5 self-center text-center text-[0.8em] text-muted"
+					title={new Date(message.created_at).toLocaleString()}
+				>
+					{groupEventText(message, $user?.username)}
+				</p>
+			{:else}
+				<!-- in groups, name who wrote a run of messages from someone else -->
+				{#if author && !mine && (index === 0 || isEvent(messages[index - 1]) || senderOf(messages[index - 1]) !== author.username)}
+					<div class="mt-1.5 flex items-center gap-[5px] self-start">
+						<Avatar user={author} size={24} />
+						<a class="text-[0.8em] font-bold text-inherit" href={`/@${author.username}`}
+							>{author.name}</a
+						>
+					</div>
+				{/if}
+				<div
+					class="flex max-w-[85%] flex-col gap-1.5 rounded-[10px] p-2.5 {mine
+						? 'self-end bg-accent text-background'
+						: 'self-start bg-white/10'}"
+				>
+					{#if message.images?.length}
+						<div class="grid gap-1.5 {message.images.length > 1 ? 'grid-cols-2' : ''}">
+							{#each message.images as image, i}
+								<button
+									type="button"
+									class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/20 outline-none"
+									aria-label="Open image"
+									onclick={() => openImage(message.images ?? [], i)}
+								>
+									<img
+										class={message.images.length > 1
+											? 'aspect-square w-full object-cover'
+											: 'max-h-[360px] max-w-full object-contain'}
+										src={image}
+										alt=""
+										loading="lazy"
+									/>
+								</button>
+							{/each}
+						</div>
+					{/if}
+					{#if message.content}
+						<p class="wrap-anywhere whitespace-pre-wrap">
+							{#each message.content.split(/(\s)/) as part}{#if isHttpLink(part)}<a
+										class={mine ? 'text-inherit underline' : ''}
+										href={part}
+										target="_blank"
+										rel="noopener noreferrer nofollow">{part}</a
+									>{:else}{part}{/if}{/each}
+						</p>
+					{/if}
+					{#if message.linked_post}
+						<!-- on its own dark ground, so it reads the same in both bubble colors -->
+						<div class="rounded-[5px] bg-background text-foreground">
+							<QuoteCard quote={message.linked_post} />
+						</div>
+					{/if}
+					<div class="flex items-center justify-end gap-2 text-[0.7rem]">
+						{#if mine}
 							<button
 								type="button"
-								class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/20 outline-none"
-								aria-label="Open image"
-								on:click={() => openImage(message.images ?? [], i)}
+								class="cursor-pointer opacity-60 outline-none hover:opacity-100"
+								aria-label="Delete message"
+								title="Delete message"
+								onclick={() => deleteMessage(message)}
+								><svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="1em"
+									height="1em"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
+										d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+									/><path d="M10 11v6" /><path d="M14 11v6" /></svg
+								></button
 							>
-								<img
-									class={message.images.length > 1
-										? 'aspect-square w-full object-cover'
-										: 'max-h-[360px] max-w-full object-contain'}
-									src={image}
-									alt=""
-									loading="lazy"
-								/>
-							</button>
-						{/each}
+						{/if}
+						<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>
 					</div>
-				{/if}
-				{#if message.content}
-					<p class="wrap-anywhere whitespace-pre-wrap">
-						{#each message.content.split(/(\s)/) as part}{#if isHttpLink(part)}<a
-									class={mine ? 'text-inherit underline' : ''}
-									href={part}
-									target="_blank"
-									rel="noopener noreferrer nofollow">{part}</a
-								>{:else}{part}{/if}{/each}
-					</p>
-				{/if}
-				{#if message.linked_post}
-					<!-- on its own dark ground, so it reads the same in both bubble colors -->
-					<div class="rounded-[5px] bg-background text-foreground">
-						<QuoteCard quote={message.linked_post} />
-					</div>
-				{/if}
-				<div class="flex items-center justify-end gap-2 text-[0.7rem]">
-					{#if mine}
-						<button
-							type="button"
-							class="cursor-pointer opacity-60 outline-none hover:opacity-100"
-							aria-label="Delete message"
-							title="Delete message"
-							on:click={() => deleteMessage(message)}
-							><svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="1em"
-								height="1em"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
-									d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-								/><path d="M10 11v6" /><path d="M14 11v6" /></svg
-							></button
-						>
-					{/if}
-					<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>
 				</div>
-			</div>
+			{/if}
 		{:else}
-			<p class="m-auto text-center text-muted">Say hi to {peer.name}.</p>
+			<p class="m-auto text-center text-muted">Say hi to {group?.name ?? peer?.name}.</p>
 		{/each}
 	</div>
+
+	{#if typers.length > 0}
+		<p class="-mb-[5px] truncate text-[0.8em] text-muted" aria-live="polite">
+			{typingText(typers)}
+		</p>
+	{/if}
 
 	{#if error}
 		<p class="rounded-[5px] bg-danger p-2.5">{error}</p>
@@ -435,7 +596,7 @@
 						type="button"
 						title="Remove"
 						aria-label="Remove image"
-						on:click={() => removeAttachment(attachment)}
+						onclick={() => removeAttachment(attachment)}
 						class="absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-background/80 text-[0.8rem] leading-none outline-none hover:bg-danger"
 						>×</button
 					>
@@ -445,14 +606,21 @@
 	{/if}
 
 	{#if blockedByMe}
-		<p class="p-2.5 text-center text-muted">You blocked @{peer.username}.</p>
+		<p class="p-2.5 text-center text-muted">You blocked @{peerUsername}.</p>
 	{:else if blockedByPeer}
 		<p class="p-2.5 text-center text-muted">You can't message this user.</p>
 	{:else}
-		<form class="flex" on:submit|preventDefault={send} on:paste={onPaste}>
+		<form
+			class="flex"
+			onsubmit={(e) => {
+				e.preventDefault();
+				send();
+			}}
+			onpaste={onPaste}
+		>
 			<input
 				bind:this={fileInput}
-				on:change={onFilesSelected}
+				onchange={onFilesSelected}
 				type="file"
 				accept="image/*"
 				multiple
@@ -467,14 +635,15 @@
 				aria-label="Write a message"
 				bind:this={textarea}
 				bind:value={content}
-				on:keydown={onKeydown}
+				onkeydown={onKeydown}
+				oninput={onInput}
 			></textarea>
 			<button
 				type="button"
 				title="Attach images"
 				aria-label="Attach images"
 				disabled={attachments.length >= MAX_IMAGES}
-				on:click={() => fileInput.click()}
+				onclick={() => fileInput?.click()}
 				class="flex cursor-pointer items-end border-b border-foreground p-2.5 outline-none disabled:cursor-default disabled:opacity-40"
 				><svg
 					xmlns="http://www.w3.org/2000/svg"
