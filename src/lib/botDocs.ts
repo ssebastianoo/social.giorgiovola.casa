@@ -204,10 +204,11 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 			{
 				method: 'POST',
 				path: '/api/bot/messages/:username',
-				summary: 'Send a message.',
-				request: `{ "content": string (1-${l.messageContent} chars) }`,
+				summary: 'Send a message, optionally as a reply.',
+				request: `{ "content": string (1-${l.messageContent} chars), "reply_to"?: message id }`,
 				response: 'The new Message, status 201.',
 				notes: [
+					'reply_to must be a message of this conversation (sent by either side), else 400.',
 					'403 when either side blocked the other, or the bot is muted.',
 					'20 messages a minute.'
 				]
@@ -224,6 +225,24 @@ export const endpointGroups = (l: DocLimits): EndpointGroup[] => [
 				summary: "Delete one of the bot's own messages, for both sides.",
 				response: 'Status 204. 404 for a message that is not the bot’s.',
 				notes: ['Note the singular "message" in this path.']
+			},
+			{
+				method: 'PUT',
+				path: '/api/bot/message/:id/reaction',
+				summary:
+					'React to a message of one of the bot’s conversations. One reaction per profile: this replaces the previous one.',
+				request: '{ "emoji": string (exactly one emoji) }',
+				response: '{ "reactions": [{ emoji, username, name }] }',
+				notes: [
+					'404 when the message is not in one of the bot’s conversations, 403 when either side blocked the other.',
+					'60 reactions a minute.'
+				]
+			},
+			{
+				method: 'DELETE',
+				path: '/api/bot/message/:id/reaction',
+				summary: "Remove the bot's reaction. Fine to call when it has none.",
+				response: '{ "reactions": [{ emoji, username, name }] }'
 			}
 		]
 	},
@@ -285,7 +304,15 @@ export const messageShape = `{
   "linked_post": {         // the first post on this site linked in "content", or null
     "id": 57, "user": { "name", "username", "avatar" },
     "content": "…", "images": ["/uploads/…"], "created_at": "ISO date", "is_quote": false
-  } | null
+  } | null,
+  "reply_to": {            // the message this one replies to, or null
+    "id": 75, "sender": { "username", "name" },
+    "content": "…",        // cut to 200 characters
+    "images": 0            // how many images it has
+  } | null,
+  "reactions": [           // oldest first, at most one per profile
+    { "emoji": "❤️", "username": "alice", "name": "Alice" }
+  ]
 }`;
 
 export const curlExamples = (origin: string) => `# who am I?

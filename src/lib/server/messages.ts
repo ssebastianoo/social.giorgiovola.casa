@@ -3,6 +3,7 @@ import { db, blocks, dm_mutes, messages, users } from './db/index.js';
 import type { ChatMessage, ChatPeer, Conversation } from '#lib/types.js';
 import { linkedPosts } from './linkedPosts.js';
 import { unreadGroupCount } from './groups.js';
+import { withRepliesAndReactions } from './messageReactions.js';
 
 const THREAD_PAGE = 30;
 const PREVIEW_LENGTH = 200;
@@ -91,7 +92,13 @@ export async function findPeer(username: string): Promise<(ChatPeer & Party) | n
 	return peer ?? null;
 }
 
-type Row = { id: number; content: string; images: string[]; created_at: Date };
+type Row = {
+	id: number;
+	content: string;
+	images: string[];
+	reply_to_id: number | null;
+	created_at: Date;
+};
 
 const toChatMessage = (row: Row, sender: string, recipient: string) => ({
 	id: row.id,
@@ -99,13 +106,17 @@ const toChatMessage = (row: Row, sender: string, recipient: string) => ({
 	recipient,
 	content: row.content,
 	images: row.images,
+	reply_to_id: row.reply_to_id,
 	created_at: row.created_at
 });
 
-/** Fills `linked_post` with the post each message links to, if any. */
-async function withLinkedPosts(found: Omit<ChatMessage, 'linked_post'>[]): Promise<ChatMessage[]> {
-	const linked = await linkedPosts(found.map((m) => m.content));
-	return found.map((m, i) => ({ ...m, linked_post: linked[i] }));
+/** Fills `linked_post` (the post each message links to, if any), `reply_to` and `reactions`. */
+async function complete(found: ReturnType<typeof toChatMessage>[]): Promise<ChatMessage[]> {
+	const [linked, withExtras] = await Promise.all([
+		linkedPosts(found.map((m) => m.content)),
+		withRepliesAndReactions('direct', found)
+	]);
+	return withExtras.map((m, i) => ({ ...m, linked_post: linked[i] }));
 }
 
 /** A page of a conversation, oldest first: the latest messages, or the ones before `before`. */
@@ -116,6 +127,7 @@ export async function getThread(me: Party, peer: Party, before?: number | null) 
 			sender_id: messages.sender_id,
 			content: messages.content,
 			images: messages.images,
+			reply_to_id: messages.reply_to_id,
 			created_at: messages.created_at
 		})
 		.from(messages)
@@ -125,7 +137,7 @@ export async function getThread(me: Party, peer: Party, before?: number | null) 
 
 	return {
 		hasMore: rows.length > THREAD_PAGE,
-		messages: await withLinkedPosts(
+		messages: await complete(
 			rows
 				.slice(0, THREAD_PAGE)
 				.reverse()
@@ -151,6 +163,7 @@ export async function getThreadFrom(me: Party, peer: Party, { afterId, limit }: 
 			sender_id: messages.sender_id,
 			content: messages.content,
 			images: messages.images,
+			reply_to_id: messages.reply_to_id,
 			created_at: messages.created_at
 		})
 		.from(messages)
@@ -158,7 +171,7 @@ export async function getThreadFrom(me: Party, peer: Party, { afterId, limit }: 
 		.orderBy(afterId === null ? desc(messages.id) : asc(messages.id))
 		.limit(limit);
 	if (afterId === null) rows.reverse();
-	return withLinkedPosts(
+	return complete(
 		rows.map((row) =>
 			row.sender_id === me.id
 				? toChatMessage(row, me.username, peer.username)
@@ -175,6 +188,7 @@ export async function getReceived(me: Party, { afterId, limit }: ListOptions) {
 			sender: users.username,
 			content: messages.content,
 			images: messages.images,
+			reply_to_id: messages.reply_to_id,
 			created_at: messages.created_at
 		})
 		.from(messages)
@@ -185,21 +199,23 @@ export async function getReceived(me: Party, { afterId, limit }: ListOptions) {
 		.orderBy(afterId === null ? desc(messages.id) : asc(messages.id))
 		.limit(limit);
 	if (afterId === null) rows.reverse();
-	return withLinkedPosts(rows.map((row) => toChatMessage(row, row.sender, me.username)));
+	return complete(rows.map((row) => toChatMessage(row, row.sender, me.username)));
 }
 
+/** Sends a message; `replyTo` must be a message of this conversation (see isDirectMessageBetween). */
 export async function sendMessage(
 	me: Party,
 	peer: Party,
 	content: string,
-	images: string[] = []
+	images: string[] = [],
+	replyTo: number | null = null
 ): Promise<ChatMessage> {
 	const [row] = await db
 		.insert(messages)
-		.values({ sender_id: me.id, recipient_id: peer.id, content, images })
+		.values({ sender_id: me.id, recipient_id: peer.id, content, images, reply_to_id: replyTo })
 		.returning({ id: messages.id, created_at: messages.created_at });
-	const [message] = await withLinkedPosts([
-		{ ...row, sender: me.username, recipient: peer.username, content, images }
+	const [message] = await complete([
+		toChatMessage({ ...row, content, images, reply_to_id: replyTo }, me.username, peer.username)
 	]);
 	return message;
 }

@@ -22,6 +22,8 @@ export const {
 	group_chats,
 	group_members,
 	group_messages,
+	message_reactions,
+	group_message_reactions,
 	dm_mutes,
 	blocks,
 	follows,

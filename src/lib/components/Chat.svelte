@@ -4,7 +4,17 @@
 	import QuoteCard from './QuoteCard.svelte';
 	import { onRealtime } from '#lib/realtime.js';
 	import { isMobile, user } from '#lib/store.js';
-	import type { ChatMessage, ChatPeer, GroupChat, GroupMessage } from '#lib/types.js';
+	import type {
+		ChatMessage,
+		ChatPeer,
+		GroupChat,
+		GroupMessage,
+		MessageReaction,
+		MessageReplyTo
+	} from '#lib/types.js';
+	import MentionInput from './MentionInput.svelte';
+	import { splitMentions } from '#lib/mentions.js';
+	import { profileHover } from '#lib/profileCard.svelte.js';
 	import { isHttpLink } from '#lib/utils.js';
 	import { openImage } from '#lib/imageViewer.svelte.js';
 	import { groupEventText } from '#lib/groupEvents.js';
@@ -78,12 +88,242 @@
 
 	const threadUrl = groupId !== null ? `/api/groups/${groupId}` : `/api/messages/${peerUsername}`;
 	const sendUrl = groupId !== null ? `/api/groups/${groupId}/messages` : '/api/messages';
+	const reactUrl = `${threadUrl}/reactions`;
+
+	const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+	// swiping a message this far to the right replies to it, like on WhatsApp
+	const SWIPE_REPLY = 60;
+	const SWIPE_MAX = 90;
+	const LONG_PRESS_MS = 450;
+	const DOUBLE_TAP_MS = 300;
+
+	let replyingTo = $state<Message | null>(null);
+	/** the message whose menu (reactions, reply, copy, delete) is open, and where to show it */
+	let menu = $state<{
+		message: Message;
+		top: number;
+		above: boolean;
+		left: number;
+		right: number;
+		mine: boolean;
+	} | null>(null);
+	let menuEl = $state<HTMLDivElement>();
+	/** the message being swiped, and how far */
+	let swipe = $state<{ id: number; dx: number } | null>(null);
+	/** briefly outlined after jumping to it from a reply */
+	let highlighted = $state<number | null>(null);
+	let highlightTimeout: ReturnType<typeof setTimeout>;
 
 	const senderOf = (m: Message) => (typeof m.sender === 'string' ? m.sender : m.sender.username);
 	const isMine = (m: Message) =>
 		groupId !== null ? senderOf(m) === $user?.username : senderOf(m) !== peerUsername;
 	/** a group event ("Alice added Bob"), shown as a line rather than a bubble */
 	const isEvent = (m: Message): m is GroupMessage => 'kind' in m && m.kind !== 'message';
+
+	const canWrite = $derived(!blockedByMe && !blockedByPeer);
+
+	/** what a reply shows of a message: its text, or that it is a photo */
+	const previewOf = (m: { content: string; images: number }) =>
+		m.content || (m.images > 0 ? '📷 Photo' : '');
+	const replyNameOf = (sender: MessageReplyTo['sender']) =>
+		sender.username === $user?.username ? 'You' : sender.name;
+	const authorNameOf = (m: Message) =>
+		isMine(m) ? 'yourself' : typeof m.sender === 'string' ? peer?.name ?? m.sender : m.sender.name;
+
+	/** group chats suggest their members for @mentions, direct chats search everyone */
+	const mentionSource = $derived(
+		group
+			? (query: string) =>
+					group.members.filter(
+						(m) =>
+							m.username !== $user?.username &&
+							(m.username.startsWith(query) || m.name.toLowerCase().startsWith(query))
+					)
+			: undefined
+	);
+
+	/** reactions with the same emoji together, in the order they first appeared */
+	function groupReactions(reactions: MessageReaction[]) {
+		const byEmoji = new Map<string, MessageReaction[]>();
+		for (const r of reactions) byEmoji.set(r.emoji, [...(byEmoji.get(r.emoji) ?? []), r]);
+		return [...byEmoji].map(([emoji, by]) => ({
+			emoji,
+			by,
+			mine: by.some((r) => r.username === $user?.username)
+		}));
+	}
+
+	const myReaction = (m: Message) => m.reactions.find((r) => r.username === $user?.username);
+
+	const setReactions = (id: number, reactions: MessageReaction[]) =>
+		(messages = messages.map((m) => (m.id === id ? { ...m, reactions } : m)));
+
+	/** Sets your reaction to a message; picking the one you already have takes it back. */
+	async function react(message: Message, emoji: string) {
+		menu = null;
+		const me = $user;
+		if (!me) return;
+		const before = message.reactions;
+		const removing = myReaction(message)?.emoji === emoji;
+		const others = before.filter((r) => r.username !== me.username);
+		// shown right away, the server's answer replaces it
+		setReactions(
+			message.id,
+			removing ? others : [...others, { emoji, username: me.username, name: me.name }]
+		);
+		try {
+			const res = await fetch(reactUrl, {
+				method: removing ? 'DELETE' : 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(removing ? { id: message.id } : { id: message.id, emoji })
+			});
+			if (res.ok) {
+				setReactions(message.id, (await res.json()).reactions);
+				return;
+			}
+			showError(
+				res.status === 403 || res.status === 429 ? await res.text() : 'Something went wrong.'
+			);
+		} catch {
+			showError('Could not reach the server, check your connection.');
+		}
+		setReactions(message.id, before);
+	}
+
+	function startReply(message: Message) {
+		menu = null;
+		if (!canWrite) return;
+		replyingTo = message;
+		textarea?.focus();
+	}
+
+	/** Scrolls to the message a reply answers, loading older pages until it shows up. */
+	async function jumpTo(id: number) {
+		let target = document.getElementById(`message-${id}`);
+		for (let pages = 0; !target && hasMore && pages < 10; pages++) {
+			await loadOlder();
+			await tick();
+			target = document.getElementById(`message-${id}`);
+		}
+		if (!target) return;
+		target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		highlighted = id;
+		clearTimeout(highlightTimeout);
+		highlightTimeout = setTimeout(() => (highlighted = null), 1500);
+	}
+
+	function openMenu(message: Message, el: HTMLElement) {
+		const rect = el.getBoundingClientRect();
+		// below the message when there is no room above it
+		const above = rect.top > 180;
+		menu = {
+			message,
+			top: above ? rect.top : rect.bottom,
+			above,
+			left: rect.left,
+			right: window.innerWidth - rect.right,
+			mine: isMine(message)
+		};
+	}
+
+	async function copyText(message: Message) {
+		menu = null;
+		try {
+			await navigator.clipboard.writeText(message.content);
+		} catch {
+			showError('Could not copy the message.');
+		}
+	}
+
+	// touch gestures on a message: swipe right to reply, long press for the menu, double tap for ❤️
+	let gesture: {
+		message: Message;
+		el: HTMLElement;
+		pointerId: number;
+		x: number;
+		y: number;
+		moved: boolean;
+		swiping: boolean;
+		/** on a link, image or button, which keep their own taps */
+		interactive: boolean;
+	} | null = null;
+	let pressTimer: ReturnType<typeof setTimeout>;
+	let lastTap = { id: -1, time: 0 };
+	// the click that ends a long press must not also open a link or an image
+	let suppressClick = false;
+
+	function onPointerDown(e: PointerEvent, message: Message) {
+		suppressClick = false;
+		if (e.pointerType === 'mouse' || !e.isPrimary || !canWrite) return;
+		const el = e.currentTarget as HTMLElement;
+		gesture = {
+			message,
+			el,
+			pointerId: e.pointerId,
+			x: e.clientX,
+			y: e.clientY,
+			moved: false,
+			swiping: false,
+			interactive: !!(e.target as Element).closest('a, button')
+		};
+		clearTimeout(pressTimer);
+		pressTimer = setTimeout(() => {
+			if (!gesture || gesture.moved) return;
+			openMenu(gesture.message, gesture.el);
+			navigator.vibrate?.(10);
+			suppressClick = true;
+			gesture = null;
+		}, LONG_PRESS_MS);
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!gesture || e.pointerId !== gesture.pointerId) return;
+		const dx = e.clientX - gesture.x;
+		const dy = e.clientY - gesture.y;
+		if (!gesture.moved) {
+			if (Math.hypot(dx, dy) < 8) return;
+			gesture.moved = true;
+			clearTimeout(pressTimer);
+			// mostly sideways and to the right; anything else is the list scrolling
+			gesture.swiping = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.5;
+			if (!gesture.swiping) {
+				gesture = null;
+				return;
+			}
+			gesture.el.setPointerCapture(e.pointerId);
+		}
+		const pulled = Math.max(0, dx);
+		// past the threshold it resists, so it's clear that letting go now replies
+		const next = Math.min(
+			SWIPE_MAX,
+			pulled < SWIPE_REPLY ? pulled : SWIPE_REPLY + (pulled - SWIPE_REPLY) * 0.3
+		);
+		if ((swipe?.dx ?? 0) < SWIPE_REPLY && next >= SWIPE_REPLY) navigator.vibrate?.(10);
+		swipe = { id: gesture.message.id, dx: next };
+	}
+
+	function onPointerEnd(e: PointerEvent) {
+		clearTimeout(pressTimer);
+		if (!gesture || e.pointerId !== gesture.pointerId) return;
+		const g = gesture;
+		gesture = null;
+		if (g.swiping) {
+			if (e.type === 'pointerup' && (swipe?.dx ?? 0) >= SWIPE_REPLY) startReply(g.message);
+			swipe = null;
+			return;
+		}
+		if (e.type !== 'pointerup' || g.moved || g.interactive) return;
+		const now = Date.now();
+		if (lastTap.id === g.message.id && now - lastTap.time < DOUBLE_TAP_MS) {
+			lastTap = { id: -1, time: 0 };
+			// like Instagram, a double tap only ever adds the heart
+			if (myReaction(g.message)?.emoji !== '❤️') react(g.message, '❤️');
+		} else lastTap = { id: g.message.id, time: now };
+	}
+
+	function onWindowPointerDown(e: PointerEvent) {
+		if (menu && !menuEl?.contains(e.target as Node)) menu = null;
+	}
 
 	const typingTarget = groupId !== null ? { group: groupId } : { to: peerUsername };
 	const typers = $derived(typingIn(groupId !== null ? groupKey(groupId) : dmKey(peerUsername)));
@@ -124,6 +364,7 @@
 	}
 
 	function onScroll() {
+		menu = null;
 		if (list.scrollTop < 100) loadOlder();
 		if (pendingRead && isAtBottom()) markRead();
 	}
@@ -172,7 +413,13 @@
 		}
 	}
 
-	const remove = (id: number) => (messages = messages.filter((m) => m.id !== id));
+	function remove(id: number) {
+		messages = messages
+			.filter((m) => m.id !== id)
+			.map((m) => (m.reply_to?.id === id ? { ...m, reply_to: null } : m));
+		if (replyingTo?.id === id) replyingTo = null;
+		if (menu?.message.id === id) menu = null;
+	}
 
 	/** Catches up on what the stream can't have delivered: it drops while the app is in the background. */
 	async function sync() {
@@ -280,10 +527,12 @@
 			const body = new FormData();
 			if (groupId === null) body.set('to', peerUsername);
 			body.set('content', text);
+			if (replyingTo) body.set('reply_to', String(replyingTo.id));
 			for (const { file } of attachments) body.append('images', file);
 			const res = await fetch(sendUrl, { method: 'POST', body });
 			if (res.ok) {
 				content = '';
+				replyingTo = null;
 				resetTyping(typingTarget);
 				clearAttachments();
 				await add([await res.json()], true);
@@ -303,6 +552,11 @@
 	}
 
 	function onKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && replyingTo) {
+			e.preventDefault();
+			replyingTo = null;
+			return;
+		}
 		// on touch keyboards Enter is a new line, sending is the button's job
 		if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !$isMobile) {
 			e.preventDefault();
@@ -355,6 +609,9 @@
 						}),
 						onRealtime('group_message_deleted', ({ group_id, id }) => {
 							if (group_id === groupId) remove(id);
+						}),
+						onRealtime('group_message_reactions', ({ group_id, id, reactions }) => {
+							if (group_id === groupId) setReactions(id, reactions);
 						})
 				  ]
 				: [
@@ -363,7 +620,9 @@
 							await add([message]);
 							if (message.sender === peerUsername) markRead();
 						}),
-						onRealtime('message_deleted', ({ id }) => remove(id))
+						onRealtime('message_deleted', ({ id }) => remove(id)),
+						// ids are unique across conversations: only a message shown here is updated
+						onRealtime('message_reactions', ({ id, reactions }) => setReactions(id, reactions))
 				  ];
 		offs.push(onRealtime('open', sync));
 		const onVisibility = () => {
@@ -378,10 +637,77 @@
 			window.removeEventListener('drop', onDrop);
 			document.removeEventListener('visibilitychange', onVisibility);
 			clearTimeout(errorTimeout);
+			clearTimeout(highlightTimeout);
+			clearTimeout(pressTimer);
 			clearAttachments();
 		};
 	});
 </script>
+
+<svelte:window
+	onpointerdown={onWindowPointerDown}
+	onresize={() => (menu = null)}
+	onkeydown={(e) => {
+		if (e.key === 'Escape' && menu) menu = null;
+	}}
+/>
+
+{#if menu}
+	{@const current = menu.message}
+	{@const mineEmoji = myReaction(current)?.emoji}
+	<div
+		bind:this={menuEl}
+		role="menu"
+		tabindex="-1"
+		class="fixed z-50 flex flex-col gap-[5px] rounded-[5px] border border-accent bg-background p-[5px]"
+		style:top={`${menu.top}px`}
+		style:left={menu.mine ? undefined : `${menu.left}px`}
+		style:right={menu.mine ? `${menu.right}px` : undefined}
+		style:transform={menu.above ? 'translateY(calc(-100% - 5px))' : 'translateY(5px)'}
+	>
+		<div class="flex gap-[2px]">
+			{#each QUICK_REACTIONS as emoji}
+				<button
+					type="button"
+					role="menuitem"
+					class="flex size-9 cursor-pointer items-center justify-center rounded-[5px] text-[1.3em] outline-none hover:bg-white/10 focus-visible:bg-white/10 {mineEmoji ===
+					emoji
+						? 'bg-accent/30'
+						: ''}"
+					aria-label={mineEmoji === emoji ? `Remove ${emoji}` : `React with ${emoji}`}
+					onclick={() => react(current, emoji)}>{emoji}</button
+				>
+			{/each}
+		</div>
+		<div class="flex flex-col border-t border-line pt-[5px] text-[0.9em]">
+			<button
+				type="button"
+				role="menuitem"
+				class="cursor-pointer rounded-[5px] px-2.5 py-[5px] text-left outline-none hover:bg-white/5"
+				onclick={() => startReply(current)}>Reply</button
+			>
+			{#if current.content}
+				<button
+					type="button"
+					role="menuitem"
+					class="cursor-pointer rounded-[5px] px-2.5 py-[5px] text-left outline-none hover:bg-white/5"
+					onclick={() => copyText(current)}>Copy</button
+				>
+			{/if}
+			{#if menu.mine}
+				<button
+					type="button"
+					role="menuitem"
+					class="cursor-pointer rounded-[5px] px-2.5 py-[5px] text-left text-danger outline-none hover:bg-white/5"
+					onclick={() => {
+						menu = null;
+						deleteMessage(current);
+					}}>Delete</button
+				>
+			{/if}
+		</div>
+	</div>
+{/if}
 
 {#if dragging}
 	<div
@@ -466,7 +792,7 @@
 	</div>
 
 	<div
-		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto"
+		class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto"
 		bind:this={list}
 		onscroll={onScroll}
 	>
@@ -491,74 +817,216 @@
 						>
 					</div>
 				{/if}
+				{@const swiped = swipe?.id === message.id ? swipe.dx : 0}
 				<div
-					class="flex max-w-[85%] flex-col gap-1.5 rounded-[10px] p-2.5 {mine
-						? 'self-end bg-accent text-background'
-						: 'self-start bg-white/10'}"
+					id={`message-${message.id}`}
+					class="group/row relative flex max-w-[85%] flex-col {mine
+						? 'items-end self-end'
+						: 'items-start self-start'}"
 				>
-					{#if message.images?.length}
-						<div class="grid gap-1.5 {message.images.length > 1 ? 'grid-cols-2' : ''}">
-							{#each message.images as image, i}
+					{#if swiped > 0}
+						<!-- the reply arrow uncovered by swiping, solid once letting go replies -->
+						<svg
+							class="absolute top-1/2 -translate-y-1/2"
+							style:left={`${Math.min(swiped, SWIPE_REPLY) / 2 - 10}px`}
+							style:opacity={Math.min(1, swiped / SWIPE_REPLY)}
+							xmlns="http://www.w3.org/2000/svg"
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 5 5v6" /></svg
+						>
+					{/if}
+					<div
+						class="flex max-w-full touch-pan-y items-center gap-[5px] {mine
+							? 'flex-row-reverse'
+							: ''} {swiped > 0 ? '' : 'transition-transform duration-150'}"
+						style:transform={swiped > 0 ? `translateX(${swiped}px)` : undefined}
+						onpointerdown={(e) => onPointerDown(e, message)}
+						onpointermove={onPointerMove}
+						onpointerup={onPointerEnd}
+						onpointercancel={onPointerEnd}
+						onclickcapture={(e) => {
+							if (!suppressClick) return;
+							suppressClick = false;
+							e.preventDefault();
+							e.stopPropagation();
+						}}
+						oncontextmenu={(e) => {
+							// a long press opens the message menu instead
+							if (gesture || suppressClick) e.preventDefault();
+						}}
+						role="group"
+					>
+						<div
+							class="flex min-w-0 flex-col gap-1.5 rounded-[10px] p-2.5 outline-offset-2 pointer-coarse:select-none [-webkit-touch-callout:none] {mine
+								? 'bg-accent text-background'
+								: 'bg-white/10'} {highlighted === message.id ? 'outline-2 outline-foreground' : ''}"
+						>
+							{#if message.reply_to}
+								{@const reply = message.reply_to}
 								<button
 									type="button"
-									class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/20 outline-none"
-									aria-label="Open image"
-									onclick={() => openImage(message.images ?? [], i)}
+									class="flex min-w-0 cursor-pointer flex-col rounded-[5px] border-l-2 px-2.5 py-[5px] text-left text-[0.85em] outline-none {mine
+										? 'border-background/60 bg-black/15'
+										: 'border-accent bg-black/30'}"
+									title="Go to the message"
+									onclick={() => jumpTo(reply.id)}
 								>
-									<img
-										class={message.images.length > 1
-											? 'aspect-square w-full object-cover'
-											: 'max-h-[360px] max-w-full object-contain'}
-										src={image}
-										alt=""
-										loading="lazy"
-									/>
+									<span class="font-bold">{replyNameOf(reply.sender)}</span>
+									<span class="line-clamp-2 wrap-anywhere opacity-80">{previewOf(reply)}</span>
 								</button>
+							{/if}
+							{#if message.images?.length}
+								<div class="grid gap-1.5 {message.images.length > 1 ? 'grid-cols-2' : ''}">
+									{#each message.images as image, i}
+										<button
+											type="button"
+											class="flex cursor-zoom-in justify-center overflow-hidden rounded-[5px] bg-black/20 outline-none"
+											aria-label="Open image"
+											onclick={() => openImage(message.images ?? [], i)}
+										>
+											<img
+												class={message.images.length > 1
+													? 'aspect-square w-full object-cover'
+													: 'max-h-[360px] max-w-full object-contain'}
+												src={image}
+												alt=""
+												loading="lazy"
+												draggable="false"
+											/>
+										</button>
+									{/each}
+								</div>
+							{/if}
+							{#if message.content}
+								<p class="wrap-anywhere whitespace-pre-wrap">
+									{#each message.content.split(/(\s)/) as part}{#if isHttpLink(part)}<a
+												class={mine ? 'text-inherit underline' : ''}
+												href={part}
+												target="_blank"
+												rel="noopener noreferrer nofollow">{part}</a
+											>{:else}{#each splitMentions(part) as piece}{#if typeof piece === 'string'}{piece}{:else}<a
+														class="font-bold {mine
+															? 'text-inherit'
+															: ''} {piece.username.toLowerCase() === $user?.username
+															? 'rounded-[5px] bg-accent/25 px-[2px]'
+															: ''}"
+														href={`/@${piece.username}`}
+														use:profileHover={piece.username.toLowerCase()}>@{piece.username}</a
+													>{/if}{/each}{/if}{/each}
+								</p>
+							{/if}
+							{#if message.linked_post}
+								<!-- on its own dark ground, so it reads the same in both bubble colors -->
+								<div class="rounded-[5px] bg-background text-foreground">
+									<QuoteCard quote={message.linked_post} />
+								</div>
+							{/if}
+							<div class="flex items-center justify-end gap-2 text-[0.7rem]">
+								{#if mine}
+									<button
+										type="button"
+										class="cursor-pointer opacity-60 outline-none hover:opacity-100"
+										aria-label="Delete message"
+										title="Delete message"
+										onclick={() => deleteMessage(message)}
+										><svg
+											xmlns="http://www.w3.org/2000/svg"
+											width="1em"
+											height="1em"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
+												d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+											/><path d="M10 11v6" /><path d="M14 11v6" /></svg
+										></button
+									>
+								{/if}
+								<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>
+							</div>
+						</div>
+						{#if canWrite}
+							<!-- with a mouse: react and reply next to the message, on hover -->
+							<div
+								class="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:hidden"
+							>
+								<button
+									type="button"
+									class="flex size-8 cursor-pointer items-center justify-center rounded-full opacity-70 outline-none hover:bg-white/10 hover:opacity-100"
+									aria-label="React"
+									title="React"
+									onclick={(e) => {
+										const bubble = e.currentTarget.parentElement?.previousElementSibling;
+										if (bubble instanceof HTMLElement) openMenu(message, bubble);
+									}}
+									><svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="18"
+										height="18"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path
+											d="M9 9h.01"
+										/><path d="M15 9h.01" /></svg
+									></button
+								>
+								<button
+									type="button"
+									class="flex size-8 cursor-pointer items-center justify-center rounded-full opacity-70 outline-none hover:bg-white/10 hover:opacity-100"
+									aria-label="Reply"
+									title="Reply"
+									onclick={() => startReply(message)}
+									><svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="18"
+										height="18"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 5 5v6" /></svg
+									></button
+								>
+							</div>
+						{/if}
+					</div>
+					{#if message.reactions.length > 0}
+						<div class="relative z-1 -mt-2 flex flex-wrap gap-[5px] px-2.5">
+							{#each groupReactions(message.reactions) as reaction (reaction.emoji)}
+								<button
+									type="button"
+									class="flex cursor-pointer items-center gap-[3px] rounded-full border bg-background px-1.5 text-[0.8em] leading-6 outline-none disabled:cursor-default {reaction.mine
+										? 'border-accent'
+										: 'border-line'}"
+									title={reaction.by.map((r) => r.name).join(', ')}
+									aria-label={`${reaction.emoji} ${reaction.by.length}${
+										reaction.mine ? ', tap to remove yours' : ''
+									}`}
+									disabled={!canWrite}
+									onclick={() => react(message, reaction.emoji)}
+									>{reaction.emoji}{#if reaction.by.length > 1}<span class="text-muted"
+											>{reaction.by.length}</span
+										>{/if}</button
+								>
 							{/each}
 						</div>
 					{/if}
-					{#if message.content}
-						<p class="wrap-anywhere whitespace-pre-wrap">
-							{#each message.content.split(/(\s)/) as part}{#if isHttpLink(part)}<a
-										class={mine ? 'text-inherit underline' : ''}
-										href={part}
-										target="_blank"
-										rel="noopener noreferrer nofollow">{part}</a
-									>{:else}{part}{/if}{/each}
-						</p>
-					{/if}
-					{#if message.linked_post}
-						<!-- on its own dark ground, so it reads the same in both bubble colors -->
-						<div class="rounded-[5px] bg-background text-foreground">
-							<QuoteCard quote={message.linked_post} />
-						</div>
-					{/if}
-					<div class="flex items-center justify-end gap-2 text-[0.7rem]">
-						{#if mine}
-							<button
-								type="button"
-								class="cursor-pointer opacity-60 outline-none hover:opacity-100"
-								aria-label="Delete message"
-								title="Delete message"
-								onclick={() => deleteMessage(message)}
-								><svg
-									xmlns="http://www.w3.org/2000/svg"
-									width="1em"
-									height="1em"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
-										d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-									/><path d="M10 11v6" /><path d="M14 11v6" /></svg
-								></button
-							>
-						{/if}
-						<p class="opacity-60">{new Date(message.created_at).toLocaleString()}</p>
-					</div>
 				</div>
 			{/if}
 		{:else}
@@ -594,6 +1062,29 @@
 		</div>
 	{/if}
 
+	{#if replyingTo && canWrite}
+		<div class="flex items-center gap-2.5 border-l-2 border-accent pl-2.5">
+			<button
+				type="button"
+				class="min-w-0 flex-1 cursor-pointer text-left text-[0.85em] outline-none"
+				title="Go to the message"
+				onclick={() => replyingTo && jumpTo(replyingTo.id)}
+			>
+				<p class="font-bold">Replying to {authorNameOf(replyingTo)}</p>
+				<p class="truncate text-muted">
+					{previewOf({ content: replyingTo.content, images: replyingTo.images?.length ?? 0 })}
+				</p>
+			</button>
+			<button
+				type="button"
+				class="cursor-pointer px-2.5 text-[1.2em] leading-none opacity-70 outline-none hover:opacity-100"
+				aria-label="Cancel reply"
+				title="Cancel reply"
+				onclick={() => (replyingTo = null)}>×</button
+			>
+		</div>
+	{/if}
+
 	{#if blockedByMe}
 		<p class="p-2.5 text-center text-muted">You blocked @{peerUsername}.</p>
 	{:else if blockedByPeer}
@@ -615,18 +1106,18 @@
 				multiple
 				hidden
 			/>
-			<!-- prettier-ignore -->
-			<textarea
-				class="input max-h-32 resize-none field-sizing-content"
-				rows="1"
-				maxlength="2000"
-				placeholder="Write a message"
-				aria-label="Write a message"
-				bind:this={textarea}
+			<MentionInput
 				bind:value={content}
+				bind:element={textarea}
+				name=""
+				placeholder="Write a message"
+				label="Write a message"
+				maxHeight="max-h-32"
+				placement="above"
+				source={mentionSource}
 				onkeydown={onKeydown}
 				oninput={onInput}
-			></textarea>
+			/>
 			<button
 				type="button"
 				title="Attach images"

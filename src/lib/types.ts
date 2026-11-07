@@ -147,6 +147,18 @@ export type Notification = {
 };
 
 /** A direct message. Sender and recipient are usernames: ids of other profiles stay private. */
+/** What a reply shows of the message it answers. */
+export type MessageReplyTo = {
+	id: number;
+	sender: { username: string; name: string };
+	/** clipped */
+	content: string;
+	/** how many images it has */
+	images: number;
+};
+
+export type MessageReaction = { emoji: string; username: string; name: string };
+
 export type ChatMessage = {
 	id: number;
 	sender: string;
@@ -157,6 +169,10 @@ export type ChatMessage = {
 	created_at: Date;
 	/** the first post on this instance linked in the content, shown like a quote */
 	linked_post: QuotedPost | null;
+	/** the message this one answers, null when it isn't a reply or that message was deleted */
+	reply_to: MessageReplyTo | null;
+	/** oldest first, one per profile */
+	reactions: MessageReaction[];
 };
 
 export type ChatPeer = Pick<User, 'username' | 'name' | 'avatar'>;
@@ -209,6 +225,10 @@ export type GroupMessage = {
 	created_at: Date;
 	/** the first post on this instance linked in the content, shown like a quote */
 	linked_post: QuotedPost | null;
+	/** the message this one answers, null when it isn't a reply or that message was deleted */
+	reply_to: MessageReplyTo | null;
+	/** oldest first, one per profile */
+	reactions: MessageReaction[];
 };
 
 /** An entry of the conversation list for a group chat. */

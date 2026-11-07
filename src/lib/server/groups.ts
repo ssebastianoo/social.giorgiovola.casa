@@ -10,6 +10,7 @@ import type {
 } from '#lib/types.js';
 import { groupEventText } from '#lib/groupEvents.js';
 import { linkedPosts } from './linkedPosts.js';
+import { withRepliesAndReactions } from './messageReactions.js';
 import { hit, isLimited } from './ratelimit.js';
 import { LIMITS, USERNAME_RE } from './validation.js';
 
@@ -346,6 +347,7 @@ function selectMessages(where: SQL | undefined) {
 			kind: group_messages.kind,
 			content: group_messages.content,
 			images: group_messages.images,
+			reply_to_id: group_messages.reply_to_id,
 			created_at: group_messages.created_at,
 			username: users.username,
 			name: users.name,
@@ -365,7 +367,10 @@ type MessageRow = Awaited<ReturnType<typeof selectMessages>>[number];
 
 async function toGroupMessages(rows: MessageRow[]): Promise<GroupMessage[]> {
 	// events carry a group name as content, not something to link
-	const linked = await linkedPosts(rows.map((r) => (r.kind === 'message' ? r.content : '')));
+	const [linked, extras] = await Promise.all([
+		linkedPosts(rows.map((r) => (r.kind === 'message' ? r.content : ''))),
+		withRepliesAndReactions('group', rows)
+	]);
 	return rows.map((r, i) => ({
 		id: r.id,
 		group_id: r.group_id,
@@ -378,7 +383,9 @@ async function toGroupMessages(rows: MessageRow[]): Promise<GroupMessage[]> {
 		content: r.content,
 		images: r.images,
 		created_at: r.created_at,
-		linked_post: linked[i]
+		linked_post: linked[i],
+		reply_to: extras[i].reply_to,
+		reactions: extras[i].reactions
 	}));
 }
 
@@ -402,15 +409,17 @@ export async function getGroupThread(groupId: number, before?: number | null) {
 	};
 }
 
+/** Sends a message; `replyTo` must be a message of this group (see isGroupMessage). */
 export async function sendGroupMessage(
 	groupId: number,
 	sender: Member,
 	content: string,
-	images: string[] = []
+	images: string[] = [],
+	replyTo: number | null = null
 ): Promise<GroupMessage> {
 	const [row] = await db
 		.insert(group_messages)
-		.values({ group_id: groupId, sender_id: sender.id, content, images })
+		.values({ group_id: groupId, sender_id: sender.id, content, images, reply_to_id: replyTo })
 		.returning({ id: group_messages.id });
 	const [message] = await loadMessages([row.id]);
 	return message;
