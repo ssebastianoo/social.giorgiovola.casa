@@ -5,16 +5,17 @@
 	import { modal } from '#lib/modal.js';
 	import { share, closeShare, postUrl } from '#lib/share.svelte.js';
 	import { isMobile, user } from '#lib/store.js';
-	import type { ChatPeer } from '#lib/types.js';
+	import type { ChatPeer, ShareRecipient } from '#lib/types.js';
 
 	const target = $derived(share.target);
 	const open = $derived(target !== null);
 
-	let recent: ChatPeer[] = $state([]);
+	let recent: ShareRecipient[] = $state([]);
+	let groups: ShareRecipient[] = $state([]);
 	let loadingRecent = $state(false);
 	let query = $state('');
-	let results: ChatPeer[] = $state([]);
-	let selected: ChatPeer | null = $state(null);
+	let results: ShareRecipient[] = $state([]);
+	let selected: ShareRecipient | null = $state(null);
 	let note = $state('');
 	let sending = $state(false);
 	let error = $state('');
@@ -24,7 +25,17 @@
 	let keyboard = $state(0);
 
 	const searching = $derived(query.trim() !== '');
-	const people = $derived(searching ? results : recent);
+	// groups match by name, on the client: the dialog already has all of them
+	const matchingGroups = $derived.by(() => {
+		const q = query.trim().toLowerCase();
+		if (!q) return [];
+		return groups.filter((g) => g.kind === 'group' && g.group.name.toLowerCase().includes(q));
+	});
+	const people = $derived(searching ? [...matchingGroups, ...results] : recent);
+
+	const keyOf = (r: ShareRecipient) =>
+		r.kind === 'user' ? `user:${r.peer.username}` : `group:${r.group.id}`;
+	const labelOf = (r: ShareRecipient) => (r.kind === 'user' ? `@${r.peer.username}` : r.group.name);
 
 	// every opening starts empty
 	$effect(() => {
@@ -60,7 +71,7 @@
 		loadingRecent = true;
 		try {
 			const res = await fetch('/api/messages');
-			if (res.ok) recent = await res.json();
+			if (res.ok) ({ recent, groups } = await res.json());
 		} catch {
 			// the search still works without them
 		} finally {
@@ -85,7 +96,9 @@
 				// a newer keystroke supersedes this response
 				if (!res.ok || current !== request) return;
 				const found: ChatPeer[] = await res.json();
-				results = found.filter((u) => u.username !== $user?.username);
+				results = found
+					.filter((u) => u.username !== $user?.username)
+					.map((peer) => ({ kind: 'user', peer }));
 			} catch {
 				results = [];
 			}
@@ -100,19 +113,22 @@
 		const url = postUrl(target);
 		const text = note.trim();
 		try {
-			const res = await fetch('/api/messages', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					to: selected.username,
-					content: text ? `${text}\n${url}` : url
-				})
-			});
+			const content = text ? `${text}\n${url}` : url;
+			const res = await fetch(
+				selected.kind === 'user' ? '/api/messages' : `/api/groups/${selected.group.id}/messages`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(
+						selected.kind === 'user' ? { to: selected.peer.username, content } : { content }
+					)
+				}
+			);
 			if (!res.ok) {
 				error = (await res.text()) || 'Could not send the message';
 				return;
 			}
-			target.notify?.(`Sent to @${selected.username}!`);
+			target.notify?.(`Sent to ${labelOf(selected)}!`);
 			closeShare();
 		} catch {
 			error = 'Could not send the message';
@@ -161,8 +177,8 @@
 					bind:this={searchInput}
 					class="input"
 					type="search"
-					placeholder="Search people"
-					aria-label="Search people"
+					placeholder="Search people and groups"
+					aria-label="Search people and groups"
 					autocomplete="off"
 					maxlength="33"
 					bind:value={query}
@@ -176,8 +192,8 @@
 					{#if !searching}
 						<p class="px-2.5 pb-[5px] text-[0.8em] text-muted">Recent</p>
 					{/if}
-					{#each people as person (person.username)}
-						{@const isSelected = selected?.username === person.username}
+					{#each people as person (keyOf(person))}
+						{@const isSelected = selected !== null && keyOf(selected) === keyOf(person)}
 						<button
 							class="flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-md border px-2.5 py-[5px] text-left outline-none hover:bg-white/5 focus-visible:bg-white/5 {isSelected
 								? 'border-accent'
@@ -189,11 +205,37 @@
 								error = '';
 							}}
 						>
-							<Avatar user={person} size={40} clickable={false} />
-							<span class="flex min-w-0 flex-1 flex-col">
-								<span class="truncate font-bold">{person.name}</span>
-								<span class="truncate text-[0.85em] opacity-70">@{person.username}</span>
-							</span>
+							{#if person.kind === 'user'}
+								<Avatar user={person.peer} size={40} clickable={false} />
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span class="truncate font-bold">{person.peer.name}</span>
+									<span class="truncate text-[0.85em] opacity-70">@{person.peer.username}</span>
+								</span>
+							{:else}
+								{#if person.group.members.length === 1}
+									<Avatar user={person.group.members[0]} size={40} clickable={false} />
+								{:else if person.group.members.length === 0}
+									<!-- everyone else left -->
+									<div class="size-10 shrink-0 rounded-full border border-line" aria-hidden="true">
+										&nbsp;
+									</div>
+								{:else}
+									<!-- two faces of the group, stacked in the space of one avatar -->
+									<div class="relative size-10 shrink-0">
+										{#each person.group.members.slice(0, 2) as member, i (member.username)}
+											<div class="absolute {i === 0 ? 'top-0 left-0' : 'right-0 bottom-0'}">
+												<Avatar user={member} size={26} clickable={false} />
+											</div>
+										{/each}
+									</div>
+								{/if}
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span class="truncate font-bold">{person.group.name}</span>
+									<span class="truncate text-[0.85em] opacity-70">
+										{person.group.size} members
+									</span>
+								</span>
+							{/if}
 							{#if isSelected}
 								<svg
 									height="18px"
@@ -238,7 +280,7 @@
 						class="w-full"
 						disabled={!selected || sending}
 					>
-						{sending ? 'Sending…' : selected ? `Send to @${selected.username}` : 'Choose someone'}
+						{sending ? 'Sending…' : selected ? `Send to ${labelOf(selected)}` : 'Choose someone'}
 					</Button>
 				</form>
 			</div>
