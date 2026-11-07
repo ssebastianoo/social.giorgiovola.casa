@@ -87,10 +87,10 @@ const botClients = new Set<BotClient>();
 /** The bot API stream: `mention`, `post` (by a followed profile) and `message` (DM) events. */
 export function openBotStream(bot: { id: number; username: string }, signal: AbortSignal) {
 	return eventStream(signal, (send, close) => {
-		// usernames are [a-z0-9_], nothing to escape
+		// usernames are [a-z0-9_], nothing to escape. same rule as MENTION_RE (#lib/mentions.ts)
 		const client: BotClient = {
 			botId: bot.id,
-			mention: new RegExp(`@${bot.username}(\\s|$)`),
+			mention: new RegExp(`(?<![a-zA-Z0-9_@/])@${bot.username}(?![a-zA-Z0-9_])`),
 			send,
 			close
 		};

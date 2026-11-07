@@ -53,7 +53,7 @@
 	function detect() {
 		if (!input) return;
 		const caret = input.selectionStart ?? 0;
-		const match = /(?:^|\s)@([a-zA-Z0-9_]{0,32})$/.exec(input.value.slice(0, caret));
+		const match = /(?<![a-zA-Z0-9_@/])@([a-zA-Z0-9_]{0,32})$/.exec(input.value.slice(0, caret));
 		if (!match) return close();
 
 		const newStart = caret - match[1].length - 1;
